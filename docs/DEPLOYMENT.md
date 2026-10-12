@@ -1,61 +1,68 @@
 # Implantação
 
-Nada foi instalado em nenhuma VPS. O plano é uma stack nova e isolada, sem porta publicada, que não toca em rede, volume ou serviço existente, e que sai inteira com a remoção de uma única stack.
+A stack do CRM é isolada: banco, API, interface e cópia diária próprios, sem porta publicada, sem tocar em rede, volume ou serviço existente. Ela sai inteira com a remoção de uma única stack.
 
-## Inventário
+Situação: a stack é testada a cada envio no CI, num Docker Swarm descartável com um Traefik igual ao da VPS (`deploy/teste-stack.sh`). **Ainda não foi instalada em nenhuma VPS.** A instalação depende do inventário e da sua aprovação.
 
-Antes de qualquer instalação, o responsável roda `deploy/inventario.sh` na VPS e envia a saída. O script só lê. A sintaxe foi validada; os comandos do Docker não foram executados no ambiente de desenvolvimento, que não tem serviço Docker.
+## O que a stack contém
 
-Não enviar a saída de `docker service inspect`, variáveis de ambiente nem arquivos de stack: é neles que ficam as senhas.
+| Serviço | Imagem | Rede | Função |
+| --- | --- | --- | --- |
+| `db` | `postgres:18` | interna | Banco dedicado do CRM, volume `crmwta_db` |
+| `migrate` | imagem da API | interna | Aplica migrações, cria o papel de login da API e, na primeira vez, a empresa WTA e o superadministrador. Termina (0/1) |
+| `api` | imagem da API | interna e Traefik | API em `https://<domínio>/api` |
+| `web` | imagem da interface | interna e Traefik | Interface em `https://<domínio>` |
+| `backup` | imagem da API | interna | Cópia diária do banco às 03:30, volume `crmwta_backup` |
 
-Ainda desconhecido: CPU, memória e disco livres; versão e modo da Evolution API e para onde os webhooks das instâncias apontam; versão do n8n; se já existe Redis ou armazenamento de objetos; rotina atual de backup; regras de firewall.
+Limites de memória: banco 1,5 GB; API, interface 512 MB cada; migração e cópia 256 MB. Soma dos limites: 3 GB.
 
-## Topologia
+## Inventário (antes de instalar)
 
-Os valores de memória são estimativas para dimensionar, não medições.
+O responsável roda `deploy/inventario.sh` na VPS e envia a saída. O script só lê. Não enviar a saída de `docker service inspect`, variáveis de ambiente nem arquivos de stack: é neles que ficam as senhas.
 
-| Serviço | Rede | Volume | Memória reservada | Limite |
-| --- | --- | --- | --- | --- |
-| `web` | Traefik e interna | | 256 MB | 512 MB |
-| `api` | Traefik e interna | | 256 MB | 512 MB |
-| `worker` | Interna | | 256 MB | 768 MB |
-| `db` | Interna | `crmwta_db` | 512 MB | 1,5 GB |
-| `redis` | Interna | `crmwta_redis` | 64 MB | 256 MB |
-| `migrate` | Interna | | Termina após rodar | |
-| `backup` | Interna | `crmwta_backup` | 64 MB | 256 MB |
+Ainda desconhecido: CPU, memória e disco livres; versão e modo da Evolution API e para onde os webhooks das instâncias apontam; versão do n8n; rotina atual de backup; regras de firewall.
 
-Cerca de 1,4 GB reservados e 3,8 GB de teto. Daí o corte de 4 GB livres para decidir entre a VPS atual e uma dedicada.
+## Roteiro de instalação
 
-Regras da stack:
+Cada passo marcado com **aprovação** espera o seu sinal.
 
-- Nenhuma seção `ports`. Só `web` e `api` levam rótulos do Traefik.
-- Banco e Redis em rede overlay criada pela própria stack. A rede existente do Traefik é apenas usada, nunca recriada.
-- Serviços, rede e volumes com prefixo `crmwta`.
-- Senhas e chaves como segredos do Docker.
-- Limite de memória e de CPU em todo serviço.
-- Atualização com o contêiner novo no ar antes de parar o antigo, e retorno automático se a verificação de saúde falhar.
-- Imagens promovidas por digest: a produção recebe exatamente a imagem aprovada em homologação.
+1. **Inventário e decisão** (aprovação): VPS atual ou dedicada, endereços de produção e de homologação.
+2. **DNS**: no Cloudflare, um registro A do endereço escolhido para o IP da VPS.
+3. **Snapshot**: se for a VPS atual, um snapshot no provedor antes de começar.
+4. **Imagens**: as imagens são publicadas pelo CI no registro do GitHub quando a Fase 1 for mesclada. Se o repositório for privado, a VPS precisa de um token de leitura de pacotes.
+5. **Segredos**: na VPS, como root, `bash deploy/criar-segredos.sh`. O script cria cinco segredos e mostra **uma única vez** a chave mestra e a senha inicial do superadministrador. Guarde as duas num cofre de senhas, fora da VPS.
+6. **Stack**: no Portainer, Stacks > Add stack, nome `crmwta`, conteúdo de `deploy/stack.yml`, e as variáveis:
 
-## Sequência
+   | Variável | Exemplo | Observação |
+   | --- | --- | --- |
+   | `DOMINIO` | `crm.wtatech.com.br` | O endereço do passo 2 |
+   | `REDE_TRAEFIK` | `Wtatechor3Net` | A rede do Traefik existente, conferida no inventário |
+   | `IMAGEM_API` | `ghcr.io/gilsonalvesgwta/crm-wta-api:<versão>` | Sempre uma versão fixa, nunca `latest` |
+   | `IMAGEM_WEB` | `ghcr.io/gilsonalvesgwta/crm-wta-web:<versão>` | A mesma versão da API |
+   | `BOOTSTRAP_EMAIL` | o seu e-mail | Só na primeira implantação |
+   | `BOOTSTRAP_NAME` | o seu nome | Só na primeira implantação |
+   | `ENTRADA_TRAEFIK` | `websecure` | Opcional; é o padrão |
+   | `RESOLVEDOR_TLS` | `letsencryptresolver` | Opcional; é o padrão |
+   | `MAIL_MODE`, `SMTP_*` | | E-mails do sistema (convites, nova senha). Sem eles, os e-mails não saem |
 
-1. Inventário e análise. **Aprovação: VPS atual ou dedicada.**
-2. Endereço de homologação no DNS.
-3. Se for a VPS atual, snapshot no provedor antes da primeira instalação.
-4. Stack de homologação no Portainer, com o arquivo e a lista de segredos deste repositório.
-5. Verificação: saúde, certificado, login e suíte de fumaça.
-6. Conferência dos vizinhos: mesma lista de serviços e réplicas do inventário.
-7. Ensaio de backup, restauração e rollback em homologação.
-8. Produção, com a mesma imagem. **Aprovação e janela definidas pelo responsável.**
-9. Acompanhamento de 48 horas.
+7. **Conferência**: os serviços `db`, `api`, `web` e `backup` em 1/1, `migrate` em 0/1 com "migrate: concluído" no registro; `https://<domínio>/api/readyz` responde; o login funciona com a senha inicial.
+8. **Primeiro acesso**: entre, troque a senha e ative a verificação em duas etapas.
+9. **Vizinhos**: a mesma lista de serviços e réplicas do inventário, e o consumo dentro do esperado.
+10. **Ensaio**: cópia, restauração e retorno de versão em homologação.
+11. **Produção** (aprovação): mesma imagem, janela definida por você.
+
+## Atualização
+
+Trocar `IMAGEM_API` e `IMAGEM_WEB` para a versão nova e atualizar a stack. O contêiner novo sobe antes de o antigo parar; se a verificação de saúde falhar, o Swarm volta sozinho para a versão anterior. O serviço `migrate` roda de novo e aplica só as migrações novas.
 
 ## Reversão
 
 | Situação | Ação | Efeito nos outros sistemas |
 | --- | --- | --- |
-| A stack não sobe | Remover a stack do CRM | Nenhum |
-| Versão nova com defeito | Voltar ao digest anterior | Nenhum |
-| Migração com problema | As migrações são aditivas: a imagem anterior funciona com o esquema novo. Em último caso, restaurar o backup tirado antes | Nenhum |
-| A VPS fica pressionada | Reduzir o worker a zero e, se preciso, a stack inteira | Nenhum |
+| A stack não sobe | Remover a stack `crmwta` | Nenhum. Os volumes ficam até serem apagados de propósito |
+| Versão nova com defeito | Voltar `IMAGEM_API` e `IMAGEM_WEB` para a versão anterior | Nenhum |
+| Migração com problema | As migrações são aditivas: a imagem anterior funciona com o esquema novo. Em último caso, restaurar a cópia tirada antes | Nenhum |
+| A VPS fica pressionada | Reduzir `web` e `api` a zero | Nenhum |
 
 Remoção de coluna ou tabela nunca vai na mesma versão que deixa de usá-la.
 

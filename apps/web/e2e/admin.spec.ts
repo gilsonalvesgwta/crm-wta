@@ -77,11 +77,11 @@ test('perfis: o administrador é protegido; um perfil novo nasce de um modelo', 
   await page.getByRole('button', { name: 'Novo perfil' }).click();
   await page.getByLabel('Começar a partir de').selectOption({ label: 'Comercial' });
   await page.getByLabel('Nome do perfil').fill('Pré-vendas');
-  await page.getByLabel('Exportar negócios').selectOption({ label: 'Toda a empresa' });
+  await page.getByLabel('Exportar negócios', { exact: true }).selectOption({ label: 'Toda a empresa' });
   await page.getByRole('button', { name: 'Salvar perfil' }).click();
   await expect(page.getByRole('heading', { name: 'Pré-vendas' })).toBeVisible();
-  await expect(page.getByLabel('Ver negócios')).toHaveValue('own');
-  await expect(page.getByLabel('Exportar negócios')).toHaveValue('tenant');
+  await expect(page.getByLabel('Ver negócios', { exact: true })).toHaveValue('own');
+  await expect(page.getByLabel('Exportar negócios', { exact: true })).toHaveValue('tenant');
   await expectAccessible(page);
   await shot(page, '12-perfis');
 });

@@ -212,3 +212,30 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: .github/publicar-saida.sh ../saida-stack "$(echo "$GITHUB_REF_NAME" | tr '/' '_')__stack"
+
+  imagens:
+    name: Publicar imagens (main)
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [banco, app, stack]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Entrar no registro do GitHub
+        run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Construir e publicar
+        run: |
+          set -euo pipefail
+          versao="$(date -u +%Y.%m.%d)-$(git rev-parse --short HEAD)"
+          for alvo in api web; do
+            img="ghcr.io/${GITHUB_REPOSITORY}-${alvo}"
+            docker build --target "$alvo" -t "$img:$versao" -t "$img:main" .
+            docker push "$img:$versao"
+            docker push "$img:main"
+          done
+          echo "versão publicada: $versao" | tee -a "$GITHUB_STEP_SUMMARY"
