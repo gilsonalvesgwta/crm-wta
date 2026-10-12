@@ -1,0 +1,68 @@
+Creating network crmwta_interna
+Creating service crmwta_migrate
+Creating service crmwta_api
+Creating service crmwta_web
+Creating service crmwta_backup
+Creating service crmwta_db
+aguardando os serviços...
+crmwta_api 1/1
+crmwta_backup 0/1
+crmwta_db 1/1
+crmwta_migrate 0/1
+crmwta_web 1/1
+traefik-teste 1/1
+OK   API pronta atrás do Traefik
+OK   interface responde
+OK   login do superadministrador criado na configuração inicial
+OK   cookie de sessão
+OK   cookie marcado como Secure
+OK   sessão válida pela interface pública
+OK   página interna renderiza
+OK   nenhuma porta da stack publicada
+image crmwta-api:teste could not be accessed on a registry to record
+its digest. Each node will access crmwta-api:teste independently,
+possibly leading to different nodes running different
+versions of the image.
+
+image crmwta-api:teste could not be accessed on a registry to record
+its digest. Each node will access crmwta-api:teste independently,
+possibly leading to different nodes running different
+versions of the image.
+
+image crmwta-web:teste could not be accessed on a registry to record
+its digest. Each node will access crmwta-web:teste independently,
+possibly leading to different nodes running different
+versions of the image.
+
+image crmwta-api:teste could not be accessed on a registry to record
+its digest. Each node will access crmwta-api:teste independently,
+possibly leading to different nodes running different
+versions of the image.
+
+backup: crm-20261011-234940.dump (136K)
+OK   cópia do banco
+restaurado em crm_restaurado: 3 migrações, 1 empresas
+OK   restauração em banco novo
+OK   dados conferidos depois de restaurar
+OK   restauração recusa banco com dados
+crmwta_api 1/1
+crmwta_backup 0/1
+crmwta_db 1/1
+crmwta_migrate 0/1
+crmwta_web 1/1
+traefik-teste 1/1
+migrate| crmwta_migrate.1.s50q84f70di5@runnervmmprz5    | aguardando o banco...
+migrate| crmwta_migrate.1.s50q84f70di5@runnervmmprz5    | aguardando o banco...
+migrate| crmwta_migrate.1.s50q84f70di5@runnervmmprz5    | aguardando o banco...
+migrate| crmwta_migrate.1.s50q84f70di5@runnervmmprz5    | aguardando o banco...
+migrate| crmwta_migrate.1.s50q84f70di5@runnervmmprz5    | aguardando o banco...
+migrate| crmwta_migrate.1.s50q84f70di5@runnervmmprz5    | aguardando o banco...
+migrate| crmwta_migrate.1.s50q84f70di5@runnervmmprz5    | aguardando o banco...
+migrate| crmwta_migrate.1.s50q84f70di5@runnervmmprz5    | aguardando o banco...
+migrate| crmwta_migrate.1.s50q84f70di5@runnervmmprz5    | aplicando 0001_fundacao
+migrate| crmwta_migrate.1.s50q84f70di5@runnervmmprz5    | aplicando 0002_autenticacao
+migrate| crmwta_migrate.1.s50q84f70di5@runnervmmprz5    | aplicando 0003_nomes_unicos
+migrate| crmwta_migrate.1.s50q84f70di5@runnervmmprz5    | migrações aplicadas agora: 3
+migrate| crmwta_migrate.1.s50q84f70di5@runnervmmprz5    | papel crm_api pronto
+migrate| crmwta_migrate.1.s50q84f70di5@runnervmmprz5    | pronto: empresa 71edc879-621b-4d19-963f-7dc4b9b17464, superadministrador 567dd1ef-b1f8-4965-a588-97584b8f1c47
+migrate| crmwta_migrate.1.s50q84f70di5@runnervmmprz5    | migrate: concluído
