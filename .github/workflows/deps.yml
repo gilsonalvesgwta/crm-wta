@@ -1,0 +1,57 @@
+name: Pacote de dependências
+
+# Instala as dependências como o CI e publica node_modules (e o Node 24) no ramo
+# deps-cache, em pedaços. O ambiente de desenvolvimento não alcança o registro npm;
+# com esse pacote ele checa tipos e roda os testes localmente antes de enviar.
+
+on:
+  push:
+    branches: ['**']
+    paths: ['pnpm-lock.yaml', '**/package.json', '.github/workflows/deps.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deps-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pacote:
+    name: Pacote de dependências
+    if: github.ref != 'refs/heads/ci-saida' && github.ref != 'refs/heads/deps-cache'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Instalar
+        run: pnpm install --no-frozen-lockfile
+      - name: Empacotar
+        run: |
+          set -euo pipefail
+          out=$(mktemp -d)
+          mkdir -p "$out/node"
+          cp "$(command -v node)" "$out/node/node"
+          dirs=$(find . -name node_modules -type d -prune -not -path './.git/*')
+          tar -czf "$out/pacote.tgz" $dirs -C "$out" node
+          sha256sum pnpm-lock.yaml | cut -d' ' -f1 > "$out/lock.sha256"
+          cp pnpm-lock.yaml "$out/pnpm-lock.yaml"
+          ( cd "$out" && split -b 45m -d pacote.tgz pacote.tgz.part- && rm pacote.tgz && ls -la )
+          echo "OUT=$out" >> "$GITHUB_ENV"
+      - name: Publicar no ramo deps-cache
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd "$OUT"
+          git init -q && git checkout -q -b deps-cache
+          git config user.name ci && git config user.email ci@users.noreply.github.com
+          printf '%s\n' "ramo: $GITHUB_REF_NAME" "commit: $GITHUB_SHA" "execucao: $GITHUB_RUN_ID" > info.txt
+          git add -A && git commit -q -m "deps $GITHUB_REF_NAME $GITHUB_SHA"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:deps-cache
