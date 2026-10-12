@@ -2,4 +2,4 @@
 - Local:         http://127.0.0.1:3000
 - Network:       http://127.0.0.1:3000
 ✓ Ready in 0ms
-✓ Running next.config took 6ms
+✓ Running next.config took 8ms
