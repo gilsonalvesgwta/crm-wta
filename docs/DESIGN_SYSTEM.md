@@ -2,7 +2,7 @@
 
 A interface sai inteira de tokens. É por eles que cada empresa troca a identidade sem tocar no código.
 
-Situação em 11 de outubro de 2026: a direção abaixo foi entregue como prévia de quatro telas (login, início, caixa de entrada e Kanban) e **aguarda aprovação**. Nenhum componente foi implementado no repositório.
+Situação em 11 de outubro de 2026: a direção abaixo foi entregue como prévia de quatro telas (login, início, caixa de entrada e Kanban) e **aprovada pelo responsável pelo produto**. Os componentes ainda não foram implementados no repositório.
 
 ## Marca padrão da WTA
 
@@ -14,7 +14,7 @@ Situação em 11 de outubro de 2026: a direção abaixo foi entregue como prévi
 | Laranja para texto no claro | `#B84300` | Links e destaques sobre fundo branco, 5,5:1 |
 | Laranja para texto no escuro | `#FF8A3D` | Links e destaques sobre o azul |
 
-O logo da WTA tem a marca em laranja e a assinatura "Gestão e Automações" em branco. A versão completa só funciona sobre fundo escuro; em fundo claro usa-se só a marca. Falta o arquivo vetorial.
+O logo da WTA foi vetorizado e está em [`packages/ui/brand/wta`](../packages/ui/brand/wta/README.md): versões para fundo escuro e claro, só a marca, e ícone compacto para favicon.
 
 ## Direção visual
 

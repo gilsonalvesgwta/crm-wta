@@ -12,12 +12,13 @@ Atualizado em 11 de outubro de 2026.
 | --- | --- |
 | Base do banco: papéis, contexto de empresa, 17 tabelas de plataforma, identidade e acesso, RLS forçado, funções de sessão | `packages/db/migrations/0001_fundacao.sql`; 135 verificações aprovadas no PostgreSQL 16.15 local; 12 testes de mutação pegos (ver `docs/TEST_PLAN.md`) |
 | Aplicador de migrações com checksum e transação por arquivo | `packages/db/migrate.sh`; os testes conferem que reaplicar não muda nada |
+| Direção visual aprovada (prévia de quatro telas, temas claro, escuro e de outra empresa) | Aprovada pelo responsável em 11 de outubro de 2026 |
+| Logo da WTA vetorizado: logo completo para fundo escuro e claro, marca, ícone e favicon | `packages/ui/brand/wta`; conferido lado a lado com o original |
 
 ## Em desenvolvimento
 
 | Item | Situação |
 | --- | --- |
-| Prévia visual (login, início, caixa de entrada, Kanban; tema WTA claro e escuro; tema de outra empresa) | Entregue para aprovação. O design system só é aplicado depois do aceite |
 | CI no GitHub Actions | Testes de banco em PostgreSQL 16 e 18. Resultado da primeira execução: ver "Testes executados" |
 | API (NestJS), interface (Next.js), worker | Não iniciados |
 
@@ -44,8 +45,6 @@ Nenhum.
 
 | Item | De quem |
 | --- | --- |
-| Aprovação da prévia visual | Responsável pelo produto |
-| Logo da WTA em vetor (SVG ou PDF) | Responsável pelo produto |
 | Revisão da matriz de permissões | Responsável pelo produto |
 | Saída do inventário da VPS | Responsável pelo produto |
 | Endereço e chave da Evolution API, número de teste | Fase 4 |
@@ -69,11 +68,10 @@ Os doze riscos da Fase 0 seguem válidos. Os que pedem atenção agora:
 1. Conferir a primeira execução do CI.
 2. Criar a estrutura da API e da interface, com instalação e testes no CI.
 3. Implementar login, sessão, 2FA e seleção de empresa sobre as funções do banco.
-4. Aplicar o design system nas telas da Fase 1 depois da aprovação da prévia.
+4. Aplicar o design system aprovado nas telas da Fase 1.
 
 ## Aprovações pendentes
 
-- Prévia visual.
 - Matriz de permissões.
 - Onde instalar (depois do inventário) e endereços de produção e homologação.
 - Tornar o repositório privado.
