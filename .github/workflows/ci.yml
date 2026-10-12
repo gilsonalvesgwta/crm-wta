@@ -92,7 +92,9 @@ jobs:
         id: install
         run: |
           set -o pipefail
-          if [ -f pnpm-lock.yaml ]; then flag=--frozen-lockfile; else flag=--no-frozen-lockfile; fi
+          # No main o lockfile manda. Nos ramos de trabalho ele pode ser atualizado
+          # aqui, e a versão nova volta para o repositório pela pasta de saída.
+          if [ "$GITHUB_REF_NAME" = main ]; then flag=--frozen-lockfile; else flag=--no-frozen-lockfile; fi
           pnpm install $flag 2>&1 | tee "$SAIDA/1-instalar.txt"
           cp pnpm-lock.yaml "$SAIDA/pnpm-lock.yaml"
           pnpm -r ls --depth 0 > "$SAIDA/1-versoes.txt" 2>&1 || true
