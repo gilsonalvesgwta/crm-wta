@@ -39,7 +39,7 @@ jobs:
           mkdir -p "$out/node"
           cp "$(command -v node)" "$out/node/node"
           dirs=$(find . -name node_modules -type d -prune -not -path './.git/*')
-          tar -czf "$out/pacote.tgz" $dirs -C "$out" node
+          tar -czf "$out/pacote.tgz" $dirs -C "$out" node && rm -rf "$out/node"
           sha256sum pnpm-lock.yaml | cut -d' ' -f1 > "$out/lock.sha256"
           cp pnpm-lock.yaml "$out/pnpm-lock.yaml"
           ( cd "$out" && split -b 45m -d pacote.tgz pacote.tgz.part- && rm pacote.tgz && ls -la )
