@@ -2,7 +2,7 @@ aplicando 0001_fundacao
 aplicando 0002_autenticacao
 migrações aplicadas agora: 2
 papel crm_api pronto
-pronto: empresa 8fb92faf-14db-4444-a581-fc91858b0c8e, superadministrador 21c13bdc-82b0-49df-b7c0-3dc1a620499a
+pronto: empresa adafc520-cd13-4d77-b75b-2acb90ca0848, superadministrador f83f7109-284f-48e8-99ba-6a96df570082
 {"status":"ok","database":"ok"}
 
 Running kernel seems to be up-to-date.
@@ -22,40 +22,44 @@ No VM guests are running outdated hypervisor (qemu) binaries on this host.
 
 Running 7 tests using 1 worker
 
-  ✓  1 [chromium] › e2e/acesso.spec.ts:12:1 › a tela de login é acessível, no computador e no celular (899ms)
-  ✓  2 [chromium] › e2e/acesso.spec.ts:24:1 › senha errada mostra a mensagem e não entra (348ms)
-  ✓  3 [chromium] › e2e/acesso.spec.ts:30:1 › sem sessão, a área interna manda para o login e volta depois (699ms)
-  ✓  4 [chromium] › e2e/acesso.spec.ts:40:1 › o administrador entra e vê o aviso para ativar a verificação em duas etapas (880ms)
-  ✘  5 [chromium] › e2e/acesso.spec.ts:49:1 › convite: a pessoa cria a conta e entra (867ms)
-  -  6 [chromium] › e2e/acesso.spec.ts:72:1 › esqueci a senha: o link do e-mail cria uma senha nova
+  ✓  1 [chromium] › e2e/acesso.spec.ts:12:1 › a tela de login é acessível, no computador e no celular (595ms)
+  ✓  2 [chromium] › e2e/acesso.spec.ts:24:1 › senha errada mostra a mensagem e não entra (283ms)
+  ✓  3 [chromium] › e2e/acesso.spec.ts:30:1 › sem sessão, a área interna manda para o login e volta depois (580ms)
+  ✓  4 [chromium] › e2e/acesso.spec.ts:40:1 › o administrador entra e vê o aviso para ativar a verificação em duas etapas (607ms)
+  ✓  5 [chromium] › e2e/acesso.spec.ts:49:1 › convite: a pessoa cria a conta e entra (793ms)
+  ✘  6 [chromium] › e2e/acesso.spec.ts:72:1 › esqueci a senha: o link do e-mail cria uma senha nova (5.2s)
   -  7 [chromium] › e2e/acesso.spec.ts:98:1 › verificação em duas etapas: ativar, sair e entrar com o código
 
 
-  1) [chromium] › e2e/acesso.spec.ts:49:1 › convite: a pessoa cria a conta e entra ─────────────────
+  1) [chromium] › e2e/acesso.spec.ts:72:1 › esqueci a senha: o link do e-mail cria uma senha nova ──
 
-    Error: locator.fill: Error: strict mode violation: getByLabel('Nova senha') resolved to 2 elements:
-        1) <input value="" id="_r_2_" required="" type="password" autocomplete="new-password" aria-describedby="_r_2_-dica" class="h-11 rounded-[6px] border bg-surface px-3 text-sm text-ink placeholder:text-muted border-line-strong"/> aka getByRole('textbox', { name: 'Nova senha', exact: true })
-        2) <input value="" id="_r_3_" required="" type="password" autocomplete="new-password" class="h-11 rounded-[6px] border bg-surface px-3 text-sm text-ink placeholder:text-muted border-line-strong"/> aka getByRole('textbox', { name: 'Confirme a nova senha' })
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('Se rita@wta.test estiver cadastrado')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
 
     Call log:
-      - waiting for getByLabel('Nova senha')
+      - Expect "toBeVisible" getByText('Se rita@wta.test estiver cadastrado') with timeout 5000ms
+      - waiting for getByText('Se rita@wta.test estiver cadastrado')
 
 
-      58 |   await shot(page, '03-convite');
-      59 |   await page.getByLabel('Seu nome').fill('Rita Campos');
-    > 60 |   await page.getByLabel('Nova senha').fill('curta');
-         |                                       ^
-      61 |   await page.getByLabel('Confirme a nova senha').fill('curta');
-      62 |   await page.getByRole('button', { name: 'Criar conta e entrar' }).click();
-      63 |   await expect(page.getByText('A senha precisa ter pelo menos 10 caracteres.')).toBeVisible();
-        at /home/runner/work/crm-wta/crm-wta/apps/web/e2e/acesso.spec.ts:60:39
+      75 |   await page.getByLabel('E-mail').fill(RITA);
+      76 |   await page.getByRole('button', { name: 'Enviar link' }).click();
+    > 77 |   await expect(page.getByText(`Se ${RITA} estiver cadastrado`)).toBeVisible();
+         |                                                                 ^
+      78 |
+      79 |   const mail = lastMailTo(RITA);
+      80 |   expect(mail.subject).toContain('nova senha');
+        at /home/runner/work/crm-wta/crm-wta/apps/web/e2e/acesso.spec.ts:77:65
 
-    Error Context: test-results/acesso-convite-a-pessoa-cria-a-conta-e-entra-chromium/error-context.md
+    Error Context: test-results/acesso-esqueci-a-senha-o-link-do-e-mail-cria-uma-senha-nova-chromium/error-context.md
 
   1 failed
-    [chromium] › e2e/acesso.spec.ts:49:1 › convite: a pessoa cria a conta e entra ──────────────────
-  2 did not run
-  4 passed (4.7s)
+    [chromium] › e2e/acesso.spec.ts:72:1 › esqueci a senha: o link do e-mail cria uma senha nova ───
+  1 did not run
+  5 passed (8.7s)
 /home/runner/work/crm-wta/crm-wta/apps/web:
  ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @crm/web@ e2e: `playwright test`
 Exit status 1

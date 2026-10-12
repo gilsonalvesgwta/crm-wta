@@ -2,75 +2,202 @@
 > @crm/api@ test /home/runner/work/crm-wta/crm-wta/apps/api
 > rm -rf .test-out && tsc -p tsconfig.json --outDir .test-out && node --test --test-concurrency=1 --test-reporter=spec ".test-out/test/**/*.test.js"
 
-▶ saúde
-  ✔ healthz e readyz respondem sem login (23.922847ms)
-  ✔ rota inexistente devolve 404 no formato de problema (2.807365ms)
-  ✔ cabeçalhos de segurança (0.933253ms)
-✔ saúde (858.151276ms)
-▶ login
-  ✔ sem sessão, /me pede login (1.051633ms)
-  ✔ senha errada e e-mail desconhecido dão a mesma resposta (57.206459ms)
-  ✔ campos inválidos devolvem 422 com o campo (3.549904ms)
-  ✔ login certo grava cookie httpOnly, Secure e SameSite=Lax e entra na única empresa (42.755512ms)
-  ✔ "manter conectado" grava validade no cookie (25.375235ms)
-  ✔ o vendedor recebe só as permissões do perfil Comercial (28.538104ms)
-  ✔ mutação sem o cabeçalho anti-CSRF é recusada (28.921502ms)
-  ✔ sair encerra a sessão no servidor (29.930586ms)
-  ✔ cookie forjado não abre sessão (2.631644ms)
-  ✔ conta sem empresa ativa não entra (19.783959ms)
-✔ login (240.986174ms)
-▶ várias empresas
-  ✔ quem tem duas empresas escolhe uma depois do login (49.14925ms)
-  ✔ não entra em empresa onde não tem vínculo (32.64995ms)
-  ✔ vínculo desativado derruba a sessão naquela empresa (31.242944ms)
-✔ várias empresas (113.435754ms)
-▶ força bruta
-  ✔ cinco senhas erradas travam o e-mail por um minuto, mesmo com a senha certa (96.178232ms)
-  ✔ o bloqueio de um e-mail não atinge outro (19.616718ms)
-  ✔ cada tentativa fica registrada (0.811621ms)
-✔ força bruta (117.001244ms)
-▶ nova senha por link
-  ✔ pedir, receber o e-mail, redefinir e entrar com a senha nova (98.821038ms)
-  ✔ e-mail desconhecido recebe a mesma resposta e nenhum e-mail sai (3.657214ms)
-  ✔ o e-mail não guarda o token no banco, só o hash (1.186955ms)
-✔ nova senha por link (104.031647ms)
-▶ troca de senha
-  ✔ exige a senha atual e mantém só a sessão atual (99.835315ms)
-✔ troca de senha (100.067476ms)
-▶ verificação em duas etapas
-  ✔ configurar e ativar com um código do aplicativo (43.557186ms)
-  ✔ no próximo login, nada abre antes do código (51.438578ms)
-  ✔ código de recuperação vale uma vez (52.99993ms)
-  ✔ administrador não pode desligar a verificação (51.576634ms)
-✔ verificação em duas etapas (200.113031ms)
-▶ sessões
-  ✔ a pessoa lista e encerra as próprias sessões, e não as de outra (73.628836ms)
-✔ sessões (73.836562ms)
+▶ acesso às rotas de administração
+  ✔ administrador sem 2FA é barrado com explicação (18.694933ms)
+  ✔ vendedor não administra usuários, mas lê os dados da empresa (12.124709ms)
+  ✔ gestor vê auditoria mas não administra usuários (24.087031ms)
+✔ acesso às rotas de administração (789.42346ms)
+▶ empresa e identidade visual
+  ✔ fuso inválido é recusado; válido é salvo e auditado (9.762679ms)
+  ✔ vendedor não altera a empresa (2.695488ms)
+  ✖ cor sem contraste é recusada; cor válida gera o tema e só vale para a empresa (7.185082ms)
+✖ empresa e identidade visual (20.451188ms)
 ▶ convites
-  ✔ pessoa nova aceita, cria a conta e entra (53.557233ms)
-  ✔ quem já tem conta precisa estar logado como ela (58.613134ms)
-✔ convites (112.454865ms)
-✔ senha fraca impede a primeira configuração (727.80803ms)
-✔ cria a empresa WTA, o superadministrador e os perfis (81.065759ms)
-✔ rodar de novo não duplica nada nem troca a senha (21.898196ms)
-✔ o dono entra como administrador da WTA (77.278763ms)
-✔ HOTP confere com os vetores da RFC 4226 (3.111646ms)
-✔ TOTP confere com os vetores da RFC 6238 (0.357914ms)
-✔ verifyTotp aceita um passo de diferença e recusa dois (0.779697ms)
-✔ base32 vai e volta, e o otpauth leva o segredo (1.14227ms)
-✔ SecretBox cifra, decifra, recusa adulteração e troca de contexto (1.38456ms)
-✔ tokens e códigos de recuperação (0.783905ms)
-✔ regra de senha (0.276263ms)
-✔ bloqueio progressivo (0.197256ms)
-✔ perfis padrão respeitam o alcance de cada permissão (0.649986ms)
-✔ só o administrador tem as permissões que exigem 2FA (0.381849ms)
-✔ linhas da matriz conferidas uma a uma (0.267347ms)
-✔ união de perfis fica com o maior alcance (0.206253ms)
-ℹ tests 46
-ℹ suites 9
-ℹ pass 46
-ℹ fail 0
+  ✔ convidar envia e-mail e aparece na lista (16.278778ms)
+  ✔ reenviar invalida o link anterior (8.955219ms)
+  ✔ aceitar o convite cria a pessoa com o perfil escolhido (39.02256ms)
+  ✔ não convida quem já tem acesso (11.158452ms)
+  ✔ cancelar convite (20.280678ms)
+  ✔ perfil de outra empresa não serve para convite (7.500252ms)
+✔ convites (103.747233ms)
+▶ usuários
+  ✔ a lista mostra perfis e situação da verificação (5.042219ms)
+  ✔ ninguém desativa o próprio acesso (4.770639ms)
+  ✔ a empresa nunca fica sem administrador (27.2388ms)
+  ✔ desativar alguém derruba a sessão dele na hora (28.923567ms)
+  ✔ trocar o perfil muda as permissões (20.481774ms)
+  ✔ vínculo de outra empresa é invisível (6.744536ms)
+✔ usuários (93.556687ms)
+▶ equipes
+  ✔ criar, nomes únicos, membros e exclusão (30.771371ms)
+✔ equipes (30.935063ms)
+▶ perfis
+  ✔ o catálogo informa os alcances permitidos (2.706355ms)
+  ✖ perfil personalizado: criar, aplicar, editar, proteger e excluir (16.421649ms)
+  ✔ perfil de outra empresa é invisível (7.312796ms)
+✖ perfis (26.677756ms)
+▶ auditoria
+  ✖ lista as ações da empresa, da mais nova para a mais velha, com paginação (14.086206ms)
+  ✔ a empresa B não vê nada da A (3.669845ms)
+✖ auditoria (17.94422ms)
+▶ plataforma
+  ✔ quem não é superadministrador nem sabe que a rota existe (2.809932ms)
+  ✔ superadministrador sem 2FA é barrado (17.889471ms)
+  ✖ criar empresa prepara perfis e convida o administrador; suspender derruba o acesso (60.439932ms)
+✖ plataforma (81.441477ms)
+▶ saúde
+  ✔ healthz e readyz respondem sem login (21.009414ms)
+  ✔ rota inexistente devolve 404 no formato de problema (2.046711ms)
+  ✔ cabeçalhos de segurança (1.088977ms)
+✔ saúde (501.726125ms)
+▶ login
+  ✔ sem sessão, /me pede login (0.815767ms)
+  ✔ senha errada e e-mail desconhecido dão a mesma resposta (38.734095ms)
+  ✔ campos inválidos devolvem 422 com o campo (2.274201ms)
+  ✔ login certo grava cookie httpOnly, Secure e SameSite=Lax e entra na única empresa (27.525083ms)
+  ✔ "manter conectado" grava validade no cookie (14.451578ms)
+  ✔ o vendedor recebe só as permissões do perfil Comercial (17.930225ms)
+  ✔ mutação sem o cabeçalho anti-CSRF é recusada (19.498393ms)
+  ✔ sair encerra a sessão no servidor (19.338224ms)
+  ✔ cookie forjado não abre sessão (2.33348ms)
+  ✔ conta sem empresa ativa não entra (12.022289ms)
+✔ login (155.68105ms)
+▶ várias empresas
+  ✔ quem tem duas empresas escolhe uma depois do login (32.62845ms)
+  ✔ não entra em empresa onde não tem vínculo (22.209495ms)
+  ✔ vínculo desativado derruba a sessão naquela empresa (21.53666ms)
+✔ várias empresas (76.612603ms)
+▶ força bruta
+  ✔ cinco senhas erradas travam o e-mail por um minuto, mesmo com a senha certa (58.380935ms)
+  ✔ o bloqueio de um e-mail não atinge outro (13.981171ms)
+  ✔ cada tentativa fica registrada (0.652327ms)
+✔ força bruta (73.235689ms)
+▶ nova senha por link
+  ✔ pedir, receber o e-mail, redefinir e entrar com a senha nova (56.747849ms)
+  ✔ e-mail desconhecido recebe a mesma resposta e nenhum e-mail sai (2.087757ms)
+  ✔ o e-mail não guarda o token no banco, só o hash (0.81414ms)
+✔ nova senha por link (59.887302ms)
+▶ troca de senha
+  ✔ exige a senha atual e mantém só a sessão atual (69.280766ms)
+✔ troca de senha (69.469241ms)
+▶ verificação em duas etapas
+  ✔ configurar e ativar com um código do aplicativo (29.81743ms)
+  ✔ no próximo login, nada abre antes do código (28.043936ms)
+  ✔ código de recuperação vale uma vez (31.303747ms)
+  ✔ administrador não pode desligar a verificação (26.677447ms)
+✔ verificação em duas etapas (116.146732ms)
+▶ sessões
+  ✔ a pessoa lista e encerra as próprias sessões, e não as de outra (43.997442ms)
+✔ sessões (44.137821ms)
+▶ convites
+  ✔ pessoa nova aceita, cria a conta e entra (33.952461ms)
+  ✔ quem já tem conta precisa estar logado como ela (35.532268ms)
+✔ convites (69.676301ms)
+✔ senha fraca impede a primeira configuração (492.744808ms)
+✔ cria a empresa WTA, o superadministrador e os perfis (93.002756ms)
+✔ rodar de novo não duplica nada nem troca a senha (24.930529ms)
+✔ o dono entra como administrador da WTA (50.19646ms)
+✔ HOTP confere com os vetores da RFC 4226 (2.017698ms)
+✔ TOTP confere com os vetores da RFC 6238 (0.229509ms)
+✔ verifyTotp aceita um passo de diferença e recusa dois (0.350533ms)
+✔ base32 vai e volta, e o otpauth leva o segredo (0.767358ms)
+✔ SecretBox cifra, decifra, recusa adulteração e troca de contexto (0.813869ms)
+✔ tokens e códigos de recuperação (0.534705ms)
+✔ regra de senha (0.191022ms)
+✔ bloqueio progressivo (0.127908ms)
+✔ perfis padrão respeitam o alcance de cada permissão (0.400192ms)
+✔ só o administrador tem as permissões que exigem 2FA (3.375993ms)
+✔ linhas da matriz conferidas uma a uma (0.181106ms)
+✔ união de perfis fica com o maior alcance (0.17545ms)
+✔ contraste segue a fórmula da WCAG (0.221199ms)
+✔ o tema da WTA sai igual ao padrão (0.430265ms)
+✔ cor escura recebe texto branco; cor clara recebe texto escuro (0.402512ms)
+✔ formato inválido é recusado (0.114945ms)
+✔ toda cor válida gera tema com contraste ou é recusada com explicação (27.493122ms)
+ℹ tests 78
+ℹ suites 17
+ℹ pass 74
+ℹ fail 4
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 4020.440921
+ℹ duration_ms 4322.473161
+
+✖ failing tests:
+
+test at .test-out/test/admin.test.js:82:5
+✖ cor sem contraste é recusada; cor válida gera o tema e só vale para a empresa (7.185082ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  200 !== 422
+  
+      at TestContext.<anonymous> (file:///home/runner/work/crm-wta/crm-wta/apps/api/.test-out/test/admin.test.js:84:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 422,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at .test-out/test/admin.test.js:235:5
+✖ perfil personalizado: criar, aplicar, editar, proteger e excluir (16.421649ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  201 !== 409
+  
+      at TestContext.<anonymous> (file:///home/runner/work/crm-wta/crm-wta/apps/api/.test-out/test/admin.test.js:243:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 201,
+    expected: 409,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at .test-out/test/admin.test.js:268:5
+✖ lista as ações da empresa, da mais nova para a mais velha, com paginação (14.086206ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(roles.body.items.length >= 3)
+  
+      at TestContext.<anonymous> (file:///home/runner/work/crm-wta/crm-wta/apps/api/.test-out/test/admin.test.js:278:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Promise.all (index 0)
+      at async Suite.run (node:internal/test_runner/test:1905:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at .test-out/test/admin.test.js:296:5
+✖ criar empresa prepara perfis e convida o administrador; suspender derruba o acesso (60.439932ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  422 !== 200
+  
+      at TestContext.<anonymous> (file:///home/runner/work/crm-wta/crm-wta/apps/api/.test-out/test/admin.test.js:306:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 422,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+/home/runner/work/crm-wta/crm-wta/apps/api:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @crm/api@ test: `rm -rf .test-out && tsc -p tsconfig.json --outDir .test-out && node --test --test-concurrency=1 --test-reporter=spec ".test-out/test/**/*.test.js"`
+Exit status 1
