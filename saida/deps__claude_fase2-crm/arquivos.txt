@@ -1,0 +1,13 @@
+total 210836
+drwx------  4 runner runner     4096 Oct 12 11:49 .
+drwxrwxrwt 16 root   root       4096 Oct 12 11:48 ..
+drwxr-xr-x  7 runner runner     4096 Oct 12 11:49 .git
+-rw-r--r--  1 runner runner       94 Oct 12 11:49 info.txt
+-rw-r--r--  1 runner runner       65 Oct 12 11:49 lock.sha256
+drwxr-xr-x  2 runner runner     4096 Oct 12 11:48 node
+-rw-r--r--  1 runner runner 47185920 Oct 12 11:49 pacote.tgz.part-00
+-rw-r--r--  1 runner runner 47185920 Oct 12 11:49 pacote.tgz.part-01
+-rw-r--r--  1 runner runner 47185920 Oct 12 11:49 pacote.tgz.part-02
+-rw-r--r--  1 runner runner 47185920 Oct 12 11:49 pacote.tgz.part-03
+-rw-r--r--  1 runner runner 27047649 Oct 12 11:49 pacote.tgz.part-04
+-rw-r--r--  1 runner runner    75485 Oct 12 11:49 pnpm-lock.yaml

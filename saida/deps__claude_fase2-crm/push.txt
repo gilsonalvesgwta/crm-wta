@@ -1,0 +1,7 @@
+remote: error: Trace: 31d8db09ac781dd37e7551280bfeb5e5f7dc779456a1b519b43065deef6d487f        
+remote: error: See https://gh.io/lfs for more information.        
+remote: error: File node/node is 120.73 MB; this exceeds GitHub's file size limit of 100.00 MB        
+remote: error: GH001: Large files detected. You may want to try Git Large File Storage - https://git-lfs.github.com.        
+To https://github.com/gilsonalvesgwta/crm-wta.git
+ ! [remote rejected] HEAD -> deps-cache (pre-receive hook declined)
+error: failed to push some refs to 'https://github.com/gilsonalvesgwta/crm-wta.git'
