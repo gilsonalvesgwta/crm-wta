@@ -37,9 +37,7 @@ Camada de aplicação, Fase 1, conferida por `apps/api/test` e `apps/web/e2e`:
 | Limite de taxa geral | Por IP, usuário e chave de API, com Redis | 3 |
 | Credenciais de integrações | AES-256-GCM; chave mestra em segredo do Docker, fora do banco, com identificador para rotação | 3 |
 | Arquivos | Tipo conferido pelo conteúdo, limite de tamanho, nome aleatório, URL assinada de curta duração | 2 |
-| Logs | Estruturados, com empresa, ator e requisição; sem corpo de mensagem nem segredo | 1 |
 | Webhooks | Assinatura HMAC na saída; token e segredo na entrada | 3 e 4 |
-| Dependências | Verificação de falhas conhecidas no CI | 1 |
 
 ## LGPD
 
