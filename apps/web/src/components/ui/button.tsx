@@ -1,4 +1,6 @@
+'use client';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { useHydrated } from '@/lib/use-hydrated';
 import { Spinner } from './spinner';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -13,11 +15,12 @@ const styles: Record<Variant, string> = {
 export function Button({
   variant = 'primary', loading = false, size = 'md', className = '', children, disabled, ...rest
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; loading?: boolean; size?: 'md' | 'lg'; children: ReactNode }) {
+  const hydrated = useHydrated();
   const h = size === 'lg' ? 'h-[46px] text-[15px] px-4' : 'h-10 text-sm px-3.5';
   return (
     <button
       {...rest}
-      disabled={disabled || loading}
+      disabled={disabled || loading || !hydrated}
       aria-busy={loading || undefined}
       className={`inline-flex items-center justify-center gap-2 rounded-[6px] transition-[filter,background-color] duration-150 disabled:opacity-60 disabled:cursor-not-allowed ${h} ${styles[variant]} ${className}`}
     >

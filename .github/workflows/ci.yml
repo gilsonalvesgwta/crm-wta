@@ -99,6 +99,9 @@ jobs:
           cp pnpm-lock.yaml "$SAIDA/pnpm-lock.yaml"
           pnpm -r ls --depth 0 > "$SAIDA/1-versoes.txt" 2>&1 || true
 
+      - name: Cópias sincronizadas
+        run: diff <(tail -n +2 apps/web/src/lib/theme-build.ts) apps/api/src/domain/theme.ts
+
       - name: Checar tipos
         id: typecheck
         if: always() && steps.install.outcome == 'success'

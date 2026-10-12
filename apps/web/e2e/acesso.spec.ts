@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import {
-  ADMIN_EMAIL, ADMIN_PASSWORD, alertBox, expectAccessible, lastMailTo, linkFrom, login, sha256Hex, shot, sql, totp,
+  ADMIN_EMAIL, ADMIN_PASSWORD, alertBox, expectAccessible, saveAdminSecret, lastMailTo, linkFrom, login, sha256Hex, shot, sql, totp,
 } from './util';
 
 const RITA = 'rita@wta.test';
@@ -100,6 +100,7 @@ test('verificação em duas etapas: ativar, sair e entrar com o código', async 
   await page.goto('/conta');
   await page.getByRole('button', { name: 'Configurar' }).click();
   const secret = (await page.locator('code').innerText()).replace(/\s/g, '');
+  saveAdminSecret(secret);
   await shot(page, '04-dois-fatores');
   await page.getByLabel('Código de 6 dígitos').fill(totp(secret));
   await page.getByRole('button', { name: 'Ativar' }).click();

@@ -16,7 +16,7 @@
   --primary-fg: #051628;
   --accent: #B84300;
   --accent-soft: #FFF0E5;
-  --focus: #FF6600;
+  --focus: #B84300;
   --side: #051628;
   --side-text: #C4D0E0;
   --side-muted: #7F93AD;
@@ -45,6 +45,7 @@
   --text-muted: #9DB0C8;
   --accent: #FF8A3D;
   --accent-soft: #3B2410;
+  --focus: #FF8A3D;
   --side: #03101D;
   --ok: #5BD9A0;
   --ok-soft: #0F3A2A;

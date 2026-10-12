@@ -1,5 +1,5 @@
 import { createHash, createHmac } from 'node:crypto';
-import { readdirSync, readFileSync, mkdirSync } from 'node:fs';
+import { readdirSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import AxeBuilder from '@axe-core/playwright';
@@ -75,4 +75,19 @@ export async function login(page: Page, email: string, password: string): Promis
 /** Avisos da página (o anunciador de rotas do Next também usa role="alert"). */
 export function alertBox(page: Page) {
   return page.locator('[role="alert"]:not(#__next-route-announcer__)');
+}
+
+const SECRET_FILE = path.join(process.env.MAIL_DIR ?? '/tmp/crm-mail', '..', 'e2e-admin-totp.txt');
+export function saveAdminSecret(secret: string): void {
+  writeFileSync(SECRET_FILE, secret);
+}
+
+/** Entra como o administrador, que já tem a verificação em duas etapas ativa. */
+export async function loginAdmin(page: Page): Promise<void> {
+  const secret = readFileSync(SECRET_FILE, 'utf8').trim();
+  await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+  await expect(page).toHaveURL(/\/entrar\/verificacao/);
+  await page.getByLabel('Código de 6 dígitos').fill(totp(secret));
+  await page.getByRole('button', { name: 'Confirmar' }).click();
+  await expect(page.getByRole('heading', { name: /^Olá,/ })).toBeVisible();
 }

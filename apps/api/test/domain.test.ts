@@ -161,6 +161,11 @@ test('cor escura recebe texto branco; cor clara recebe texto escuro', () => {
   assert.ok('theme' in light && light.theme.primaryForeground === '#051628');
 });
 
+test('cor quase branca serve no tema escuro, mas não no claro', () => {
+  assert.ok('problems' in buildTheme({ primary: '#F5F5F5', mode: 'light' }));
+  assert.ok('theme' in buildTheme({ primary: '#F5F5F5', mode: 'dark' }));
+});
+
 test('formato inválido é recusado', () => {
   for (const bad of ['FF6600', '#FFF', 'laranja', '#GG0000']) {
     const r = buildTheme({ primary: bad });
@@ -173,6 +178,7 @@ test('toda cor válida gera tema com contraste ou é recusada com explicação',
     const hex = '#' + [i >> 8, (i >> 4) & 15, i & 15].map((n) => (n * 17).toString(16).padStart(2, '0')).join('');
     const r = buildTheme({ primary: hex });
     if ('theme' in r) {
+      assert.ok(contrast(r.theme.primary, '#FFFFFF') >= 1.5, `${hex} some no fundo claro`);
       assert.ok(contrast(r.theme.primaryForeground, r.theme.primary) >= 4.5, hex);
       assert.ok(contrast(r.theme.accentOnLight, '#FFFFFF') >= 4.5, hex);
       assert.ok(contrast(r.theme.accentOnDark, '#0B2038') >= 4.5, hex);

@@ -85,9 +85,12 @@ export function buildTheme(input: ThemeInput): { theme: Theme } | { problems: Th
       message: 'Nenhum texto fica legível sobre essa cor. Escolha um tom mais claro ou mais escuro.',
     });
   }
-  // Controles (bordas de foco, ícones) precisam de 3:1 contra a superfície clara ou escura.
-  if (contrast(primary, SURFACE_LIGHT) < 3 && contrast(primary, SURFACE_DARK) < 3) {
-    problems.push({ field: 'primary', message: 'Essa cor some contra o fundo. Escolha um tom com mais contraste.' });
+  // O botão se identifica pelo texto, que já tem 4,5:1. A cor ainda precisa se
+  // distinguir do fundo do tema escolhido, ou a marca desaparece. O foco usa a
+  // cor de destaque derivada, que tem 4,5:1.
+  const surface = (input.mode ?? 'light') === 'dark' ? SURFACE_DARK : SURFACE_LIGHT;
+  if (contrast(primary, surface) < 1.5) {
+    problems.push({ field: 'primary', message: 'Essa cor quase não aparece contra o fundo. Escolha um tom com mais contraste.' });
   }
   if (problems.length) return { problems };
   const accentOnLight = adjustFor(primary, SURFACE_LIGHT, 4.5, -1)!;

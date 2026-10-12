@@ -354,8 +354,8 @@ describe('plataforma', () => {
 
     const token = tokenFromMail(mailer.sent.at(-1)!.text);
     const d = new Browser(app, '10.22.0.1');
-    assert.equal((await d.post('/api/v1/auth/invitations/accept', { token, name: 'Diretora', password: 'senha da diretora 2026' })).status, 200);
-    await d.login('diretora@aurora.test', 'senha da diretora 2026');
+    assert.equal((await d.post('/api/v1/auth/invitations/accept', { token, name: 'Diretora', password: 'senha forte da clinica 2026' })).status, 200);
+    await d.login('diretora@aurora.test', 'senha forte da clinica 2026');
     const me = await d.get('/api/v1/auth/me');
     assert.equal(me.body.tenantId, c.body.id);
     assert.equal(me.body.permissions['users:admin'], 'tenant');
@@ -366,6 +366,6 @@ describe('plataforma', () => {
     const s = await p.req('PATCH', `/api/v1/platform/tenants/${c.body.id}`, { status: 'suspended' });
     assert.equal(s.status, 200);
     assert.equal((await d.get('/api/v1/auth/me')).status, 401, 'empresa suspensa derruba a sessão');
-    assert.equal((await d.login('diretora@aurora.test', 'senha da diretora 2026')).status, 403);
+    assert.equal((await d.login('diretora@aurora.test', 'senha forte da clinica 2026')).status, 403);
   });
 });
