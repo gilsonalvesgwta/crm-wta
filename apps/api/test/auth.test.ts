@@ -372,10 +372,10 @@ describe('convites', () => {
     assert.equal(info.body.userExists, false);
 
     assert.equal((await b.post('/api/v1/auth/invitations/accept', { token, name: 'Nova', password: 'curta' })).status, 422);
-    const r = await b.post('/api/v1/auth/invitations/accept', { token, name: 'Nova Pessoa', password: 'senha da pessoa nova' });
+    const r = await b.post('/api/v1/auth/invitations/accept', { token, name: 'Nova Pessoa', password: 'minha senha comprida' });
     assert.equal(r.status, 200);
     assert.equal(r.body.createdUser, true);
-    assert.equal((await b.login('nova@a.test', 'senha da pessoa nova')).status, 200);
+    assert.equal((await b.login('nova@a.test', 'minha senha comprida')).status, 200);
     const me = await b.get('/api/v1/auth/me');
     assert.equal(me.body.permissions['campaigns:edit'], 'tenant', 'perfil Marketing aplicado');
     assert.equal((await b.get(`/api/v1/auth/invitations/${token}`)).status, 404, 'convite usado não vale mais');

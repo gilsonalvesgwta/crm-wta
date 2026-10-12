@@ -21,7 +21,7 @@ const env = () => ({
   ADMIN_DATABASE_URL: f.adminUrl,
   BOOTSTRAP_EMAIL: 'Dono@WTA.test',
   BOOTSTRAP_NAME: 'Dono da WTA',
-  BOOTSTRAP_PASSWORD: 'senha inicial do dono 2026',
+  BOOTSTRAP_PASSWORD: 'senha inicial forte 2026',
 });
 
 test('senha fraca impede a primeira configuração', async () => {
@@ -54,7 +54,7 @@ test('rodar de novo não duplica nada nem troca a senha', async () => {
 
 test('o dono entra como administrador da WTA', async () => {
   const b = new Browser(app);
-  const r = await b.login('dono@wta.test', 'senha inicial do dono 2026');
+  const r = await b.login('dono@wta.test', 'senha inicial forte 2026');
   assert.equal(r.status, 200);
   const me = await b.get('/api/v1/auth/me');
   assert.equal(me.body.user.isPlatformAdmin, true);
