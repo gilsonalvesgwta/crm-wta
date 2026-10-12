@@ -5,5 +5,5 @@
 Scope: 2 of 3 workspace projects
 apps/api typecheck$ tsc -p tsconfig.json --noEmit
 apps/web typecheck$ tsc --noEmit
-apps/api typecheck: Done
 apps/web typecheck: Done
+apps/api typecheck: Done
