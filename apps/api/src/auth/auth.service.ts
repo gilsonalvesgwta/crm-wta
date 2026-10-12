@@ -264,14 +264,14 @@ export class AuthService {
   // ---- Convites -----------------------------------------------------------------
 
   async createInvitation(
-    q: Q, actor: Actor, tenantId: string, email: string, roleId: string | null,
+    q: Q, tenantId: string, email: string, roleId: string | null, invitedBy: string | null,
   ): Promise<{ id: string; token: string; expiresAt: Date }> {
     const token = newToken();
     const expiresAt = new Date(Date.now() + INVITE_DAYS * 86_400_000);
     const r = await q.query<{ id: string }>(
       `insert into invitations (tenant_id, email, role_id, token_hash, invited_by, expires_at)
        values ($1, $2, $3, $4, $5, $6) returning id`,
-      [tenantId, email, roleId, tokenHash(token), actor.membershipId, expiresAt]);
+      [tenantId, email, roleId, tokenHash(token), invitedBy, expiresAt]);
     return { id: r.rows[0]!.id, token, expiresAt };
   }
 

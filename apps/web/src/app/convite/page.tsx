@@ -19,7 +19,7 @@ function Invite() {
   const [me, setMe] = useState<Me | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [name, setName] = useState('');
-  const pw = useNewPassword();
+  const pw = useNewPassword({ password: 'Crie uma senha', confirm: 'Confirme a senha' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
 

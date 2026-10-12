@@ -136,3 +136,48 @@ test('união de perfis fica com o maior alcance', () => {
   assert.ok(!scopeCovers('own', 'team'));
   assert.ok(!scopeCovers(undefined, 'own'));
 });
+
+import { DEFAULT_THEME, buildTheme, contrast } from '../src/domain/theme.js';
+
+test('contraste segue a fórmula da WCAG', () => {
+  assert.equal(Math.round(contrast('#000000', '#FFFFFF') * 10) / 10, 21);
+  assert.equal(contrast('#777777', '#777777'), 1);
+  assert.ok(contrast('#051628', '#FF6600') >= 4.5);
+  assert.ok(contrast('#FFFFFF', '#FF6600') < 3);
+});
+
+test('o tema da WTA sai igual ao padrão', () => {
+  const r = buildTheme({ primary: '#ff6600' });
+  assert.ok('theme' in r);
+  assert.equal(r.theme.primaryForeground, DEFAULT_THEME.primaryForeground);
+  assert.ok(contrast(r.theme.accentOnLight, '#FFFFFF') >= 4.5);
+  assert.ok(contrast(r.theme.accentOnDark, '#0B2038') >= 4.5);
+});
+
+test('cor escura recebe texto branco; cor clara recebe texto escuro', () => {
+  const dark = buildTheme({ primary: '#0F766E' });
+  assert.ok('theme' in dark && dark.theme.primaryForeground === '#FFFFFF');
+  const light = buildTheme({ primary: '#FACC15' });
+  assert.ok('theme' in light && light.theme.primaryForeground === '#051628');
+});
+
+test('formato inválido é recusado', () => {
+  for (const bad of ['FF6600', '#FFF', 'laranja', '#GG0000']) {
+    const r = buildTheme({ primary: bad });
+    assert.ok('problems' in r, bad);
+  }
+});
+
+test('toda cor válida gera tema com contraste ou é recusada com explicação', () => {
+  for (let i = 0; i < 4096; i += 7) {
+    const hex = '#' + [i >> 8, (i >> 4) & 15, i & 15].map((n) => (n * 17).toString(16).padStart(2, '0')).join('');
+    const r = buildTheme({ primary: hex });
+    if ('theme' in r) {
+      assert.ok(contrast(r.theme.primaryForeground, r.theme.primary) >= 4.5, hex);
+      assert.ok(contrast(r.theme.accentOnLight, '#FFFFFF') >= 4.5, hex);
+      assert.ok(contrast(r.theme.accentOnDark, '#0B2038') >= 4.5, hex);
+    } else {
+      assert.ok(r.problems.length > 0, hex);
+    }
+  }
+});

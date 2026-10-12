@@ -57,13 +57,13 @@ test('convite: a pessoa cria a conta e entra', async ({ page }) => {
   await expectAccessible(page);
   await shot(page, '03-convite');
   await page.getByLabel('Seu nome').fill('Rita Campos');
-  await page.getByLabel('Nova senha').fill('curta');
-  await page.getByLabel('Confirme a nova senha').fill('curta');
+  await page.getByLabel('Crie uma senha').fill('curta');
+  await page.getByLabel('Confirme a senha').fill('curta');
   await page.getByRole('button', { name: 'Criar conta e entrar' }).click();
   await expect(page.getByText('A senha precisa ter pelo menos 10 caracteres.')).toBeVisible();
 
-  await page.getByLabel('Nova senha').fill(RITA_PASSWORD);
-  await page.getByLabel('Confirme a nova senha').fill(RITA_PASSWORD);
+  await page.getByLabel('Crie uma senha').fill(RITA_PASSWORD);
+  await page.getByLabel('Confirme a senha').fill(RITA_PASSWORD);
   await page.getByRole('button', { name: 'Criar conta e entrar' }).click();
   await expect(page.getByRole('heading', { name: 'Olá, Rita' })).toBeVisible();
   await expect(page.getByText('Ative a verificação em duas etapas para abrir as configurações.')).toHaveCount(0);
@@ -80,7 +80,7 @@ test('esqueci a senha: o link do e-mail cria uma senha nova', async ({ page }) =
   expect(mail.subject).toContain('nova senha');
   await page.goto(linkFrom(mail.text));
   await expectAccessible(page);
-  await page.getByLabel('Nova senha').fill('senha redefinida pelo link');
+  await page.getByLabel('Nova senha', { exact: true }).fill('senha redefinida pelo link');
   await page.getByLabel('Confirme a nova senha').fill('senha redefinida pelo link');
   await page.getByRole('button', { name: 'Salvar nova senha' }).click();
   await expect(page.getByText('Senha redefinida. Entre com a senha nova.')).toBeVisible();
@@ -89,7 +89,7 @@ test('esqueci a senha: o link do e-mail cria uma senha nova', async ({ page }) =
   await expect(page.getByRole('heading', { name: 'Olá, Rita' })).toBeVisible();
 
   await page.goto(linkFrom(mail.text));
-  await page.getByLabel('Nova senha').fill('outra senha qualquer longa');
+  await page.getByLabel('Nova senha', { exact: true }).fill('outra senha qualquer longa');
   await page.getByLabel('Confirme a nova senha').fill('outra senha qualquer longa');
   await page.getByRole('button', { name: 'Salvar nova senha' }).click();
   await expect(page.getByText('Este link não vale mais. Peça um novo.')).toBeVisible();
