@@ -54,4 +54,12 @@ jobs:
           git config user.name ci && git config user.email ci@users.noreply.github.com
           printf '%s\n' "ramo: $GITHUB_REF_NAME" "commit: $GITHUB_SHA" "execucao: $GITHUB_RUN_ID" > info.txt
           git add -A && git commit -q -m "deps $GITHUB_REF_NAME $GITHUB_SHA"
-          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:deps-cache
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:deps-cache > "$RUNNER_TEMP/push.txt" 2>&1 || { cat "$RUNNER_TEMP/push.txt"; exit 1; }
+      - name: Registro da publicação
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/s" && cp "$RUNNER_TEMP/push.txt" "$RUNNER_TEMP/s/" 2>/dev/null || true
+          ls -la "$OUT" > "$RUNNER_TEMP/s/arquivos.txt" 2>&1 || true
+          bash .github/publicar-saida.sh "$RUNNER_TEMP/s" "deps__$(echo "$GITHUB_REF_NAME" | tr '/' '_')"

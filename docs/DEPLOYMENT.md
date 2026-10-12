@@ -45,6 +45,18 @@ Cada passo marcado com **aprovação** espera o seu sinal.
    | `RESOLVEDOR_TLS` | `letsencryptresolver` | Opcional; é o padrão |
    | `MAIL_MODE`, `SMTP_*` | | E-mails do sistema (convites, nova senha). Sem eles, os e-mails não saem |
 
+   E-mail do sistema pela Hostinger (caixa definida pelo responsável em 12 out 2026):
+
+   | Variável | Valor |
+   | --- | --- |
+   | `MAIL_MODE` | `smtp` |
+   | `SMTP_HOST` | `smtp.hostinger.com` |
+   | `SMTP_PORT` | `465` (TLS desde a conexão) |
+   | `SMTP_USER` | o endereço completo da caixa |
+   | `SMTP_FROM` | `Nome <mesmo endereço da caixa>`; a Hostinger recusa remetente diferente da caixa autenticada |
+
+   A senha da caixa não vai em variável: é o segredo `crmwta_smtp_pass`, pedido por `deploy/criar-segredos.sh`. Para que os e-mails não caiam no spam, o domínio precisa dos registros SPF, DKIM e DMARC que a Hostinger indica no painel do e-mail.
+
 7. **Conferência**: os serviços `db`, `api`, `web` e `backup` em 1/1, `migrate` em 0/1 com "migrate: concluído" no registro; `https://<domínio>/api/readyz` responde; o login funciona com a senha inicial.
 8. **Primeiro acesso**: entre, troque a senha e ative a verificação em duas etapas.
 9. **Vizinhos**: a mesma lista de serviços e réplicas do inventário, e o consumo dentro do esperado.

@@ -26,6 +26,12 @@ if ! docker secret inspect crmwta_master_keys >/dev/null 2>&1; then
 else
   echo "já existe: crmwta_master_keys"
 fi
+if ! docker secret inspect crmwta_smtp_pass >/dev/null 2>&1; then
+  if [[ -z "${SMTP_PASS:-}" && -t 0 ]]; then
+    read -r -s -p "Senha da caixa de e-mail do sistema (Enter para configurar depois): " SMTP_PASS
+    echo
+  fi
+fi
 criar crmwta_smtp_pass "${SMTP_PASS:-nao-configurado}"
 if ! docker secret inspect crmwta_bootstrap_password >/dev/null 2>&1; then
   inicial="$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-20)"
