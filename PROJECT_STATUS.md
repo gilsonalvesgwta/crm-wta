@@ -19,7 +19,6 @@ Atualizado em 11 de outubro de 2026.
 
 | Item | Situação |
 | --- | --- |
-| CI no GitHub Actions | Testes de banco em PostgreSQL 16 e 18. Resultado da primeira execução: ver "Testes executados" |
 | API (NestJS), interface (Next.js), worker | Não iniciados |
 
 ## Testes executados
@@ -28,7 +27,7 @@ Atualizado em 11 de outubro de 2026.
 | --- | --- | --- | --- |
 | 2026-10-11 | PostgreSQL 16.15 local | `packages/db/tests/run.sh` | 135 verificações aprovadas |
 | 2026-10-11 | PostgreSQL 16.15 local | 12 testes de mutação | Os 12 pegos |
-| 2026-10-11 | GitHub Actions, PostgreSQL 16 e 18 | `packages/db/tests/run.sh` | Aguardando a primeira execução |
+| 2026-10-11 | GitHub Actions, PostgreSQL 16 e 18 | `packages/db/tests/run.sh` | Aprovado nas duas versões (execução 38193562249) |
 
 ## Bugs conhecidos
 
@@ -65,10 +64,9 @@ Os doze riscos da Fase 0 seguem válidos. Os que pedem atenção agora:
 
 ## Próximas ações
 
-1. Conferir a primeira execução do CI.
-2. Criar a estrutura da API e da interface, com instalação e testes no CI.
-3. Implementar login, sessão, 2FA e seleção de empresa sobre as funções do banco.
-4. Aplicar o design system aprovado nas telas da Fase 1.
+1. Criar a estrutura da API e da interface, com instalação e testes no CI.
+2. Implementar login, sessão, 2FA e seleção de empresa sobre as funções do banco.
+3. Aplicar o design system aprovado nas telas da Fase 1.
 
 ## Aprovações pendentes
 
