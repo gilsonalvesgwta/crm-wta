@@ -1,4 +1,7 @@
 import { Logger } from '@nestjs/common';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 import nodemailer, { type Transporter } from 'nodemailer';
 import { CONFIG, type Config } from '../config.js';
 
@@ -42,7 +45,18 @@ export class LogMailer implements Mailer {
   }
 }
 
+/** Para testes de ponta a ponta: cada e-mail vira um arquivo JSON. */
+export class FileMailer implements Mailer {
+  constructor(private readonly dir: string) {
+    mkdirSync(dir, { recursive: true });
+  }
+  async send(mail: Mail): Promise<void> {
+    writeFileSync(path.join(this.dir, `${Date.now()}-${randomUUID()}.json`), JSON.stringify(mail));
+  }
+}
+
 export function createMailer(cfg: Config): Mailer {
+  if (cfg.MAIL_MODE === 'file') return new FileMailer(cfg.MAIL_DIR!);
   if (cfg.MAIL_MODE === 'smtp') return new SmtpMailer(cfg);
   if (cfg.MAIL_MODE === 'memory') return new MemoryMailer();
   return new LogMailer();

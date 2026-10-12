@@ -18,7 +18,9 @@ const schema = z.object({
   MASTER_KEYS: z.string().min(1),
   COOKIE_SECURE: bool,
   TRUST_PROXY: bool,
-  MAIL_MODE: z.enum(['smtp', 'memory', 'log']).default('log'),
+  MAIL_MODE: z.enum(['smtp', 'memory', 'log', 'file']).default('log'),
+  /** Com MAIL_MODE=file, cada e-mail vira um arquivo JSON nesta pasta (testes de ponta a ponta). */
+  MAIL_DIR: z.string().optional(),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().default(587),
   SMTP_USER: z.string().optional(),
@@ -50,6 +52,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     masterKeys[n] = key;
     currentKey = n;
   }
+  if (cfg.MAIL_MODE === 'file' && !cfg.MAIL_DIR) throw new Error('MAIL_MODE=file exige MAIL_DIR');
+  if (cfg.MAIL_MODE === 'file' && cfg.NODE_ENV === 'production') throw new Error('MAIL_MODE=file não é permitido em produção');
   if (cfg.MAIL_MODE === 'smtp' && (!cfg.SMTP_HOST || !cfg.SMTP_FROM)) {
     throw new Error('MAIL_MODE=smtp exige SMTP_HOST e SMTP_FROM');
   }

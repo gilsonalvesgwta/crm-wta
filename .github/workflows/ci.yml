@@ -120,6 +120,42 @@ jobs:
           set -o pipefail
           pnpm build 2>&1 | tee "$SAIDA/4-compilar.txt"
 
+      - name: Testes de ponta a ponta
+        id: e2e
+        if: always() && steps.build.outcome == 'success'
+        env:
+          E2E_ADMIN_DATABASE_URL: postgres://postgres:postgres@localhost:5432/crm_e2e
+          MAIL_DIR: /tmp/crm-mail
+          E2E_SHOTS: ${{ github.workspace }}/../saida/telas
+        run: |
+          set -o pipefail
+          {
+            psql "$ADMIN_URL" -X -q -c 'create database crm_e2e'
+            DATABASE_URL="$E2E_ADMIN_DATABASE_URL" API_DB_PASSWORD=senha-e2e packages/db/migrate.sh
+            ADMIN_DATABASE_URL="$E2E_ADMIN_DATABASE_URL" BOOTSTRAP_EMAIL=dono@wta.test BOOTSTRAP_NAME='Gilson Alves' \
+              BOOTSTRAP_PASSWORD='senha inicial forte 2026' node apps/api/dist/cli/bootstrap.js
+
+            DATABASE_URL=postgres://crm_api:senha-e2e@localhost:5432/crm_e2e \
+            APP_URL=http://localhost:3000 MASTER_KEYS="1:$(openssl rand -base64 32)" \
+            MAIL_MODE=file MAIL_DIR=/tmp/crm-mail TRUST_PROXY=true COOKIE_SECURE=false LOG_LEVEL=warn PORT=3001 \
+              nohup node apps/api/dist/main.js > "$SAIDA/6-api-servidor.txt" 2>&1 &
+
+            W=apps/web/.next/standalone/apps/web
+            cp -r apps/web/.next/static "$W/.next/static"
+            cp -r apps/web/public "$W/public"
+            API_INTERNAL_URL=http://localhost:3001 PORT=3000 HOSTNAME=127.0.0.1 \
+              nohup node "$W/server.js" > "$SAIDA/6-web-servidor.txt" 2>&1 &
+
+            for i in $(seq 1 60); do
+              curl -fsS http://localhost:3001/api/readyz >/dev/null 2>&1 && curl -fsS -o /dev/null http://localhost:3000/entrar && break
+              sleep 1
+            done
+            curl -fsS http://localhost:3000/api/readyz
+            echo
+            pnpm --filter @crm/web exec playwright install --with-deps chromium > /dev/null
+            pnpm --filter @crm/web e2e
+          } 2>&1 | tee "$SAIDA/6-ponta-a-ponta.txt"
+
       - name: Auditoria de dependências
         if: always() && steps.install.outcome == 'success'
         run: pnpm audit --prod > "$SAIDA/5-auditoria.txt" 2>&1 || true
@@ -132,6 +168,7 @@ jobs:
             echo "tipos: ${{ steps.typecheck.outcome }}"
             echo "testes-api: ${{ steps.test.outcome }}"
             echo "compilar: ${{ steps.build.outcome }}"
+            echo "ponta-a-ponta: ${{ steps.e2e.outcome }}"
             echo "fim: $(date -u +%FT%TZ)"
           } > "$SAIDA/00-resumo.txt"
           cat "$SAIDA/00-resumo.txt"

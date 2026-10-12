@@ -1,0 +1,100 @@
+@import "tailwindcss";
+
+/*
+ * Tokens semânticos. Os componentes só usam estes nomes; o tema de cada empresa
+ * sobrescreve os valores no primeiro HTML, sem mudar o código.
+ */
+:root {
+  --bg: #F3F5F8;
+  --surface: #FFFFFF;
+  --surface-2: #F6F8FA;
+  --border: #DCE2EA;
+  --border-strong: #8894A6;
+  --text: #051628;
+  --text-muted: #55657A;
+  --primary: #FF6600;
+  --primary-fg: #051628;
+  --accent: #B84300;
+  --accent-soft: #FFF0E5;
+  --focus: #FF6600;
+  --side: #051628;
+  --side-text: #C4D0E0;
+  --side-muted: #7F93AD;
+  --side-active: #12304F;
+  --side-active-text: #FFFFFF;
+  --side-border: #12304F;
+  --side-mark: #FF6600;
+  --ok: #0B6E46;
+  --ok-soft: #E1F4EA;
+  --warn: #7A4F00;
+  --warn-soft: #FFF1CC;
+  --bad: #B42318;
+  --bad-soft: #FDE8E5;
+  --info: #1D4ED8;
+  --info-soft: #E7EEFF;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #051628;
+  --surface: #0B2038;
+  --surface-2: #0F2944;
+  --border: #1E3B5C;
+  --border-strong: #5F7896;
+  --text: #EAF0F7;
+  --text-muted: #9DB0C8;
+  --accent: #FF8A3D;
+  --accent-soft: #3B2410;
+  --side: #03101D;
+  --ok: #5BD9A0;
+  --ok-soft: #0F3A2A;
+  --warn: #F5C451;
+  --warn-soft: #3A2E0C;
+  --bad: #FF9A90;
+  --bad-soft: #4A1A16;
+  --info: #9DBEFF;
+  --info-soft: #142C57;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-ink: var(--text);
+  --color-muted: var(--text-muted);
+  --color-primary: var(--primary);
+  --color-primary-fg: var(--primary-fg);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-side: var(--side);
+  --color-side-text: var(--side-text);
+  --color-side-muted: var(--side-muted);
+  --color-side-active: var(--side-active);
+  --color-side-active-text: var(--side-active-text);
+  --color-side-border: var(--side-border);
+  --color-side-mark: var(--side-mark);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --radius-control: 6px;
+  --radius-panel: 10px;
+}
+
+html, body { background: var(--bg); color: var(--text); }
+body { font-family: var(--font-sans); font-size: 14px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
