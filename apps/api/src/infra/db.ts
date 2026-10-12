@@ -44,11 +44,16 @@ export class Db implements OnModuleDestroy {
     return this.tx('crm_platform', { tenantId: null, userId }, fn);
   }
 
+  /** Transação do despachante: escolhe itens entre empresas, só pelas funções do banco. */
+  dispatch<T>(fn: (q: Q) => Promise<T>): Promise<T> {
+    return this.tx('crm_dispatch', { tenantId: null, userId: null }, fn);
+  }
+
   async ping(): Promise<void> {
     await this.pool.query('select 1');
   }
 
-  private async tx<T>(role: 'crm_app' | 'crm_platform', ctx: TenantCtx, fn: (q: Q) => Promise<T>): Promise<T> {
+  private async tx<T>(role: 'crm_app' | 'crm_platform' | 'crm_dispatch', ctx: TenantCtx, fn: (q: Q) => Promise<T>): Promise<T> {
     const client = await this.pool.connect();
     try {
       await client.query('begin');

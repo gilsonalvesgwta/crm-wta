@@ -7,6 +7,11 @@
 #
 # Nenhuma porta é publicada. Só "web" e "api" entram na rede do Traefik.
 # Banco e backup ficam na rede interna da própria stack.
+#
+# Rótulos do Traefik: o Traefik da VPS usa o provedor "docker", que lê os
+# rótulos do contêiner (labels do serviço). Os mesmos rótulos vão em
+# deploy.labels, que é onde o provedor "swarm" lê, para a stack funcionar com
+# qualquer um dos dois.
 
 version: "3.8"
 
@@ -24,6 +29,27 @@ x-api-env: &api-env
   SMTP_FROM: ${SMTP_FROM:-}
   SMTP_PASS_FILE: /run/secrets/crmwta_smtp_pass
   LOG_LEVEL: ${LOG_LEVEL:-info}
+  STORAGE_DIR: /data/files
+
+x-api-labels: &api-labels
+  - traefik.enable=true
+  - traefik.docker.network=${REDE_TRAEFIK}
+  - traefik.http.routers.crmwta-api.rule=Host(`${DOMINIO}`) && PathPrefix(`/api`)
+  - traefik.http.routers.crmwta-api.priority=100
+  - traefik.http.routers.crmwta-api.entrypoints=${ENTRADA_TRAEFIK:-websecure}
+  - traefik.http.routers.crmwta-api.tls=true
+  - traefik.http.routers.crmwta-api.tls.certresolver=${RESOLVEDOR_TLS:-letsencryptresolver}
+  - traefik.http.services.crmwta-api.loadbalancer.server.port=3001
+
+x-web-labels: &web-labels
+  - traefik.enable=true
+  - traefik.docker.network=${REDE_TRAEFIK}
+  - traefik.http.routers.crmwta-web.rule=Host(`${DOMINIO}`)
+  - traefik.http.routers.crmwta-web.priority=10
+  - traefik.http.routers.crmwta-web.entrypoints=${ENTRADA_TRAEFIK:-websecure}
+  - traefik.http.routers.crmwta-web.tls=true
+  - traefik.http.routers.crmwta-web.tls.certresolver=${RESOLVEDOR_TLS:-letsencryptresolver}
+  - traefik.http.services.crmwta-web.loadbalancer.server.port=3000
 
 services:
   db:
@@ -73,8 +99,14 @@ services:
     command: ["sh", "-c", "export DATABASE_URL=\"postgres://crm_api:$$(cat /run/secrets/crmwta_api_db_password)@db:5432/crm\"; exec node dist/main.js"]
     environment: *api-env
     secrets: [crmwta_api_db_password, crmwta_master_keys, crmwta_smtp_pass]
+    volumes:
+      - crmwta_arquivos:/data/files
     networks: [interna, traefik]
+    labels: *api-labels
     deploy:
+      # Os arquivos ficam num volume local: a API roda no mesmo nó do banco.
+      placement:
+        constraints: [node.role == manager]
       replicas: 1
       update_config:
         order: start-first
@@ -86,21 +118,14 @@ services:
       resources:
         reservations: { memory: 256M }
         limits: { memory: 512M, cpus: "1.0" }
-      labels:
-        - traefik.enable=true
-        - traefik.docker.network=${REDE_TRAEFIK}
-        - traefik.http.routers.crmwta-api.rule=Host(`${DOMINIO}`) && PathPrefix(`/api`)
-        - traefik.http.routers.crmwta-api.priority=100
-        - traefik.http.routers.crmwta-api.entrypoints=${ENTRADA_TRAEFIK:-websecure}
-        - traefik.http.routers.crmwta-api.tls=true
-        - traefik.http.routers.crmwta-api.tls.certresolver=${RESOLVEDOR_TLS:-letsencryptresolver}
-        - traefik.http.services.crmwta-api.loadbalancer.server.port=3001
+      labels: *api-labels
 
   web:
     image: ${IMAGEM_WEB}
     environment:
       API_INTERNAL_URL: http://api:3001
     networks: [interna, traefik]
+    labels: *web-labels
     deploy:
       replicas: 1
       update_config:
@@ -111,15 +136,7 @@ services:
       resources:
         reservations: { memory: 256M }
         limits: { memory: 512M, cpus: "1.0" }
-      labels:
-        - traefik.enable=true
-        - traefik.docker.network=${REDE_TRAEFIK}
-        - traefik.http.routers.crmwta-web.rule=Host(`${DOMINIO}`)
-        - traefik.http.routers.crmwta-web.priority=10
-        - traefik.http.routers.crmwta-web.entrypoints=${ENTRADA_TRAEFIK:-websecure}
-        - traefik.http.routers.crmwta-web.tls=true
-        - traefik.http.routers.crmwta-web.tls.certresolver=${RESOLVEDOR_TLS:-letsencryptresolver}
-        - traefik.http.services.crmwta-web.loadbalancer.server.port=3000
+      labels: *web-labels
 
   # Cópia diária do banco, com retenção de 7 diárias, 4 semanais e 6 mensais.
   backup:
@@ -155,6 +172,7 @@ secrets:
 volumes:
   crmwta_db:
   crmwta_backup:
+  crmwta_arquivos:
 
 networks:
   interna:

@@ -736,7 +736,6 @@ create table notifications (
   foreign key (tenant_id, activity_id) references activities (tenant_id, id) on delete cascade
 );
 create index notifications_member_idx on notifications (tenant_id, membership_id, created_at desc);
-create unique index notifications_reminder_uq on notifications (activity_id, membership_id, kind) where activity_id is not null;
 
 -- ---------------------------------------------------------------------------
 -- Arquivos, importação, exportação e visões salvas

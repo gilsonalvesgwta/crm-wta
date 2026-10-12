@@ -20,17 +20,24 @@ printf '%s' "1:$(openssl rand -base64 32)" | docker secret create crmwta_master_
 printf '%s' "nao-configurado" | docker secret create crmwta_smtp_pass - >/dev/null
 printf '%s' "$SENHA_INICIAL" | docker secret create crmwta_bootstrap_password - >/dev/null
 
-# Traefik igual ao da VPS (Swarm, entrada websecure, resolvedor letsencryptresolver),
-# mas com uma autoridade de certificação inexistente: vale o certificado padrão.
-docker service create --name traefik-teste --network "$REDE" --publish 443:443 \
+# Traefik igual ao da VPS (inventário de 12 out 2026): v3.5, provedor "docker"
+# lendo os rótulos dos contêineres, entradas web e websecure, resolvedor
+# letsencryptresolver por desafio HTTP. A autoridade de certificação aponta para
+# um endereço inexistente, então vale o certificado padrão.
+docker service create --name traefik-teste --network "$REDE" --publish 443:443 --publish 80:80 \
+  --constraint node.role==manager \
   --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock,readonly \
-  traefik:v3.5 \
-  --providers.swarm=true --providers.swarm.exposedbydefault=false \
+  traefik:v3.5.3 \
+  --providers.docker.endpoint=unix:///var/run/docker.sock \
+  --providers.docker.exposedbydefault=false \
+  --providers.docker.network="$REDE" \
+  --entrypoints.web.address=:80 \
   --entrypoints.websecure.address=:443 \
+  --certificatesresolvers.letsencryptresolver.acme.httpchallenge=true \
+  --certificatesresolvers.letsencryptresolver.acme.httpchallenge.entrypoint=web \
   --certificatesresolvers.letsencryptresolver.acme.email=teste@example.com \
   --certificatesresolvers.letsencryptresolver.acme.storage=/tmp/acme.json \
-  --certificatesresolvers.letsencryptresolver.acme.caserver=https://127.0.0.1:1/dir \
-  --certificatesresolvers.letsencryptresolver.acme.tlschallenge=true >/dev/null
+  --certificatesresolvers.letsencryptresolver.acme.caserver=https://127.0.0.1:1/dir >/dev/null
 
 DOMINIO=$DOM REDE_TRAEFIK=$REDE IMAGEM_API=$IMAGEM_API IMAGEM_WEB=$IMAGEM_WEB \
 BOOTSTRAP_EMAIL=dono@wta.test BOOTSTRAP_NAME='Dono do Teste' \
@@ -63,6 +70,15 @@ grep -E 'crm_session' "$cookie" | grep -q TRUE && ok "cookie marcado como Secure
 me=$(c -b "$cookie" "https://$DOM/api/v1/auth/me")
 echo "$me" | grep -q '"isPlatformAdmin":true' && ok "sessão válida pela interface pública" || erro "me: $me"
 [ "$(c -o /dev/null -w '%{http_code}' -b "$cookie" "https://$DOM/inicio")" = 200 ] && ok "página interna renderiza" || erro "página interna"
+
+# Arquivo enviado vai para o volume da stack e volta pelo endereço assinado.
+cid=$(c -b "$cookie" -H 'content-type: application/json' -H 'x-crm-request: 1' -d '{"firstName":"Teste da stack"}' \
+  "https://$DOM/api/v1/contacts" | jq -r .id)
+printf '%%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%%%EOF\n' > /tmp/teste.pdf
+fid=$(c -b "$cookie" -H 'x-crm-request: 1' -F "file=@/tmp/teste.pdf" "https://$DOM/api/v1/records/contact/$cid/files" | jq -r .id)
+url=$(c -b "$cookie" "https://$DOM/api/v1/files/$fid/url" | jq -r .url)
+c -o /tmp/baixado.pdf "https://$DOM$url"
+cmp -s /tmp/teste.pdf /tmp/baixado.pdf && ok "arquivo gravado no volume e baixado pelo endereço assinado" || erro "arquivo (contato $cid, arquivo $fid)"
 
 # Nenhuma porta da stack publicada no host.
 pub=$(docker service ls --filter label=com.docker.stack.namespace=crmwta --format '{{.Ports}}' | tr -d ' ')

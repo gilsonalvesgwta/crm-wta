@@ -183,10 +183,19 @@ jobs:
         run: .github/publicar-saida.sh "$SAIDA" "$(echo "$GITHUB_REF_NAME" | tr '/' '_')"
 
   stack:
-    name: Stack de produção (Docker Swarm)
+    name: Stack de produção (${{ matrix.arch }})
     if: github.ref != 'refs/heads/ci-saida'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # A VPS é ARM (aarch64); a stack é testada nas duas arquiteturas.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
     permissions:
       contents: write
     steps:
@@ -197,6 +206,7 @@ jobs:
           mkdir -p ../saida-stack
           set -o pipefail
           {
+            uname -m &&
             docker build --progress=plain --target api -t crmwta-api:teste . &&
             docker build --progress=plain --target web -t crmwta-web:teste .
           } 2>&1 | tee ../saida-stack/7-construir.txt | tail -n 400
@@ -211,14 +221,21 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-        run: .github/publicar-saida.sh ../saida-stack "$(echo "$GITHUB_REF_NAME" | tr '/' '_')__stack"
+        run: .github/publicar-saida.sh ../saida-stack "$(echo "$GITHUB_REF_NAME" | tr '/' '_')__stack_${{ matrix.arch }}"
 
   imagens:
-    name: Publicar imagens (main)
+    name: Publicar imagens (${{ matrix.arch }})
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: [banco, app, stack]
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
     permissions:
       contents: read
       packages: write
@@ -231,11 +248,30 @@ jobs:
       - name: Construir e publicar
         run: |
           set -euo pipefail
-          versao="$(date -u +%Y.%m.%d)-$(git rev-parse --short HEAD)"
+          versao="$(git show -s --format=%cd --date=format:%Y.%m.%d HEAD)-$(git rev-parse --short HEAD)"
           for alvo in api web; do
             img="ghcr.io/${GITHUB_REPOSITORY}-${alvo}"
-            docker build --target "$alvo" -t "$img:$versao" -t "$img:main" .
-            docker push "$img:$versao"
-            docker push "$img:main"
+            docker build --target "$alvo" -t "$img:$versao-${{ matrix.arch }}" .
+            docker push "$img:$versao-${{ matrix.arch }}"
           done
-          echo "versão publicada: $versao" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  manifesto:
+    name: Publicar imagens (amd64 + arm64)
+    needs: [imagens]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Juntar as arquiteturas numa versão
+        run: |
+          set -euo pipefail
+          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          versao="$(git show -s --format=%cd --date=format:%Y.%m.%d HEAD)-$(git rev-parse --short HEAD)"
+          for alvo in api web; do
+            img="ghcr.io/${GITHUB_REPOSITORY}-${alvo}"
+            docker buildx imagetools create -t "$img:$versao" -t "$img:main" "$img:$versao-amd64" "$img:$versao-arm64"
+          done
+          echo "versão publicada: $versao (amd64 e arm64)" | tee -a "$GITHUB_STEP_SUMMARY"
