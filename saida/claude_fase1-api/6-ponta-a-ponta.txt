@@ -3,7 +3,7 @@ aplicando 0002_autenticacao
 aplicando 0003_nomes_unicos
 migrações aplicadas agora: 3
 papel crm_api pronto
-pronto: empresa 5489137d-cecb-4ab8-aa1d-9832fffd9aa4, superadministrador 8e18be75-e6aa-47e6-9fa3-a33bef2acf47
+pronto: empresa efeea156-71d4-4e64-a69c-e24edcf17918, superadministrador e1f9a48f-e438-4c02-9d80-fe913e7bcdf9
 {"status":"ok","database":"ok"}
 
 Running kernel seems to be up-to-date.
@@ -23,72 +23,55 @@ No VM guests are running outdated hypervisor (qemu) binaries on this host.
 
 Running 13 tests using 1 worker
 
-  ✓   1 [chromium] › e2e/acesso.spec.ts:12:1 › a tela de login é acessível, no computador e no celular (896ms)
-  ✓   2 [chromium] › e2e/acesso.spec.ts:24:1 › senha errada mostra a mensagem e não entra (387ms)
-  ✓   3 [chromium] › e2e/acesso.spec.ts:30:1 › sem sessão, a área interna manda para o login e volta depois (739ms)
-  ✓   4 [chromium] › e2e/acesso.spec.ts:40:1 › o administrador entra e vê o aviso para ativar a verificação em duas etapas (899ms)
-  ✓   5 [chromium] › e2e/acesso.spec.ts:49:1 › convite: a pessoa cria a conta e entra (1.1s)
-  ✓   6 [chromium] › e2e/acesso.spec.ts:72:1 › esqueci a senha: o link do e-mail cria uma senha nova (1.5s)
-  ✘   7 [chromium] › e2e/acesso.spec.ts:99:1 › verificação em duas etapas: ativar, sair e entrar com o código (30.1s)
-  ✘   8 [chromium] › e2e/admin.spec.ts:14:1 › convidar, aceitar, trocar o perfil e desativar (154ms)
-  -   9 [chromium] › e2e/admin.spec.ts:54:1 › equipes: criar e definir as pessoas
-  -  10 [chromium] › e2e/admin.spec.ts:72:1 › perfis: o administrador é protegido; um perfil novo nasce de um modelo
+  ✓   1 [chromium] › e2e/acesso.spec.ts:12:1 › a tela de login é acessível, no computador e no celular (618ms)
+  ✓   2 [chromium] › e2e/acesso.spec.ts:24:1 › senha errada mostra a mensagem e não entra (221ms)
+  ✓   3 [chromium] › e2e/acesso.spec.ts:30:1 › sem sessão, a área interna manda para o login e volta depois (625ms)
+  ✓   4 [chromium] › e2e/acesso.spec.ts:40:1 › o administrador entra e vê o aviso para ativar a verificação em duas etapas (685ms)
+  ✓   5 [chromium] › e2e/acesso.spec.ts:49:1 › convite: a pessoa cria a conta e entra (760ms)
+  ✓   6 [chromium] › e2e/acesso.spec.ts:72:1 › esqueci a senha: o link do e-mail cria uma senha nova (984ms)
+  ✓   7 [chromium] › e2e/acesso.spec.ts:99:1 › verificação em duas etapas: ativar, sair e entrar com o código (1.8s)
+  ✓   8 [chromium] › e2e/admin.spec.ts:14:1 › convidar, aceitar, trocar o perfil e desativar (1.8s)
+  ✓   9 [chromium] › e2e/admin.spec.ts:54:1 › equipes: criar e definir as pessoas (1.2s)
+  ✘  10 [chromium] › e2e/admin.spec.ts:72:1 › perfis: o administrador é protegido; um perfil novo nasce de um modelo (683ms)
   -  11 [chromium] › e2e/admin.spec.ts:89:1 › identidade visual: recusa cor sem contraste, aplica a nova e restaura
   -  12 [chromium] › e2e/admin.spec.ts:119:1 › auditoria mostra o que foi feito, com filtro
   -  13 [chromium] › e2e/admin.spec.ts:130:1 › plataforma: criar e suspender uma empresa
 
 
-  1) [chromium] › e2e/acesso.spec.ts:99:1 › verificação em duas etapas: ativar, sair e entrar com o código 
+  1) [chromium] › e2e/admin.spec.ts:72:1 › perfis: o administrador é protegido; um perfil novo nasce de um modelo 
 
-    Test timeout of 30000ms exceeded.
+    Error: expect(locator).toHaveValue(expected) failed
 
-    Error: locator.click: Test timeout of 30000ms exceeded.
+    Locator: getByLabel('Ver negócios')
+    Expected: "own"
+    Error: strict mode violation: getByLabel('Ver negócios') resolved to 2 elements:
+        1) <select aria-label="Ver negócios" class="h-9 rounded-[6px] border border-line-strong bg-surface px-2 text-[13px]">…</select> aka getByLabel('Ver negócios', { exact: true })
+        2) <select aria-label="Criar, editar e mover negócios" class="h-9 rounded-[6px] border border-line-strong bg-surface px-2 text-[13px]">…</select> aka getByLabel('Criar, editar e mover negócios')
+
     Call log:
-      - waiting for getByRole('button', { name: 'Configurar' })
+      - Expect "toHaveValue" getByLabel('Ver negócios') with timeout 5000ms
+      - waiting for getByLabel('Ver negócios')
 
 
-      100 |   await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
-      101 |   await page.goto('/conta');
-    > 102 |   await page.getByRole('button', { name: 'Configurar' }).click();
-          |                                                          ^
-      103 |   const secret = (await page.locator('code').innerText()).replace(/\s/g, '');
-      104 |   saveAdminSecret(secret);
-      105 |   await shot(page, '04-dois-fatores');
-        at /home/runner/work/crm-wta/crm-wta/apps/web/e2e/acesso.spec.ts:102:58
-
-    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
-    ../../../saida/telas/falhas/acesso-verificação-em-duas-026c7--sair-e-entrar-com-o-código-chromium/test-failed-1.png
-    ────────────────────────────────────────────────────────────────────────────────────────────────
-
-    Error Context: ../../../saida/telas/falhas/acesso-verificação-em-duas-026c7--sair-e-entrar-com-o-código-chromium/error-context.md
-
-  2) [chromium] › e2e/admin.spec.ts:14:1 › convidar, aceitar, trocar o perfil e desativar ──────────
-
-    Error: ENOENT: no such file or directory, open '/tmp/e2e-admin-totp.txt'
-
-       at util.ts:87
-
-      85 | /** Entra como o administrador, que já tem a verificação em duas etapas ativa. */
-      86 | export async function loginAdmin(page: Page): Promise<void> {
-    > 87 |   const secret = readFileSync(SECRET_FILE, 'utf8').trim();
-         |                  ^
-      88 |   await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
-      89 |   await expect(page).toHaveURL(/\/entrar\/verificacao/);
-      90 |   await page.getByLabel('Código de 6 dígitos').fill(totp(secret));
-        at loginAdmin (/home/runner/work/crm-wta/crm-wta/apps/web/e2e/util.ts:87:18)
-        at /home/runner/work/crm-wta/crm-wta/apps/web/e2e/admin.spec.ts:15:9
+      81 |   await page.getByRole('button', { name: 'Salvar perfil' }).click();
+      82 |   await expect(page.getByRole('heading', { name: 'Pré-vendas' })).toBeVisible();
+    > 83 |   await expect(page.getByLabel('Ver negócios')).toHaveValue('own');
+         |                                                 ^
+      84 |   await expect(page.getByLabel('Exportar negócios')).toHaveValue('tenant');
+      85 |   await expectAccessible(page);
+      86 |   await shot(page, '12-perfis');
+        at /home/runner/work/crm-wta/crm-wta/apps/web/e2e/admin.spec.ts:83:49
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
-    ../../../saida/telas/falhas/admin-convidar-aceitar-trocar-o-perfil-e-desativar-chromium/test-failed-1.png
+    ../../../saida/telas/falhas/admin-perfis-o-administrad-d01c8-fil-novo-nasce-de-um-modelo-chromium/test-failed-1.png
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-    Error Context: ../../../saida/telas/falhas/admin-convidar-aceitar-trocar-o-perfil-e-desativar-chromium/error-context.md
+    Error Context: ../../../saida/telas/falhas/admin-perfis-o-administrad-d01c8-fil-novo-nasce-de-um-modelo-chromium/error-context.md
 
-  2 failed
-    [chromium] › e2e/acesso.spec.ts:99:1 › verificação em duas etapas: ativar, sair e entrar com o código 
-    [chromium] › e2e/admin.spec.ts:14:1 › convidar, aceitar, trocar o perfil e desativar ───────────
-  5 did not run
-  6 passed (37.3s)
+  1 failed
+    [chromium] › e2e/admin.spec.ts:72:1 › perfis: o administrador é protegido; um perfil novo nasce de um modelo 
+  3 did not run
+  9 passed (10.1s)
 /home/runner/work/crm-wta/crm-wta/apps/web:
  ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @crm/web@ e2e: `playwright test`
 Exit status 1
