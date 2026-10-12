@@ -1,4 +1,0 @@
-commit: c12724e50ce7b38ba1ac41b3fefe471840881827
-ramo: claude/fase1-api
-execucao: 38197217563
-inicio: 2026-10-12T02:48:26Z
