@@ -1,0 +1,136 @@
+
+> @crm/api@ test /home/runner/work/crm-wta/crm-wta/apps/api
+> rm -rf .test-out && tsc -p tsconfig.json --outDir .test-out && node --test --test-concurrency=1 --test-reporter=spec ".test-out/test/**/*.test.js"
+
+▶ saúde
+  ✔ healthz e readyz respondem sem login (24.005459ms)
+  ✔ rota inexistente devolve 404 no formato de problema (2.258886ms)
+  ✔ cabeçalhos de segurança (0.98579ms)
+✔ saúde (805.43199ms)
+▶ login
+  ✔ sem sessão, /me pede login (1.272355ms)
+  ✔ senha errada e e-mail desconhecido dão a mesma resposta (56.619035ms)
+  ✔ campos inválidos devolvem 422 com o campo (3.806073ms)
+  ✔ login certo grava cookie httpOnly, Secure e SameSite=Lax e entra na única empresa (40.814383ms)
+  ✔ "manter conectado" grava validade no cookie (24.962237ms)
+  ✔ o vendedor recebe só as permissões do perfil Comercial (29.02456ms)
+  ✔ mutação sem o cabeçalho anti-CSRF é recusada (28.931303ms)
+  ✔ sair encerra a sessão no servidor (30.631992ms)
+  ✔ cookie forjado não abre sessão (2.924799ms)
+  ✔ conta sem empresa ativa não entra (19.866191ms)
+✔ login (240.146875ms)
+▶ várias empresas
+  ✔ quem tem duas empresas escolhe uma depois do login (49.004ms)
+  ✔ não entra em empresa onde não tem vínculo (33.369706ms)
+  ✔ vínculo desativado derruba a sessão naquela empresa (30.299872ms)
+✔ várias empresas (113.105775ms)
+▶ força bruta
+  ✔ cinco senhas erradas travam o e-mail por um minuto, mesmo com a senha certa (100.138876ms)
+  ✔ o bloqueio de um e-mail não atinge outro (19.281914ms)
+  ✔ cada tentativa fica registrada (0.940548ms)
+✔ força bruta (120.741527ms)
+▶ nova senha por link
+  ✔ pedir, receber o e-mail, redefinir e entrar com a senha nova (88.594063ms)
+  ✔ e-mail desconhecido recebe a mesma resposta e nenhum e-mail sai (3.060081ms)
+  ✔ o e-mail não guarda o token no banco, só o hash (1.096529ms)
+✔ nova senha por link (93.075961ms)
+▶ troca de senha
+  ✔ exige a senha atual e mantém só a sessão atual (90.761508ms)
+✔ troca de senha (90.965069ms)
+▶ verificação em duas etapas
+  ✔ configurar e ativar com um código do aplicativo (38.279244ms)
+  ✔ no próximo login, nada abre antes do código (41.513314ms)
+  ✔ código de recuperação vale uma vez (47.501263ms)
+  ✔ administrador não pode desligar a verificação (45.41995ms)
+✔ verificação em duas etapas (173.226499ms)
+▶ sessões
+  ✔ a pessoa lista e encerra as próprias sessões, e não as de outra (69.461896ms)
+✔ sessões (69.662691ms)
+▶ convites
+  ✖ pessoa nova aceita, cria a conta e entra (8.827705ms)
+  ✔ quem já tem conta precisa estar logado como ela (58.758222ms)
+✖ convites (67.920442ms)
+✔ senha fraca impede a primeira configuração (696.116827ms)
+✖ cria a empresa WTA, o superadministrador e os perfis (60.000354ms)
+✖ rodar de novo não duplica nada nem troca a senha (72.85532ms)
+✖ o dono entra como administrador da WTA (54.129584ms)
+✔ HOTP confere com os vetores da RFC 4226 (2.924741ms)
+✔ TOTP confere com os vetores da RFC 6238 (0.353284ms)
+✔ verifyTotp aceita um passo de diferença e recusa dois (0.708443ms)
+✔ base32 vai e volta, e o otpauth leva o segredo (1.106235ms)
+✔ SecretBox cifra, decifra, recusa adulteração e troca de contexto (1.423851ms)
+✔ tokens e códigos de recuperação (0.756186ms)
+✔ regra de senha (0.270412ms)
+✔ bloqueio progressivo (0.200084ms)
+✔ perfis padrão respeitam o alcance de cada permissão (0.593216ms)
+✔ só o administrador tem as permissões que exigem 2FA (0.389335ms)
+✔ linhas da matriz conferidas uma a uma (0.225564ms)
+✔ união de perfis fica com o maior alcance (0.184523ms)
+ℹ tests 46
+ℹ suites 9
+ℹ pass 42
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3810.835828
+
+✖ failing tests:
+
+test at .test-out/test/auth.test.js:314:5
+✖ pessoa nova aceita, cria a conta e entra (8.827705ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  422 !== 200
+  
+      at TestContext.<anonymous> (file:///home/runner/work/crm-wta/crm-wta/apps/api/.test-out/test/auth.test.js:323:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Promise.all (index 0)
+      at async Suite.run (node:internal/test_runner/test:1905:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 422,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at .test-out/test/bootstrap.test.js:28:1
+✖ cria a empresa WTA, o superadministrador e os perfis (60.000354ms)
+  Error: BOOTSTRAP_PASSWORD: A senha não pode conter o seu e-mail.
+      at bootstrap (file:///home/runner/work/crm-wta/crm-wta/apps/api/.test-out/src/cli/bootstrap.js:40:23)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file:///home/runner/work/crm-wta/crm-wta/apps/api/.test-out/test/bootstrap.test.js:29:15)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at .test-out/test/bootstrap.test.js:37:1
+✖ rodar de novo não duplica nada nem troca a senha (72.85532ms)
+  TypeError: Cannot read properties of undefined (reading 'password_hash')
+      at TestContext.<anonymous> (file:///home/runner/work/crm-wta/crm-wta/apps/api/.test-out/test/bootstrap.test.js:41:61)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at .test-out/test/bootstrap.test.js:47:1
+✖ o dono entra como administrador da WTA (54.129584ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  401 !== 200
+  
+      at TestContext.<anonymous> (file:///home/runner/work/crm-wta/crm-wta/apps/api/.test-out/test/bootstrap.test.js:50:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 401,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+/home/runner/work/crm-wta/crm-wta/apps/api:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @crm/api@ test: `rm -rf .test-out && tsc -p tsconfig.json --outDir .test-out && node --test --test-concurrency=1 --test-reporter=spec ".test-out/test/**/*.test.js"`
+Exit status 1

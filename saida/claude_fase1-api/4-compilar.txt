@@ -1,0 +1,8 @@
+
+> crm-wta@ build /home/runner/work/crm-wta/crm-wta
+> pnpm -r --if-present build
+
+
+> @crm/api@ build /home/runner/work/crm-wta/crm-wta/apps/api
+> tsc -p tsconfig.build.json
+

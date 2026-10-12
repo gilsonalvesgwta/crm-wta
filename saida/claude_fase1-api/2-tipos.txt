@@ -1,0 +1,8 @@
+
+> crm-wta@ typecheck /home/runner/work/crm-wta/crm-wta
+> pnpm -r --if-present typecheck
+
+
+> @crm/api@ typecheck /home/runner/work/crm-wta/crm-wta/apps/api
+> tsc -p tsconfig.json --noEmit
+
