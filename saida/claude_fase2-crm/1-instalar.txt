@@ -1,12 +1,13 @@
 Scope: all 3 workspace projects
 Progress: resolved 0, reused 1, downloaded 0, added 0
-Progress: resolved 258, reused 188, downloaded 11, added 0
-Packages: +199
+Progress: resolved 224, reused 181, downloaded 10, added 0
+Packages: +198
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-Progress: resolved 258, reused 188, downloaded 13, added 199, done
+Progress: resolved 257, reused 188, downloaded 12, added 155
+Progress: resolved 257, reused 188, downloaded 12, added 198, done
  WARN  Issues with peer dependencies found
 apps/api
 └─┬ @nestjs/platform-fastify 12.1.2
   └── ✕ unmet peer @fastify/multipart@^10.1.0: found 9.4.0
 
-Done in 2s using pnpm v10.28.0
+Done in 2.8s using pnpm v10.28.0
