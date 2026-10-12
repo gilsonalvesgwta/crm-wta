@@ -59,4 +59,7 @@ test('o dono entra como administrador da WTA', async () => {
   const me = await b.get('/api/v1/auth/me');
   assert.equal(me.body.user.isPlatformAdmin, true);
   assert.equal(me.body.permissions['users:admin'], 'tenant');
+  const br = await b.get('/api/v1/branding');
+  assert.equal(br.body.customized, false, 'a WTA começa com o tema padrão');
+  assert.equal(br.body.theme.primary, '#FF6600');
 });

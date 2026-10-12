@@ -1,14 +1,6 @@
 import type { Q } from '../infra/db.js';
 import { ROLE_TEMPLATES } from '../domain/permissions.js';
 
-/** Tema padrão da WTA, usado quando a empresa ainda não personalizou o seu. */
-export const WTA_THEME = {
-  primary: '#FF6600',
-  primaryForeground: '#051628',
-  navy: '#051628',
-  mode: 'light',
-} as const;
-
 /**
  * Cria os perfis padrão de uma empresa a partir da matriz. Idempotente: perfil
  * existente não é alterado, para não desfazer o que a empresa ajustou.

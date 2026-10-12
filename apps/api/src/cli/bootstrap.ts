@@ -7,7 +7,7 @@
 import pg from 'pg';
 import { hash } from '@node-rs/argon2';
 import { passwordProblem } from '../domain/password-policy.js';
-import { WTA_THEME, seedRoleTemplates } from '../platform/seed.js';
+import { seedRoleTemplates } from '../platform/seed.js';
 
 function need(name: string): string {
   const v = process.env[name]?.trim();
@@ -33,8 +33,8 @@ export async function bootstrap(env = process.env): Promise<{ tenantId: string; 
        returning id`, [tenantName, slug]);
     const tenantId = t.rows[0]!.id;
     await client.query(
-      `insert into tenant_branding (tenant_id, product_name, theme) values ($1, 'CRM WTA', $2)
-       on conflict (tenant_id) do nothing`, [tenantId, JSON.stringify(WTA_THEME)]);
+      `insert into tenant_branding (tenant_id, theme) values ($1, '{}')
+       on conflict (tenant_id) do nothing`, [tenantId]);
     const roles = await seedRoleTemplates(client, tenantId);
 
     const existing = await client.query<{ id: string }>('select id from users where email = $1', [email]);

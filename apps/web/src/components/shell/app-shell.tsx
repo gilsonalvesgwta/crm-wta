@@ -74,7 +74,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           ) : null}
           <div className="relative">
             <button type="button" aria-haspopup="menu" aria-expanded={menu} aria-label={`Menu de ${me.user.name}`} onClick={() => setMenu(!menu)}
-              className="flex size-10 items-center justify-center rounded-full bg-accent-soft text-[13px] font-semibold text-accent">
+              className="flex size-10 items-center justify-center rounded-full bg-accent-soft text-[13px] font-semibold text-ink">
               {initials}
             </button>
             {menu ? (
