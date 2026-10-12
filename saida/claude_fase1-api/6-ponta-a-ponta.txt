@@ -1,0 +1,68 @@
+aplicando 0001_fundacao
+aplicando 0002_autenticacao
+migrações aplicadas agora: 2
+papel crm_api pronto
+pronto: empresa e35e337b-aae6-4ac9-942c-34ecb151a423, superadministrador 5cabaeab-b72e-45e6-a934-b2faa60dc3cc
+{"status":"ok","database":"ok"}
+
+Running kernel seems to be up-to-date.
+
+Restarting services...
+ systemctl restart php8.3-fpm.service
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+
+> @crm/web@ e2e /home/runner/work/crm-wta/crm-wta/apps/web
+> playwright test
+
+
+Running 7 tests using 1 worker
+
+  ✓  1 [chromium] › e2e/acesso.spec.ts:12:1 › a tela de login é acessível, no computador e no celular (862ms)
+  ✘  2 [chromium] › e2e/acesso.spec.ts:24:1 › senha errada mostra a mensagem e não entra (341ms)
+  -  3 [chromium] › e2e/acesso.spec.ts:30:1 › sem sessão, a área interna manda para o login e volta depois
+  -  4 [chromium] › e2e/acesso.spec.ts:40:1 › o administrador entra e vê o aviso para ativar a verificação em duas etapas
+  -  5 [chromium] › e2e/acesso.spec.ts:49:1 › convite: a pessoa cria a conta e entra
+  -  6 [chromium] › e2e/acesso.spec.ts:72:1 › esqueci a senha: o link do e-mail cria uma senha nova
+  -  7 [chromium] › e2e/acesso.spec.ts:98:1 › verificação em duas etapas: ativar, sair e entrar com o código
+
+
+  1) [chromium] › e2e/acesso.spec.ts:24:1 › senha errada mostra a mensagem e não entra ─────────────
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: getByRole('alert')
+    Expected: "E-mail ou senha incorretos."
+    Error: strict mode violation: getByRole('alert') resolved to 2 elements:
+        1) <div role="alert" class="rounded-[8px] border px-3.5 py-3 text-[13px] leading-relaxed bg-bad-soft text-bad border-bad/30">E-mail ou senha incorretos.</div> aka getByText('E-mail ou senha incorretos.')
+        2) <div role="alert" aria-live="assertive" id="__next-route-announcer__"></div> aka locator('[id="__next-route-announcer__"]')
+
+    Call log:
+      - Expect "toHaveText" getByRole('alert') with timeout 5000ms
+      - waiting for getByRole('alert')
+        2 × locator resolved to <div role="alert" aria-live="assertive" id="__next-route-announcer__"></div>
+          - unexpected value ""
+
+
+      24 | test('senha errada mostra a mensagem e não entra', async ({ page }) => {
+      25 |   await login(page, ADMIN_EMAIL, 'senha errada de propósito');
+    > 26 |   await expect(page.getByRole('alert')).toHaveText('E-mail ou senha incorretos.');
+         |                                         ^
+      27 |   await expect(page).toHaveURL(/\/entrar/);
+      28 | });
+      29 |
+        at /home/runner/work/crm-wta/crm-wta/apps/web/e2e/acesso.spec.ts:26:41
+
+    Error Context: test-results/acesso-senha-errada-mostra-a-mensagem-e-não-entra-chromium/error-context.md
+
+  1 failed
+    [chromium] › e2e/acesso.spec.ts:24:1 › senha errada mostra a mensagem e não entra ──────────────
+  5 did not run
+  1 passed (2.1s)
+/home/runner/work/crm-wta/crm-wta/apps/web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @crm/web@ e2e: `playwright test`
+Exit status 1

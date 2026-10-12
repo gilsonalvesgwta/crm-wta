@@ -2,7 +2,8 @@
 > crm-wta@ typecheck /home/runner/work/crm-wta/crm-wta
 > pnpm -r --if-present typecheck
 
-
-> @crm/api@ typecheck /home/runner/work/crm-wta/crm-wta/apps/api
-> tsc -p tsconfig.json --noEmit
-
+Scope: 2 of 3 workspace projects
+apps/api typecheck$ tsc -p tsconfig.json --noEmit
+apps/web typecheck$ tsc --noEmit
+apps/api typecheck: Done
+apps/web typecheck: Done
