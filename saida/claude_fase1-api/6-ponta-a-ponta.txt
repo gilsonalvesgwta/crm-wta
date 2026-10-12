@@ -1,0 +1,40 @@
+aplicando 0001_fundacao
+aplicando 0002_autenticacao
+aplicando 0003_nomes_unicos
+migrações aplicadas agora: 3
+papel crm_api pronto
+pronto: empresa 5156967e-c8dd-43bc-b059-7f3fa55e2375, superadministrador 09c85359-3dd5-4d1d-be21-234dd03d6fd4
+{"status":"ok","database":"ok"}
+
+Running kernel seems to be up-to-date.
+
+Restarting services...
+ systemctl restart php8.3-fpm.service
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+
+> @crm/web@ e2e /home/runner/work/crm-wta/crm-wta/apps/web
+> playwright test
+
+
+Running 13 tests using 1 worker
+
+  ✓   1 [chromium] › e2e/acesso.spec.ts:12:1 › a tela de login é acessível, no computador e no celular (599ms)
+  ✓   2 [chromium] › e2e/acesso.spec.ts:24:1 › senha errada mostra a mensagem e não entra (307ms)
+  ✓   3 [chromium] › e2e/acesso.spec.ts:30:1 › sem sessão, a área interna manda para o login e volta depois (1.1s)
+  ✓   4 [chromium] › e2e/acesso.spec.ts:40:1 › o administrador entra e vê o aviso para ativar a verificação em duas etapas (608ms)
+  ✓   5 [chromium] › e2e/acesso.spec.ts:49:1 › convite: a pessoa cria a conta e entra (760ms)
+  ✓   6 [chromium] › e2e/acesso.spec.ts:72:1 › esqueci a senha: o link do e-mail cria uma senha nova (1.0s)
+  ✓   7 [chromium] › e2e/acesso.spec.ts:99:1 › verificação em duas etapas: ativar, sair e entrar com o código (1.7s)
+  ✓   8 [chromium] › e2e/admin.spec.ts:14:1 › convidar, aceitar, trocar o perfil e desativar (1.7s)
+  ✓   9 [chromium] › e2e/admin.spec.ts:54:1 › equipes: criar e definir as pessoas (1.1s)
+  ✓  10 [chromium] › e2e/admin.spec.ts:72:1 › perfis: o administrador é protegido; um perfil novo nasce de um modelo (1.3s)
+  ✓  11 [chromium] › e2e/admin.spec.ts:89:1 › identidade visual: recusa cor sem contraste, aplica a nova e restaura (1.3s)
+  ✓  12 [chromium] › e2e/admin.spec.ts:119:1 › auditoria mostra o que foi feito, com filtro (874ms)
+  ✓  13 [chromium] › e2e/admin.spec.ts:130:1 › plataforma: criar e suspender uma empresa (1.5s)
+
+  13 passed (15.4s)
