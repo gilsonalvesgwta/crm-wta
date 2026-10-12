@@ -47,14 +47,19 @@ select t.ok(not has_schema_privilege('crm_app', 'app', 'CREATE'), 'crm_app não 
 -- Lista fechada do que a aplicação pode executar. Função nova precisa entrar
 -- aqui de propósito.
 select t.ok(
-  (select array_agg(p.proname::text order by p.proname::text)
+  (select array_agg(p.proname::text order by p.proname::text collate "C")
    from pg_proc p
    where p.pronamespace = 'app'::regnamespace
      and has_function_privilege('crm_app', p.oid, 'EXECUTE'))
   = array[
-    'auth_find_user', 'auth_record_event', 'auth_resolve_domain', 'auth_user_tenants',
+    'auth_failure_counts', 'auth_find_user', 'auth_invitation_accept', 'auth_invitation_info',
+    'auth_password_hash', 'auth_password_reset_consume', 'auth_password_reset_create',
+    'auth_record_event', 'auth_recovery_codes_left', 'auth_resolve_domain', 'auth_set_password',
+    'auth_totp_begin', 'auth_totp_disable', 'auth_totp_enable', 'auth_totp_secret',
+    'auth_use_recovery_code', 'auth_user_profile', 'auth_user_tenants',
     'session_create', 'session_find', 'session_mark_mfa', 'session_revoke',
-    'session_revoke_all', 'session_set_tenant', 'session_touch', 'tenant_id', 'user_id'
+    'session_revoke_all', 'session_revoke_own', 'session_set_tenant', 'session_touch',
+    'tenant_id', 'user_id'
   ],
   'a aplicação executa exatamente as funções previstas');
 

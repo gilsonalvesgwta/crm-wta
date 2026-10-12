@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "lib": ["ES2024"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": false,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "declaration": false,
+    "sourceMap": true
+  }
+}

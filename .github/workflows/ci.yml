@@ -2,19 +2,21 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
+    paths-ignore: ['saida/**']
   pull_request:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
   banco:
     name: Banco (PostgreSQL ${{ matrix.pg }})
+    if: github.ref != 'refs/heads/ci-saida'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -43,3 +45,116 @@ jobs:
         env:
           ADMIN_URL: postgres://postgres:postgres@localhost:5432/postgres
         run: packages/db/tests/run.sh
+
+  app:
+    name: API e interface
+    if: github.ref != 'refs/heads/ci-saida'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      SAIDA: ${{ github.workspace }}/../saida
+      ADMIN_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Preparar a pasta de saída
+        run: |
+          mkdir -p "$SAIDA"
+          {
+            echo "commit: $GITHUB_SHA"
+            echo "ramo: $GITHUB_REF_NAME"
+            echo "execucao: $GITHUB_RUN_ID"
+            echo "inicio: $(date -u +%FT%TZ)"
+          } > "$SAIDA/0-info.txt"
+
+      - name: Instalar dependências
+        id: install
+        run: |
+          set -o pipefail
+          if [ -f pnpm-lock.yaml ]; then flag=--frozen-lockfile; else flag=--no-frozen-lockfile; fi
+          pnpm install $flag 2>&1 | tee "$SAIDA/1-instalar.txt"
+          cp pnpm-lock.yaml "$SAIDA/pnpm-lock.yaml"
+          pnpm -r ls --depth 0 > "$SAIDA/1-versoes.txt" 2>&1 || true
+
+      - name: Checar tipos
+        id: typecheck
+        if: always() && steps.install.outcome == 'success'
+        run: |
+          set -o pipefail
+          pnpm typecheck 2>&1 | tee "$SAIDA/2-tipos.txt"
+
+      - name: Testes da API
+        id: test
+        if: always() && steps.install.outcome == 'success'
+        run: |
+          set -o pipefail
+          pnpm --filter @crm/api test 2>&1 | tee "$SAIDA/3-testes-api.txt"
+
+      - name: Compilar
+        id: build
+        if: always() && steps.install.outcome == 'success'
+        run: |
+          set -o pipefail
+          pnpm build 2>&1 | tee "$SAIDA/4-compilar.txt"
+
+      - name: Auditoria de dependências
+        if: always() && steps.install.outcome == 'success'
+        run: pnpm audit --prod > "$SAIDA/5-auditoria.txt" 2>&1 || true
+
+      - name: Resumo
+        if: always()
+        run: |
+          {
+            echo "instalar: ${{ steps.install.outcome }}"
+            echo "tipos: ${{ steps.typecheck.outcome }}"
+            echo "testes-api: ${{ steps.test.outcome }}"
+            echo "compilar: ${{ steps.build.outcome }}"
+            echo "fim: $(date -u +%FT%TZ)"
+          } > "$SAIDA/00-resumo.txt"
+          cat "$SAIDA/00-resumo.txt"
+
+      # Os registros do Actions não são legíveis pelo ambiente de desenvolvimento.
+      # A saída de cada execução vai para o ramo ci-saida, em saida/<ramo>/.
+      - name: Publicar a saída no ramo ci-saida
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          slug=$(echo "$GITHUB_REF_NAME" | tr '/' '_')
+          dir=$(mktemp -d)
+          git config --global user.name "ci"
+          git config --global user.email "ci@users.noreply.github.com"
+          url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          for attempt in 1 2 3 4 5; do
+            rm -rf "$dir/r"
+            if git clone -q --depth 1 --branch ci-saida "$url" "$dir/r" 2>/dev/null; then :; else
+              git init -q "$dir/r" && git -C "$dir/r" checkout -q -b ci-saida
+            fi
+            rm -rf "$dir/r/saida/$slug" && mkdir -p "$dir/r/saida/$slug"
+            cp -r "$SAIDA"/. "$dir/r/saida/$slug/"
+            git -C "$dir/r" add -A
+            git -C "$dir/r" commit -q -m "saida $GITHUB_REF_NAME $GITHUB_RUN_ID" || exit 0
+            if git -C "$dir/r" push -q "$url" HEAD:ci-saida; then exit 0; fi
+            sleep $((attempt * 3))
+          done
+          exit 1
