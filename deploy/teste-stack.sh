@@ -34,7 +34,7 @@ docker service create --name traefik-teste --network "$REDE" --publish 443:443 \
 
 DOMINIO=$DOM REDE_TRAEFIK=$REDE IMAGEM_API=$IMAGEM_API IMAGEM_WEB=$IMAGEM_WEB \
 BOOTSTRAP_EMAIL=dono@wta.test BOOTSTRAP_NAME='Dono do Teste' \
-  docker stack deploy --detach=true -c stack.yml crmwta
+  docker stack deploy --detach=true -c stack.yml crmwta 2>&1 | grep -v 'could not be accessed\|digest\|independently\|different nodes\|versions of the image' || true
 
 echo "aguardando os serviços..."
 for i in $(seq 1 90); do
@@ -71,8 +71,10 @@ pub=$(docker service ls --filter label=com.docker.stack.namespace=crmwta --forma
 # Rodar a stack de novo não muda nada (configuração inicial idempotente).
 DOMINIO=$DOM REDE_TRAEFIK=$REDE IMAGEM_API=$IMAGEM_API IMAGEM_WEB=$IMAGEM_WEB \
 BOOTSTRAP_EMAIL=dono@wta.test BOOTSTRAP_NAME='Dono do Teste' \
-  docker stack deploy --detach=true -c stack.yml crmwta >/dev/null
-sleep 5
+  docker stack deploy --detach=true -c stack.yml crmwta >/dev/null 2>&1
+sleep 20
+n=$(docker exec "$(docker ps -q -f name=crmwta_db | head -n1)" psql -U postgres -d crm -At -c "select count(*) from tenants")
+[ "$n" = 1 ] && ok "reimplantar não duplica a configuração inicial" || erro "empresas depois de reimplantar: $n"
 
 # Cópia e restauração.
 bk=$(docker ps -q -f name=crmwta_backup | head -n1)
@@ -96,5 +98,9 @@ docker exec "$bk" sh -c "export PGPASSWORD=\$(cat /run/secrets/crmwta_db_passwor
   && erro "restaurar por cima de banco com dados deveria ser recusado" || ok "restauração recusa banco com dados"
 
 docker service ls --format '{{.Name}} {{.Replicas}}' | sort
+for s in db api web backup; do
+  r=$(docker service ls --filter name=crmwta_$s --format '{{.Replicas}}')
+  [ "$r" = 1/1 ] && ok "serviço $s em 1/1" || erro "serviço $s em $r"
+done
 docker service logs --tail 30 crmwta_migrate 2>&1 | sed 's/^/migrate| /' | tail -n 15
 exit $falhou

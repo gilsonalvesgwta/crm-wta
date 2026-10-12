@@ -14,18 +14,18 @@ Cada item só fecha com um critério verificável e o teste que o comprova.
 
 | Item | Critério | Comprovação | Situação |
 | --- | --- | --- | --- |
-| Repositório e CI | Todo pedido de mesclagem instala, checa tipos e lint, testa e constrói as imagens | Execução verde no GitHub Actions | Parcial: só testes de banco |
-| Banco e migrações | Migrações aplicam do zero e sobre a versão anterior; toda tabela de cliente tem RLS forçado | Testes de banco | Atendido no PostgreSQL 16 local |
-| Login e sessão | Entrar, sair, expirar, revogar; bloqueio progressivo; eventos registrados | Integração e ponta a ponta | Base no banco pronta; API pendente |
-| Convite e recuperação de senha | Link de uso único com validade | Integração | Pendente |
-| 2FA | Administrador sem 2FA não abre configurações; códigos de recuperação valem uma vez | Ponta a ponta | Pendente |
-| Empresas | Criar, suspender e arquivar; usuário de empresa suspensa não entra | Ponta a ponta | Regra no banco testada; API pendente |
-| Usuários, equipes e perfis | Matriz aplicada na API para os nove perfis | Testes gerados da matriz | Pendente |
-| Isolamento | Casos de `DATA_MODEL.md` | Suíte de isolamento | Banco atendido; API pendente |
-| Auditoria | Ação sensível grava ator, empresa, ação, objeto e horário | Integração | Tabela pronta; gravação pela API pendente |
-| Design system e tema | Mudar a cor primária altera toda a interface sem nova implantação; tema de uma empresa não aparece em outra; contraste insuficiente recusado | Ponta a ponta com duas empresas e axe | Prévia aguardando aprovação |
-| Stack implantável | Sobe em Docker Swarm atrás de um Traefik de teste, sem porta publicada | Job do CI | Pendente |
-| Backup inicial | Restaurar em banco vazio e passar a suíte | Job do CI | Pendente |
+| Repositório e CI | Todo envio instala, checa tipos, testa e constrói as imagens | Execução verde no GitHub Actions | Atendido (lint ainda não configurado) |
+| Banco e migrações | Migrações aplicam do zero e sobre a versão anterior; toda tabela de cliente tem RLS forçado | Testes de banco | Atendido (PostgreSQL 16 e 18) |
+| Login e sessão | Entrar, sair, expirar, revogar; bloqueio progressivo; eventos registrados | Integração e ponta a ponta | Atendido |
+| Convite e recuperação de senha | Link de uso único com validade | Integração | Atendido |
+| 2FA | Administrador sem 2FA não abre configurações; códigos de recuperação valem uma vez | Ponta a ponta | Atendido |
+| Empresas | Criar, suspender e arquivar; usuário de empresa suspensa não entra | Ponta a ponta | Atendido |
+| Usuários, equipes e perfis | Matriz aplicada na API | Testes da matriz e de integração | Atendido para as rotas da Fase 1; os testes por linha da matriz crescem com cada módulo |
+| Isolamento | Casos de `DATA_MODEL.md` | Suíte de isolamento | Atendido |
+| Auditoria | Ação sensível grava ator, empresa, ação, objeto e horário | Integração | Atendido |
+| Design system e tema | Mudar a cor primária altera toda a interface sem nova implantação; tema de uma empresa não aparece em outra; contraste insuficiente recusado | Ponta a ponta com axe; integração com duas empresas | Atendido (logo e favicon por empresa na Fase 2) |
+| Stack implantável | Sobe em Docker Swarm atrás de um Traefik de teste, sem porta publicada | Job do CI | Atendido |
+| Backup inicial | Restaurar em banco vazio e conferir os dados | Job do CI | Atendido |
 
 ## Fase 2: CRM comercial
 

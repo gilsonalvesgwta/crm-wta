@@ -1,6 +1,14 @@
 # Backup e restauração
 
-Ainda não implementado. Este arquivo registra a proposta aprovada na Fase 0; os scripts entram em `deploy/` na Fase 1 e o ensaio cronometrado acontece na Fase 8.
+A cópia diária e a restauração estão implementadas (`deploy/backup`) e são testadas a cada envio no CI, dentro da stack. Falta o destino fora da VPS e o ensaio cronometrado (Fase 8).
+
+## Como funciona
+
+- O serviço `backup` da stack faz uma cópia por dia às 03:30 (`BACKUP_HORA`), com `pg_dump` em formato custom.
+- A cópia só é aceita depois de `pg_restore --list` lê-la inteira; até lá ela fica como arquivo parcial.
+- Retenção: as 7 mais recentes, 4 de domingo e 6 de dia 1.
+- Cópia manual: `docker exec <contêiner do backup> sh -c 'export PGPASSWORD=$(cat $PGPASSWORD_FILE); /app/backup/backup-now.sh'`.
+- Restauração: `deploy/backup/restore.sh <arquivo> <banco novo>`. Recusa banco que já tenha dados. Restaurar por cima do banco em uso é operação manual, com a stack parada e aprovação.
 
 ## Proposta
 
@@ -22,5 +30,5 @@ Ainda não implementado. Este arquivo registra a proposta aprovada na Fase 0; os
 
 ## Pendências
 
-- Destino das cópias fora da VPS.
+- Destino das cópias fora da VPS. Até ele existir, uma falha de disco da VPS leva as cópias junto.
 - Ferramenta de arquivamento de WAL, a escolher na Fase 8 conforme o destino.

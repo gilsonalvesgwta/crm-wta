@@ -8,14 +8,14 @@ O projeto está na **Fase 1 (Fundação)**. O que já funciona, o que falta e o 
 
 ```
 apps/
-  web/        interface Next.js            (ainda não criada)
-  api/        API NestJS                   (ainda não criada)
-  worker/     processadores de fila        (ainda não criado)
+  web/        interface Next.js (telas, design system, testes de ponta a ponta)
+  api/        API NestJS (autenticação, administração, plataforma, testes)
+  worker/     processadores de fila (Fase 3)
 packages/
   db/         migrações SQL, políticas RLS e testes de banco
-  contracts/  esquemas e tipos compartilhados (ainda não criado)
-  ui/         design system                (ainda não criado)
-deploy/       inventário da VPS; stack, backup e restauração virão aqui
+  ui/brand/   marca WTA vetorizada
+deploy/       stack do Docker Swarm, segredos, cópia e restauração, inventário, teste da stack
+Dockerfile    imagens "api" e "web"
 docs/         arquitetura, decisões, dados, permissões, integrações, operação
 ```
 

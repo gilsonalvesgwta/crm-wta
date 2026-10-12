@@ -53,6 +53,8 @@ services:
     image: ${IMAGEM_API}
     user: root
     command: ["sh", "/app/db/stack-migrate.sh"]
+    healthcheck:
+      disable: true
     environment:
       BOOTSTRAP_EMAIL: ${BOOTSTRAP_EMAIL:-}
       BOOTSTRAP_NAME: ${BOOTSTRAP_NAME:-}
@@ -124,6 +126,8 @@ services:
     image: ${IMAGEM_API}
     user: root
     command: ["sh", "/app/backup/backup-loop.sh"]
+    healthcheck:
+      disable: true
     environment:
       PGHOST: db
       PGDATABASE: crm

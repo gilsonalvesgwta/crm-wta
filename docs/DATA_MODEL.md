@@ -53,7 +53,7 @@ O RLS cuida do isolamento entre empresas. O alcance dentro da empresa (próprios
 
 ## Tabelas implementadas
 
-Migração `0001_fundacao`. Todas com RLS ligado e forçado.
+Migrações `0001_fundacao`, `0002_autenticacao` e `0003_nomes_unicos`. Todas com RLS ligado e forçado.
 
 | Tabela | Guarda | Acesso de `crm_app` |
 | --- | --- | --- |
@@ -71,6 +71,9 @@ Migração `0001_fundacao`. Todas com RLS ligado e forçado.
 | `api_keys` | Chaves de integração: prefixo, hash, escopos | Isolamento padrão |
 | `auth_events` | Eventos de autenticação, por mês | Lê os da própria empresa; inserção só por função |
 | `audit_log` | Auditoria, por mês | Lê e insere os da própria empresa; nunca altera ou apaga |
+| `mfa_recovery_codes` | Códigos de recuperação do 2FA, só o hash | Nenhum acesso direto |
+
+Perfis e equipes têm nome único por empresa, sem diferenciar maiúsculas.
 
 ### Funções de autenticação
 
@@ -85,7 +88,12 @@ Rodam com os direitos de `crm_owner`, porque precisam olhar antes de existir con
 | `app.session_create(...)` | Abre sessão para usuário ativo |
 | `app.session_find(hash)` | Devolve a sessão só se válida, com usuário, vínculo e empresa ativos |
 | `app.session_set_tenant(sessão, empresa)` | Entra em uma empresa onde há vínculo ativo |
-| `app.session_mark_mfa`, `session_touch`, `session_revoke`, `session_revoke_all` | Ciclo de vida da sessão |
+| `app.session_mark_mfa`, `session_touch`, `session_revoke`, `session_revoke_all`, `session_revoke_own` | Ciclo de vida da sessão |
+| `app.auth_user_profile`, `auth_password_hash`, `auth_set_password` | Perfil e senha |
+| `app.auth_failure_counts` | Falhas recentes por e-mail e por IP, para o bloqueio |
+| `app.auth_totp_*`, `auth_use_recovery_code`, `auth_recovery_codes_left` | Verificação em duas etapas |
+| `app.auth_password_reset_create`, `auth_password_reset_consume` | Nova senha por link, com no máximo 3 pedidos em 10 minutos |
+| `app.auth_invitation_info`, `auth_invitation_accept` | Convites |
 
 ## Tabelas planejadas
 
