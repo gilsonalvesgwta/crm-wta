@@ -1,8 +1,9 @@
 aplicando 0001_fundacao
 aplicando 0002_autenticacao
-migrações aplicadas agora: 2
+aplicando 0003_nomes_unicos
+migrações aplicadas agora: 3
 papel crm_api pronto
-pronto: empresa adafc520-cd13-4d77-b75b-2acb90ca0848, superadministrador f83f7109-284f-48e8-99ba-6a96df570082
+pronto: empresa bde0d64d-0628-479b-adf4-117cd1f6458d, superadministrador 66c429ed-c9a4-4d08-808b-50128f1b82a2
 {"status":"ok","database":"ok"}
 
 Running kernel seems to be up-to-date.
@@ -20,46 +21,80 @@ No VM guests are running outdated hypervisor (qemu) binaries on this host.
 > playwright test
 
 
-Running 7 tests using 1 worker
+Running 13 tests using 1 worker
 
-  ✓  1 [chromium] › e2e/acesso.spec.ts:12:1 › a tela de login é acessível, no computador e no celular (595ms)
-  ✓  2 [chromium] › e2e/acesso.spec.ts:24:1 › senha errada mostra a mensagem e não entra (283ms)
-  ✓  3 [chromium] › e2e/acesso.spec.ts:30:1 › sem sessão, a área interna manda para o login e volta depois (580ms)
-  ✓  4 [chromium] › e2e/acesso.spec.ts:40:1 › o administrador entra e vê o aviso para ativar a verificação em duas etapas (607ms)
-  ✓  5 [chromium] › e2e/acesso.spec.ts:49:1 › convite: a pessoa cria a conta e entra (793ms)
-  ✘  6 [chromium] › e2e/acesso.spec.ts:72:1 › esqueci a senha: o link do e-mail cria uma senha nova (5.2s)
-  -  7 [chromium] › e2e/acesso.spec.ts:98:1 › verificação em duas etapas: ativar, sair e entrar com o código
-
-
-  1) [chromium] › e2e/acesso.spec.ts:72:1 › esqueci a senha: o link do e-mail cria uma senha nova ──
-
-    Error: expect(locator).toBeVisible() failed
-
-    Locator: getByText('Se rita@wta.test estiver cadastrado')
-    Expected: visible
-    Timeout: 5000ms
-    Error: element(s) not found
-
-    Call log:
-      - Expect "toBeVisible" getByText('Se rita@wta.test estiver cadastrado') with timeout 5000ms
-      - waiting for getByText('Se rita@wta.test estiver cadastrado')
+  ✓   1 [chromium] › e2e/acesso.spec.ts:12:1 › a tela de login é acessível, no computador e no celular (699ms)
+  ✓   2 [chromium] › e2e/acesso.spec.ts:24:1 › senha errada mostra a mensagem e não entra (277ms)
+  ✓   3 [chromium] › e2e/acesso.spec.ts:30:1 › sem sessão, a área interna manda para o login e volta depois (651ms)
+  ✘   4 [chromium] › e2e/acesso.spec.ts:40:1 › o administrador entra e vê o aviso para ativar a verificação em duas etapas (683ms)
+  -   5 [chromium] › e2e/acesso.spec.ts:49:1 › convite: a pessoa cria a conta e entra
+  -   6 [chromium] › e2e/acesso.spec.ts:72:1 › esqueci a senha: o link do e-mail cria uma senha nova
+  -   7 [chromium] › e2e/acesso.spec.ts:98:1 › verificação em duas etapas: ativar, sair e entrar com o código
+  ✘   8 [chromium] › e2e/admin.spec.ts:13:1 › convidar, aceitar, trocar o perfil e desativar (123ms)
+  -   9 [chromium] › e2e/admin.spec.ts:53:1 › equipes: criar e definir as pessoas
+  -  10 [chromium] › e2e/admin.spec.ts:71:1 › perfis: o administrador é protegido; um perfil novo nasce de um modelo
+  -  11 [chromium] › e2e/admin.spec.ts:88:1 › identidade visual: recusa cor sem contraste, aplica a nova e restaura
+  -  12 [chromium] › e2e/admin.spec.ts:118:1 › auditoria mostra o que foi feito, com filtro
+  -  13 [chromium] › e2e/admin.spec.ts:129:1 › plataforma: criar e suspender uma empresa
 
 
-      75 |   await page.getByLabel('E-mail').fill(RITA);
-      76 |   await page.getByRole('button', { name: 'Enviar link' }).click();
-    > 77 |   await expect(page.getByText(`Se ${RITA} estiver cadastrado`)).toBeVisible();
-         |                                                                 ^
-      78 |
-      79 |   const mail = lastMailTo(RITA);
-      80 |   expect(mail.subject).toContain('nova senha');
-        at /home/runner/work/crm-wta/crm-wta/apps/web/e2e/acesso.spec.ts:77:65
+  1) [chromium] › e2e/acesso.spec.ts:40:1 › o administrador entra e vê o aviso para ativar a verificação em duas etapas 
 
-    Error Context: test-results/acesso-esqueci-a-senha-o-link-do-e-mail-cria-uma-senha-nova-chromium/error-context.md
+    Error: expect(received).toEqual(expected) // deep equality
 
-  1 failed
-    [chromium] › e2e/acesso.spec.ts:72:1 › esqueci a senha: o link do e-mail cria uma senha nova ───
-  1 did not run
-  5 passed (8.7s)
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "color-contrast: .rounded-full",
+    + ]
+
+       at util.ts:65
+
+      63 |   const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+      64 |   const serious = r.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
+    > 65 |   expect(serious.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+         |                                                                                               ^
+      66 | }
+      67 |
+      68 | export async function login(page: Page, email: string, password: string): Promise<void> {
+        at expectAccessible (/home/runner/work/crm-wta/crm-wta/apps/web/e2e/util.ts:65:95)
+        at /home/runner/work/crm-wta/crm-wta/apps/web/e2e/acesso.spec.ts:45:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../saida/telas/falhas/acesso-o-administrador-ent-2f2dc--verificação-em-duas-etapas-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../saida/telas/falhas/acesso-o-administrador-ent-2f2dc--verificação-em-duas-etapas-chromium/error-context.md
+
+  2) [chromium] › e2e/admin.spec.ts:13:1 › convidar, aceitar, trocar o perfil e desativar ──────────
+
+    Error: ENOENT: no such file or directory, open '/tmp/e2e-admin-totp.txt'
+
+       at util.ts:87
+
+      85 | /** Entra como o administrador, que já tem a verificação em duas etapas ativa. */
+      86 | export async function loginAdmin(page: Page): Promise<void> {
+    > 87 |   const secret = readFileSync(SECRET_FILE, 'utf8').trim();
+         |                  ^
+      88 |   await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+      89 |   await expect(page).toHaveURL(/\/entrar\/verificacao/);
+      90 |   await page.getByLabel('Código de 6 dígitos').fill(totp(secret));
+        at loginAdmin (/home/runner/work/crm-wta/crm-wta/apps/web/e2e/util.ts:87:18)
+        at /home/runner/work/crm-wta/crm-wta/apps/web/e2e/admin.spec.ts:14:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../saida/telas/falhas/admin-convidar-aceitar-trocar-o-perfil-e-desativar-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../saida/telas/falhas/admin-convidar-aceitar-trocar-o-perfil-e-desativar-chromium/error-context.md
+
+  2 failed
+    [chromium] › e2e/acesso.spec.ts:40:1 › o administrador entra e vê o aviso para ativar a verificação em duas etapas 
+    [chromium] › e2e/admin.spec.ts:13:1 › convidar, aceitar, trocar o perfil e desativar ───────────
+  8 did not run
+  3 passed (3.6s)
 /home/runner/work/crm-wta/crm-wta/apps/web:
  ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @crm/web@ e2e: `playwright test`
 Exit status 1

@@ -1,6 +1,6 @@
 instalar: success
 tipos: success
-testes-api: failure
+testes-api: success
 compilar: success
 ponta-a-ponta: failure
-fim: 2026-10-12T02:28:21Z
+fim: 2026-10-12T02:34:41Z
