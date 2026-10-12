@@ -176,28 +176,53 @@ jobs:
           } > "$SAIDA/00-resumo.txt"
           cat "$SAIDA/00-resumo.txt"
 
-      # Os registros do Actions não são legíveis pelo ambiente de desenvolvimento.
-      # A saída de cada execução vai para o ramo ci-saida, em saida/<ramo>/.
       - name: Publicar a saída no ramo ci-saida
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
+        run: .github/publicar-saida.sh "$SAIDA" "$(echo "$GITHUB_REF_NAME" | tr '/' '_')"
+
+  stack:
+    name: Stack de produção (Docker Swarm)
+    if: github.ref != 'refs/heads/ci-saida'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Construir a imagem da API
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: api
+          tags: crmwta-api:teste
+          load: true
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+
+      - name: Construir a imagem da interface
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: web
+          tags: crmwta-web:teste
+          load: true
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
+
+      - name: Subir e testar a stack
         run: |
-          slug=$(echo "$GITHUB_REF_NAME" | tr '/' '_')
-          dir=$(mktemp -d)
-          git config --global user.name "ci"
-          git config --global user.email "ci@users.noreply.github.com"
-          url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          for attempt in 1 2 3 4 5; do
-            rm -rf "$dir/r"
-            if git clone -q --depth 1 --branch ci-saida "$url" "$dir/r" 2>/dev/null; then :; else
-              git init -q "$dir/r" && git -C "$dir/r" checkout -q -b ci-saida
-            fi
-            rm -rf "$dir/r/saida/$slug" && mkdir -p "$dir/r/saida/$slug"
-            cp -r "$SAIDA"/. "$dir/r/saida/$slug/"
-            git -C "$dir/r" add -A
-            git -C "$dir/r" commit -q -m "saida $GITHUB_REF_NAME $GITHUB_RUN_ID" || exit 0
-            if git -C "$dir/r" push -q "$url" HEAD:ci-saida; then exit 0; fi
-            sleep $((attempt * 3))
-          done
-          exit 1
+          mkdir -p ../saida-stack
+          docker image ls --format '{{.Repository}}:{{.Tag}} {{.Size}}' | grep crmwta | tee ../saida-stack/7-imagens.txt
+          set -o pipefail
+          IMAGEM_API=crmwta-api:teste IMAGEM_WEB=crmwta-web:teste deploy/teste-stack.sh 2>&1 | tee ../saida-stack/7-stack.txt
+
+      - name: Publicar a saída no ramo ci-saida
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/publicar-saida.sh ../saida-stack "$(echo "$GITHUB_REF_NAME" | tr '/' '_')__stack"

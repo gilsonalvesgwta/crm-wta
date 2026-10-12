@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
+import { ConsoleLogger } from '@nestjs/common';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import fastifyCookie from '@fastify/cookie';
 import { randomUUID } from 'node:crypto';
@@ -15,7 +16,11 @@ export async function createApp(cfg: Config, opts: { logger?: boolean } = {}): P
     logger: opts.logger === false || cfg.LOG_LEVEL === 'silent' ? false : { level: cfg.LOG_LEVEL },
   });
   const app = await NestFactory.create<NestFastifyApplication>(AppModule.register(cfg), adapter, {
-    logger: opts.logger === false ? false : ['error', 'warn', 'log'],
+    logger: opts.logger === false
+      ? false
+      : cfg.NODE_ENV === 'production'
+        ? new ConsoleLogger({ json: true, logLevels: ['error', 'warn', 'log'] })
+        : ['error', 'warn', 'log'],
     bufferLogs: false,
   });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

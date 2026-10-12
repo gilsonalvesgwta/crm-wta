@@ -8,6 +8,7 @@ const LEO = 'leo@wta.test';
 async function openSettings(page: Page, tab: string) {
   await page.getByRole('navigation', { name: 'Menu principal' }).getByRole('link', { name: 'Configurações' }).click();
   await page.getByRole('navigation', { name: 'Seções de configurações' }).getByRole('link', { name: tab }).click();
+  await expect(page.getByRole('navigation', { name: 'Seções de configurações' }).getByRole('link', { name: tab })).toHaveAttribute('aria-current', 'page');
 }
 
 test('convidar, aceitar, trocar o perfil e desativar', async ({ page, browser }) => {

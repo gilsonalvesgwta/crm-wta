@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 
 const bool = z
@@ -33,7 +34,20 @@ export type Config = z.infer<typeof schema> & { masterKeys: Record<number, Buffe
 
 export const CONFIG = Symbol('CONFIG');
 
-export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
+/** Segredos podem vir de arquivo (segredos do Docker): FOO_FILE=/run/secrets/foo. */
+const FILE_KEYS = ['DATABASE_URL', 'MASTER_KEYS', 'SMTP_PASS'] as const;
+
+function withFiles(env: Record<string, string | undefined>): Record<string, string | undefined> {
+  const out = { ...env };
+  for (const k of FILE_KEYS) {
+    const file = env[`${k}_FILE`];
+    if (file && !env[k]) out[k] = readFileSync(file, 'utf8').trim();
+  }
+  return out;
+}
+
+export function loadConfig(rawEnv: Record<string, string | undefined> = process.env): Config {
+  const env = withFiles(rawEnv);
   const parsed = schema.safeParse(env);
   if (!parsed.success) {
     const fields = parsed.error.issues.map((i) => i.path.join('.')).join(', ');

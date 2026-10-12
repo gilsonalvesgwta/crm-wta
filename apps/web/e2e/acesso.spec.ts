@@ -72,6 +72,7 @@ test('convite: a pessoa cria a conta e entra', async ({ page }) => {
 test('esqueci a senha: o link do e-mail cria uma senha nova', async ({ page }) => {
   await page.goto('/entrar');
   await page.getByRole('link', { name: 'Esqueci minha senha' }).click();
+  await expect(page.getByRole('heading', { name: 'Esqueci minha senha' })).toBeVisible();
   await page.getByLabel('E-mail').fill(RITA);
   await page.getByRole('button', { name: 'Enviar link' }).click();
   await expect(page.getByText(`Se ${RITA} estiver cadastrado`)).toBeVisible();
