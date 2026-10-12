@@ -7,7 +7,7 @@
 # Test info
 
 - Name: admin.spec.ts >> convidar, aceitar, trocar o perfil e desativar
-- Location: e2e/admin.spec.ts:13:1
+- Location: e2e/admin.spec.ts:14:1
 
 # Error details
 
