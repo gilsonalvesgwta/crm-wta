@@ -3,7 +3,7 @@ aplicando 0002_autenticacao
 aplicando 0003_nomes_unicos
 migrações aplicadas agora: 3
 papel crm_api pronto
-pronto: empresa ccfb7bcb-4d87-4a16-a1ec-1cd372326d3b, superadministrador 2090d30a-0264-4c4a-a7a6-fcb2c3fc4639
+pronto: empresa 14965d38-4519-410d-9341-ad5565ff2371, superadministrador b8630828-6f67-415c-9db5-a1dff9cbf790
 {"status":"ok","database":"ok"}
 
 Running kernel seems to be up-to-date.
@@ -23,18 +23,18 @@ No VM guests are running outdated hypervisor (qemu) binaries on this host.
 
 Running 13 tests using 1 worker
 
-  ✓   1 [chromium] › e2e/acesso.spec.ts:12:1 › a tela de login é acessível, no computador e no celular (630ms)
-  ✓   2 [chromium] › e2e/acesso.spec.ts:24:1 › senha errada mostra a mensagem e não entra (241ms)
-  ✓   3 [chromium] › e2e/acesso.spec.ts:30:1 › sem sessão, a área interna manda para o login e volta depois (1.1s)
-  ✓   4 [chromium] › e2e/acesso.spec.ts:40:1 › o administrador entra e vê o aviso para ativar a verificação em duas etapas (655ms)
-  ✓   5 [chromium] › e2e/acesso.spec.ts:49:1 › convite: a pessoa cria a conta e entra (745ms)
-  ✓   6 [chromium] › e2e/acesso.spec.ts:72:1 › esqueci a senha: o link do e-mail cria uma senha nova (1.0s)
-  ✓   7 [chromium] › e2e/acesso.spec.ts:99:1 › verificação em duas etapas: ativar, sair e entrar com o código (1.7s)
-  ✓   8 [chromium] › e2e/admin.spec.ts:14:1 › convidar, aceitar, trocar o perfil e desativar (1.8s)
-  ✓   9 [chromium] › e2e/admin.spec.ts:54:1 › equipes: criar e definir as pessoas (1.2s)
-  ✓  10 [chromium] › e2e/admin.spec.ts:72:1 › perfis: o administrador é protegido; um perfil novo nasce de um modelo (1.4s)
-  ✓  11 [chromium] › e2e/admin.spec.ts:89:1 › identidade visual: recusa cor sem contraste, aplica a nova e restaura (1.3s)
-  ✓  12 [chromium] › e2e/admin.spec.ts:119:1 › auditoria mostra o que foi feito, com filtro (875ms)
-  ✓  13 [chromium] › e2e/admin.spec.ts:130:1 › plataforma: criar e suspender uma empresa (1.0s)
+  ✓   1 [chromium] › e2e/acesso.spec.ts:12:1 › a tela de login é acessível, no computador e no celular (568ms)
+  ✓   2 [chromium] › e2e/acesso.spec.ts:24:1 › senha errada mostra a mensagem e não entra (285ms)
+  ✓   3 [chromium] › e2e/acesso.spec.ts:30:1 › sem sessão, a área interna manda para o login e volta depois (592ms)
+  ✓   4 [chromium] › e2e/acesso.spec.ts:40:1 › o administrador entra e vê o aviso para ativar a verificação em duas etapas (640ms)
+  ✓   5 [chromium] › e2e/acesso.spec.ts:49:1 › convite: a pessoa cria a conta e entra (728ms)
+  ✓   6 [chromium] › e2e/acesso.spec.ts:72:1 › esqueci a senha: o link do e-mail cria uma senha nova (965ms)
+  ✓   7 [chromium] › e2e/acesso.spec.ts:99:1 › verificação em duas etapas: ativar, sair e entrar com o código (1.6s)
+  ✓   8 [chromium] › e2e/admin.spec.ts:14:1 › convidar, aceitar, trocar o perfil e desativar (1.7s)
+  ✓   9 [chromium] › e2e/admin.spec.ts:54:1 › equipes: criar e definir as pessoas (1.1s)
+  ✓  10 [chromium] › e2e/admin.spec.ts:72:1 › perfis: o administrador é protegido; um perfil novo nasce de um modelo (1.3s)
+  ✓  11 [chromium] › e2e/admin.spec.ts:89:1 › identidade visual: recusa cor sem contraste, aplica a nova e restaura (1.2s)
+  ✓  12 [chromium] › e2e/admin.spec.ts:119:1 › auditoria mostra o que foi feito, com filtro (824ms)
+  ✓  13 [chromium] › e2e/admin.spec.ts:130:1 › plataforma: criar e suspender uma empresa (1.2s)
 
-  13 passed (15.5s)
+  13 passed (13.4s)
