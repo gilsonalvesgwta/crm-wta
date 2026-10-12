@@ -71,3 +71,8 @@ export async function login(page: Page, email: string, password: string): Promis
   await page.getByLabel('Senha', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Entrar' }).click();
 }
+
+/** Avisos da página (o anunciador de rotas do Next também usa role="alert"). */
+export function alertBox(page: Page) {
+  return page.locator('[role="alert"]:not(#__next-route-announcer__)');
+}

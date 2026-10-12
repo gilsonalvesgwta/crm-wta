@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import {
-  ADMIN_EMAIL, ADMIN_PASSWORD, expectAccessible, lastMailTo, linkFrom, login, sha256Hex, shot, sql, totp,
+  ADMIN_EMAIL, ADMIN_PASSWORD, alertBox, expectAccessible, lastMailTo, linkFrom, login, sha256Hex, shot, sql, totp,
 } from './util';
 
 const RITA = 'rita@wta.test';
@@ -23,7 +23,7 @@ test('a tela de login é acessível, no computador e no celular', async ({ page 
 
 test('senha errada mostra a mensagem e não entra', async ({ page }) => {
   await login(page, ADMIN_EMAIL, 'senha errada de propósito');
-  await expect(page.getByRole('alert')).toHaveText('E-mail ou senha incorretos.');
+  await expect(alertBox(page)).toHaveText('E-mail ou senha incorretos.');
   await expect(page).toHaveURL(/\/entrar/);
 });
 
@@ -119,7 +119,7 @@ test('verificação em duas etapas: ativar, sair e entrar com o código', async 
   await expectAccessible(page);
   await page.getByLabel('Código de 6 dígitos').fill('000000');
   await page.getByRole('button', { name: 'Confirmar' }).click();
-  await expect(page.getByRole('alert')).toContainText('Código incorreto');
+  await expect(alertBox(page)).toContainText('Código incorreto');
   await page.getByLabel('Código de 6 dígitos').fill(totp(secret));
   await page.getByRole('button', { name: 'Confirmar' }).click();
   await expect(page.getByRole('heading', { name: /^Olá,/ })).toBeVisible();
