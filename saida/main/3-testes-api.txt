@@ -1,0 +1,125 @@
+
+> @crm/api@ test /home/runner/work/crm-wta/crm-wta/apps/api
+> rm -rf .test-out && tsc -p tsconfig.json --outDir .test-out && node --test --test-concurrency=1 --test-reporter=spec ".test-out/test/**/*.test.js"
+
+▶ acesso às rotas de administração
+  ✔ administrador sem 2FA é barrado com explicação (24.654073ms)
+  ✔ vendedor não administra usuários, mas lê os dados da empresa (16.656835ms)
+  ✔ gestor vê auditoria mas não administra usuários (29.389201ms)
+✔ acesso às rotas de administração (1049.106414ms)
+▶ empresa e identidade visual
+  ✔ fuso inválido é recusado; válido é salvo e auditado (12.571392ms)
+  ✔ vendedor não altera a empresa (4.06001ms)
+  ✔ cor sem contraste é recusada; cor válida gera o tema e só vale para a empresa (26.246071ms)
+✔ empresa e identidade visual (43.292399ms)
+▶ convites
+  ✔ convidar envia e-mail e aparece na lista (20.13971ms)
+  ✔ reenviar invalida o link anterior (12.699171ms)
+  ✔ aceitar o convite cria a pessoa com o perfil escolhido (46.500103ms)
+  ✔ não convida quem já tem acesso (13.525795ms)
+  ✔ cancelar convite (24.730406ms)
+  ✔ perfil de outra empresa não serve para convite (9.068545ms)
+✔ convites (127.392068ms)
+▶ usuários
+  ✔ a lista mostra perfis e situação da verificação (7.037695ms)
+  ✔ ninguém desativa o próprio acesso (10.4418ms)
+  ✔ a empresa nunca fica sem administrador (29.270497ms)
+  ✔ desativar alguém derruba a sessão dele na hora (37.700803ms)
+  ✔ trocar o perfil muda as permissões (26.397599ms)
+  ✔ vínculo de outra empresa é invisível (9.144804ms)
+✔ usuários (120.461211ms)
+▶ equipes
+  ✔ criar, nomes únicos, membros e exclusão (43.415852ms)
+✔ equipes (43.619071ms)
+▶ perfis
+  ✔ o catálogo informa os alcances permitidos (4.650049ms)
+  ✔ perfil personalizado: criar, aplicar, editar, proteger e excluir (75.105641ms)
+  ✔ perfil de outra empresa é invisível (8.727729ms)
+✔ perfis (88.802965ms)
+▶ auditoria
+  ✔ lista as ações da empresa, da mais nova para a mais velha, com paginação (15.265191ms)
+  ✔ a empresa B não vê nada da A (4.459812ms)
+✔ auditoria (19.916801ms)
+▶ plataforma
+  ✔ quem não é superadministrador nem sabe que a rota existe (3.385177ms)
+  ✔ superadministrador sem 2FA é barrado (21.06237ms)
+  ✔ criar empresa prepara perfis e convida o administrador; suspender derruba o acesso (152.404712ms)
+✔ plataforma (177.1471ms)
+▶ saúde
+  ✔ healthz e readyz respondem sem login (22.319648ms)
+  ✔ rota inexistente devolve 404 no formato de problema (1.9453ms)
+  ✔ cabeçalhos de segurança (0.759578ms)
+✔ saúde (769.33311ms)
+▶ login
+  ✔ sem sessão, /me pede login (0.965172ms)
+  ✔ senha errada e e-mail desconhecido dão a mesma resposta (52.833498ms)
+  ✔ campos inválidos devolvem 422 com o campo (4.399638ms)
+  ✔ login certo grava cookie httpOnly, Secure e SameSite=Lax e entra na única empresa (40.821787ms)
+  ✔ "manter conectado" grava validade no cookie (22.88979ms)
+  ✔ o vendedor recebe só as permissões do perfil Comercial (25.679446ms)
+  ✔ mutação sem o cabeçalho anti-CSRF é recusada (25.980569ms)
+  ✔ sair encerra a sessão no servidor (27.272262ms)
+  ✔ cookie forjado não abre sessão (2.488693ms)
+  ✔ conta sem empresa ativa não entra (17.728629ms)
+✔ login (222.085139ms)
+▶ várias empresas
+  ✔ quem tem duas empresas escolhe uma depois do login (44.754295ms)
+  ✔ não entra em empresa onde não tem vínculo (30.031271ms)
+  ✔ vínculo desativado derruba a sessão naquela empresa (28.166379ms)
+✔ várias empresas (103.315934ms)
+▶ força bruta
+  ✔ cinco senhas erradas travam o e-mail por um minuto, mesmo com a senha certa (84.674772ms)
+  ✔ o bloqueio de um e-mail não atinge outro (22.036007ms)
+  ✔ cada tentativa fica registrada (1.028928ms)
+✔ força bruta (108.227968ms)
+▶ nova senha por link
+  ✔ pedir, receber o e-mail, redefinir e entrar com a senha nova (92.606598ms)
+  ✔ e-mail desconhecido recebe a mesma resposta e nenhum e-mail sai (3.061765ms)
+  ✔ o e-mail não guarda o token no banco, só o hash (1.102588ms)
+✔ nova senha por link (97.101647ms)
+▶ troca de senha
+  ✔ exige a senha atual e mantém só a sessão atual (90.990717ms)
+✔ troca de senha (91.221257ms)
+▶ verificação em duas etapas
+  ✔ configurar e ativar com um código do aplicativo (36.661676ms)
+  ✔ no próximo login, nada abre antes do código (39.60091ms)
+  ✔ código de recuperação vale uma vez (44.856077ms)
+  ✔ administrador não pode desligar a verificação (43.397004ms)
+✔ verificação em duas etapas (164.964845ms)
+▶ sessões
+  ✔ a pessoa lista e encerra as próprias sessões, e não as de outra (67.875446ms)
+✔ sessões (68.095738ms)
+▶ convites
+  ✔ pessoa nova aceita, cria a conta e entra (47.070543ms)
+  ✔ quem já tem conta precisa estar logado como ela (53.432701ms)
+✔ convites (100.766395ms)
+✔ senha fraca impede a primeira configuração (766.21412ms)
+✔ cria a empresa WTA, o superadministrador e os perfis (77.092472ms)
+✔ rodar de novo não duplica nada nem troca a senha (22.974059ms)
+✔ o dono entra como administrador da WTA (79.375079ms)
+✔ HOTP confere com os vetores da RFC 4226 (1.908352ms)
+✔ TOTP confere com os vetores da RFC 6238 (0.332099ms)
+✔ verifyTotp aceita um passo de diferença e recusa dois (0.682424ms)
+✔ base32 vai e volta, e o otpauth leva o segredo (1.083462ms)
+✔ SecretBox cifra, decifra, recusa adulteração e troca de contexto (1.327778ms)
+✔ tokens e códigos de recuperação (0.79844ms)
+✔ regra de senha (0.280213ms)
+✔ bloqueio progressivo (0.194573ms)
+✔ perfis padrão respeitam o alcance de cada permissão (0.556379ms)
+✔ só o administrador tem as permissões que exigem 2FA (0.32709ms)
+✔ linhas da matriz conferidas uma a uma (0.298407ms)
+✔ união de perfis fica com o maior alcance (0.258803ms)
+✔ contraste segue a fórmula da WCAG (0.315239ms)
+✔ o tema da WTA sai igual ao padrão (0.519569ms)
+✔ cor escura recebe texto branco; cor clara recebe texto escuro (0.68561ms)
+✔ cor quase branca serve no tema escuro, mas não no claro (0.524098ms)
+✔ formato inválido é recusado (0.154538ms)
+✔ toda cor válida gera tema com contraste ou é recusada com explicação (39.131763ms)
+ℹ tests 79
+ℹ suites 17
+ℹ pass 79
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6045.356657
