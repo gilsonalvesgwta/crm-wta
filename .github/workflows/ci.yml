@@ -2,19 +2,21 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
+    paths-ignore: ['saida/**']
   pull_request:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
   banco:
     name: Banco (PostgreSQL ${{ matrix.pg }})
+    if: github.ref != 'refs/heads/ci-saida'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -43,3 +45,197 @@ jobs:
         env:
           ADMIN_URL: postgres://postgres:postgres@localhost:5432/postgres
         run: packages/db/tests/run.sh
+
+  app:
+    name: API e interface
+    if: github.ref != 'refs/heads/ci-saida'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      SAIDA: ${{ github.workspace }}/../saida
+      ADMIN_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Preparar a pasta de saída
+        run: |
+          mkdir -p "$SAIDA"
+          {
+            echo "commit: $GITHUB_SHA"
+            echo "ramo: $GITHUB_REF_NAME"
+            echo "execucao: $GITHUB_RUN_ID"
+            echo "inicio: $(date -u +%FT%TZ)"
+          } > "$SAIDA/0-info.txt"
+
+      - name: Instalar dependências
+        id: install
+        run: |
+          set -o pipefail
+          # No main o lockfile manda. Nos ramos de trabalho ele pode ser atualizado
+          # aqui, e a versão nova volta para o repositório pela pasta de saída.
+          if [ "$GITHUB_REF_NAME" = main ]; then flag=--frozen-lockfile; else flag=--no-frozen-lockfile; fi
+          pnpm install $flag 2>&1 | tee "$SAIDA/1-instalar.txt"
+          cp pnpm-lock.yaml "$SAIDA/pnpm-lock.yaml"
+          pnpm -r ls --depth 0 > "$SAIDA/1-versoes.txt" 2>&1 || true
+
+      - name: Cópias sincronizadas
+        run: diff <(tail -n +2 apps/web/src/lib/theme-build.ts) apps/api/src/domain/theme.ts
+
+      - name: Checar tipos
+        id: typecheck
+        if: always() && steps.install.outcome == 'success'
+        run: |
+          set -o pipefail
+          pnpm typecheck 2>&1 | tee "$SAIDA/2-tipos.txt"
+
+      - name: Testes da API
+        id: test
+        if: always() && steps.install.outcome == 'success'
+        run: |
+          set -o pipefail
+          pnpm --filter @crm/api test 2>&1 | tee "$SAIDA/3-testes-api.txt"
+
+      - name: Compilar
+        id: build
+        if: always() && steps.install.outcome == 'success'
+        run: |
+          set -o pipefail
+          pnpm build 2>&1 | tee "$SAIDA/4-compilar.txt"
+
+      - name: Testes de ponta a ponta
+        id: e2e
+        if: always() && steps.build.outcome == 'success'
+        env:
+          E2E_ADMIN_DATABASE_URL: postgres://postgres:postgres@localhost:5432/crm_e2e
+          MAIL_DIR: /tmp/crm-mail
+          E2E_SHOTS: ${{ github.workspace }}/../saida/telas
+        run: |
+          set -o pipefail
+          {
+            psql "$ADMIN_URL" -X -q -c 'create database crm_e2e'
+            DATABASE_URL="$E2E_ADMIN_DATABASE_URL" API_DB_PASSWORD=senha-e2e packages/db/migrate.sh
+            ADMIN_DATABASE_URL="$E2E_ADMIN_DATABASE_URL" BOOTSTRAP_EMAIL=dono@wta.test BOOTSTRAP_NAME='Gilson Alves' \
+              BOOTSTRAP_PASSWORD='senha inicial forte 2026' node apps/api/dist/cli/bootstrap.js
+
+            DATABASE_URL=postgres://crm_api:senha-e2e@localhost:5432/crm_e2e \
+            APP_URL=http://localhost:3000 MASTER_KEYS="1:$(openssl rand -base64 32)" \
+            MAIL_MODE=file MAIL_DIR=/tmp/crm-mail TRUST_PROXY=true COOKIE_SECURE=false LOG_LEVEL=warn PORT=3001 \
+              nohup node apps/api/dist/main.js > "$SAIDA/6-api-servidor.txt" 2>&1 &
+
+            W=apps/web/.next/standalone/apps/web
+            cp -r apps/web/.next/static "$W/.next/static"
+            cp -r apps/web/public "$W/public"
+            API_INTERNAL_URL=http://localhost:3001 PORT=3000 HOSTNAME=127.0.0.1 \
+              nohup node "$W/server.js" > "$SAIDA/6-web-servidor.txt" 2>&1 &
+
+            for i in $(seq 1 60); do
+              curl -fsS http://localhost:3001/api/readyz >/dev/null 2>&1 && curl -fsS -o /dev/null http://localhost:3000/entrar && break
+              sleep 1
+            done
+            curl -fsS http://localhost:3000/api/readyz
+            echo
+            pnpm --filter @crm/web exec playwright install --with-deps chromium > /dev/null
+            pnpm --filter @crm/web e2e
+          } 2>&1 | tee "$SAIDA/6-ponta-a-ponta.txt"
+
+      - name: Auditoria de dependências
+        if: always() && steps.install.outcome == 'success'
+        run: pnpm audit --prod > "$SAIDA/5-auditoria.txt" 2>&1 || true
+
+      - name: Resumo
+        if: always()
+        run: |
+          {
+            echo "instalar: ${{ steps.install.outcome }}"
+            echo "tipos: ${{ steps.typecheck.outcome }}"
+            echo "testes-api: ${{ steps.test.outcome }}"
+            echo "compilar: ${{ steps.build.outcome }}"
+            echo "ponta-a-ponta: ${{ steps.e2e.outcome }}"
+            echo "fim: $(date -u +%FT%TZ)"
+          } > "$SAIDA/00-resumo.txt"
+          cat "$SAIDA/00-resumo.txt"
+
+      - name: Publicar a saída no ramo ci-saida
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/publicar-saida.sh "$SAIDA" "$(echo "$GITHUB_REF_NAME" | tr '/' '_')"
+
+  stack:
+    name: Stack de produção (Docker Swarm)
+    if: github.ref != 'refs/heads/ci-saida'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Construir as imagens
+        run: |
+          mkdir -p ../saida-stack
+          set -o pipefail
+          {
+            docker build --progress=plain --target api -t crmwta-api:teste . &&
+            docker build --progress=plain --target web -t crmwta-web:teste .
+          } 2>&1 | tee ../saida-stack/7-construir.txt | tail -n 400
+
+      - name: Subir e testar a stack
+        run: |
+          docker image ls --format '{{.Repository}}:{{.Tag}} {{.Size}}' | grep crmwta | tee ../saida-stack/7-imagens.txt
+          set -o pipefail
+          IMAGEM_API=crmwta-api:teste IMAGEM_WEB=crmwta-web:teste deploy/teste-stack.sh 2>&1 | tee ../saida-stack/7-stack.txt
+
+      - name: Publicar a saída no ramo ci-saida
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/publicar-saida.sh ../saida-stack "$(echo "$GITHUB_REF_NAME" | tr '/' '_')__stack"
+
+  imagens:
+    name: Publicar imagens (main)
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [banco, app, stack]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Entrar no registro do GitHub
+        run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Construir e publicar
+        run: |
+          set -euo pipefail
+          versao="$(date -u +%Y.%m.%d)-$(git rev-parse --short HEAD)"
+          for alvo in api web; do
+            img="ghcr.io/${GITHUB_REPOSITORY}-${alvo}"
+            docker build --target "$alvo" -t "$img:$versao" -t "$img:main" .
+            docker push "$img:$versao"
+            docker push "$img:main"
+          done
+          echo "versão publicada: $versao" | tee -a "$GITHUB_STEP_SUMMARY"

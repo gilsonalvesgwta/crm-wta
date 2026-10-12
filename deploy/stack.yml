@@ -1,0 +1,165 @@
+# Stack do CRM WTA para Docker Swarm (Portainer: Stacks > Add stack).
+#
+# Antes de implantar:
+#   1. Rode deploy/criar-segredos.sh na VPS (cria os segredos crmwta_*).
+#   2. Defina as variáveis da stack: DOMINIO, REDE_TRAEFIK, IMAGEM_API, IMAGEM_WEB
+#      e, só na primeira vez, BOOTSTRAP_EMAIL e BOOTSTRAP_NAME.
+#
+# Nenhuma porta é publicada. Só "web" e "api" entram na rede do Traefik.
+# Banco e backup ficam na rede interna da própria stack.
+
+version: "3.8"
+
+x-api-env: &api-env
+  NODE_ENV: production
+  APP_URL: https://${DOMINIO}
+  APP_NAME: ${APP_NAME:-CRM WTA}
+  MASTER_KEYS_FILE: /run/secrets/crmwta_master_keys
+  COOKIE_SECURE: "true"
+  TRUST_PROXY: "true"
+  MAIL_MODE: ${MAIL_MODE:-log}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_FROM: ${SMTP_FROM:-}
+  SMTP_PASS_FILE: /run/secrets/crmwta_smtp_pass
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: crm
+      POSTGRES_PASSWORD_FILE: /run/secrets/crmwta_db_password
+    secrets: [crmwta_db_password]
+    volumes:
+      - crmwta_db:/var/lib/postgresql
+    networks: [interna]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d crm"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+      resources:
+        reservations: { memory: 512M }
+        limits: { memory: 1536M, cpus: "1.0" }
+
+  # Aplica as migrações, cria o papel de login da API e, na primeira vez, a
+  # empresa WTA e o superadministrador. Termina depois (aparece como 0/1).
+  migrate:
+    image: ${IMAGEM_API}
+    user: root
+    command: ["sh", "/app/db/stack-migrate.sh"]
+    healthcheck:
+      disable: true
+    environment:
+      BOOTSTRAP_EMAIL: ${BOOTSTRAP_EMAIL:-}
+      BOOTSTRAP_NAME: ${BOOTSTRAP_NAME:-}
+    secrets: [crmwta_db_password, crmwta_api_db_password, crmwta_bootstrap_password]
+    networks: [interna]
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 10
+      resources:
+        limits: { memory: 256M }
+
+  api:
+    image: ${IMAGEM_API}
+    command: ["sh", "-c", "export DATABASE_URL=\"postgres://crm_api:$$(cat /run/secrets/crmwta_api_db_password)@db:5432/crm\"; exec node dist/main.js"]
+    environment: *api-env
+    secrets: [crmwta_api_db_password, crmwta_master_keys, crmwta_smtp_pass]
+    networks: [interna, traefik]
+    deploy:
+      replicas: 1
+      update_config:
+        order: start-first
+        failure_action: rollback
+      rollback_config:
+        order: start-first
+      restart_policy:
+        condition: any
+      resources:
+        reservations: { memory: 256M }
+        limits: { memory: 512M, cpus: "1.0" }
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=${REDE_TRAEFIK}
+        - traefik.http.routers.crmwta-api.rule=Host(`${DOMINIO}`) && PathPrefix(`/api`)
+        - traefik.http.routers.crmwta-api.priority=100
+        - traefik.http.routers.crmwta-api.entrypoints=${ENTRADA_TRAEFIK:-websecure}
+        - traefik.http.routers.crmwta-api.tls=true
+        - traefik.http.routers.crmwta-api.tls.certresolver=${RESOLVEDOR_TLS:-letsencryptresolver}
+        - traefik.http.services.crmwta-api.loadbalancer.server.port=3001
+
+  web:
+    image: ${IMAGEM_WEB}
+    environment:
+      API_INTERNAL_URL: http://api:3001
+    networks: [interna, traefik]
+    deploy:
+      replicas: 1
+      update_config:
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: any
+      resources:
+        reservations: { memory: 256M }
+        limits: { memory: 512M, cpus: "1.0" }
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=${REDE_TRAEFIK}
+        - traefik.http.routers.crmwta-web.rule=Host(`${DOMINIO}`)
+        - traefik.http.routers.crmwta-web.priority=10
+        - traefik.http.routers.crmwta-web.entrypoints=${ENTRADA_TRAEFIK:-websecure}
+        - traefik.http.routers.crmwta-web.tls=true
+        - traefik.http.routers.crmwta-web.tls.certresolver=${RESOLVEDOR_TLS:-letsencryptresolver}
+        - traefik.http.services.crmwta-web.loadbalancer.server.port=3000
+
+  # Cópia diária do banco, com retenção de 7 diárias, 4 semanais e 6 mensais.
+  backup:
+    image: ${IMAGEM_API}
+    user: root
+    command: ["sh", "/app/backup/backup-loop.sh"]
+    healthcheck:
+      disable: true
+    environment:
+      PGHOST: db
+      PGDATABASE: crm
+      PGUSER: postgres
+      PGPASSWORD_FILE: /run/secrets/crmwta_db_password
+      BACKUP_HORA: ${BACKUP_HORA:-03:30}
+      TZ: ${TZ:-America/Sao_Paulo}
+    secrets: [crmwta_db_password]
+    volumes:
+      - crmwta_backup:/backups
+    networks: [interna]
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+      resources:
+        limits: { memory: 256M }
+
+secrets:
+  crmwta_db_password: { external: true }
+  crmwta_api_db_password: { external: true }
+  crmwta_master_keys: { external: true }
+  crmwta_smtp_pass: { external: true }
+  crmwta_bootstrap_password: { external: true }
+
+volumes:
+  crmwta_db:
+  crmwta_backup:
+
+networks:
+  interna:
+    driver: overlay
+    attachable: false
+  traefik:
+    external: true
+    name: ${REDE_TRAEFIK}

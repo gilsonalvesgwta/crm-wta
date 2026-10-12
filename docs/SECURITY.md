@@ -14,25 +14,30 @@ Camada de banco, migração `0001_fundacao`, conferida por `packages/db/tests`:
 - Nenhuma função é executável por todos os papéis. Os testes conferem a lista fechada do que a aplicação executa.
 - Toda função que roda com os direitos do dono fixa o `search_path`.
 
-Testes de mutação feitos em 11 de outubro de 2026: doze alterações indevidas (RLS desligado, política permissiva, concessão de leitura da senha, função aberta, chave estrangeira simples, auditoria alterável, entre outras) foram aplicadas uma a uma, e os testes falharam em todas.
+Testes de mutação feitos em 11 de outubro de 2026 sobre a migração 0001: doze alterações indevidas (RLS desligado, política permissiva, concessão de leitura da senha, função aberta, chave estrangeira simples, auditoria alterável, entre outras) foram aplicadas uma a uma, e os testes falharam em todas.
+
+Camada de aplicação, Fase 1, conferida por `apps/api/test` e `apps/web/e2e`:
+
+- Senhas com Argon2id (19 MiB, 2 passadas). Regra: 10 caracteres ou mais, recusa as mais comuns e as que contêm o e-mail.
+- Login com resposta e tempo iguais para e-mail inexistente e senha errada.
+- Bloqueio progressivo: 5 falhas no e-mail, 1 minuto; 8 falhas, 15 minutos; 30 falhas no IP, 15 minutos. Contado no banco.
+- Sessão no servidor, revogável, em cookie `httpOnly`, `Secure`, `SameSite=Lax`. Trocar ou redefinir a senha encerra as outras sessões.
+- CSRF: toda mutação exige o cabeçalho `x-crm-request`, que um site de terceiros não envia sem CORS.
+- 2FA por TOTP (RFC 6238), segredo cifrado com AES-256-GCM e chave fora do banco; 10 códigos de recuperação de uso único. Áreas administrativas e a plataforma só abrem com o código confirmado na sessão; administrador não desliga.
+- Consultas sempre parametrizadas; entradas validadas por esquema.
+- Cabeçalhos: `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: same-origin`, `Cache-Control: no-store` na API.
+- Registros em JSON em produção, sem senha, token ou corpo de requisição.
+- Imagens rodam como usuário sem privilégios; stack sem portas publicadas; segredos do Docker.
 
 ## O que está planejado
 
 | Tema | Controle | Fase |
 | --- | --- | --- |
-| Senhas | Argon2id | 1 |
-| Sessão | Cookie `httpOnly`, `Secure`, `SameSite=Lax`; rotação e revogação | 1 |
-| 2FA | TOTP com códigos de recuperação, obrigatório para administradores | 1 |
-| Força bruta | Bloqueio progressivo por e-mail e por IP; eventos registrados | 1 |
-| CSRF | Conferência de origem e token em toda mutação | 1 |
-| XSS | Política de conteúdo (CSP); HTML de e-mail sanitizado e exibido em quadro isolado | 1 e 5 |
-| Injeção de SQL | Consultas parametrizadas | 1 |
-| Limite de taxa | Por IP, usuário e chave de API | 1 e 3 |
+| XSS | Política de conteúdo (CSP); HTML de e-mail sanitizado e exibido em quadro isolado | 2 e 5 |
+| Limite de taxa geral | Por IP, usuário e chave de API, com Redis | 3 |
 | Credenciais de integrações | AES-256-GCM; chave mestra em segredo do Docker, fora do banco, com identificador para rotação | 3 |
 | Arquivos | Tipo conferido pelo conteúdo, limite de tamanho, nome aleatório, URL assinada de curta duração | 2 |
-| Logs | Estruturados, com empresa, ator e requisição; sem corpo de mensagem nem segredo | 1 |
 | Webhooks | Assinatura HMAC na saída; token e segredo na entrada | 3 e 4 |
-| Dependências | Verificação de falhas conhecidas no CI | 1 |
 
 ## LGPD
 

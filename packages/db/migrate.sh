@@ -53,3 +53,16 @@ SQL
 done
 
 echo "migrações aplicadas agora: $applied"
+
+# Papel de login da API. Só é criado quando API_DB_PASSWORD é informada. Ele não
+# tem privilégio próprio: a API troca para crm_app ou crm_platform em cada
+# transação, com SET LOCAL ROLE.
+if [[ -n "${API_DB_PASSWORD:-}" ]]; then
+  "${PSQL[@]}" -v pass="$API_DB_PASSWORD" <<'SQL'
+select format('create role crm_api login noinherit password %L', :'pass')
+where not exists (select from pg_roles where rolname = 'crm_api') \gexec
+select format('alter role crm_api login noinherit password %L', :'pass') \gexec
+grant crm_app, crm_platform to crm_api;
+SQL
+  echo "papel crm_api pronto"
+fi

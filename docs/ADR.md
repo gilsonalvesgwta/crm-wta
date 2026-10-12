@@ -1,6 +1,6 @@
 # Registro de decisões de arquitetura
 
-Todas as decisões abaixo foram aprovadas pelo responsável pelo produto em 11 de outubro de 2026, junto com o relatório da Fase 0. Decisão nova entra no fim, com data, contexto, escolha e alternativa descartada.
+As decisões 001 a 014 foram aprovadas pelo responsável pelo produto em 11 de outubro de 2026, junto com o relatório da Fase 0. As seguintes foram tomadas durante a Fase 1 e não mudam a arquitetura aprovada. Decisão nova entra no fim, com data, contexto, escolha e alternativa descartada.
 
 | ADR | Decisão | Motivo | Alternativa descartada |
 | --- | --- | --- | --- |
@@ -18,6 +18,12 @@ Todas as decisões abaixo foram aprovadas pelo responsável pelo produto em 11 d
 | 012 | Armazenamento por API S3, provedor a definir | Troca de provedor sem tocar no CRM | MinIO novo: repositório arquivado em abril de 2026 |
 | 013 | Stack própria em Docker Swarm atrás do Traefik existente, sem portas publicadas | Segue o padrão da VPS, a confirmar no inventário | Docker Compose solto |
 | 014 | GitHub Actions como ambiente de instalação, compilação e teste | O ambiente das sessões de desenvolvimento não alcança o registro npm | Validar só por compilação local |
+| 015 | (12 out 2026) Testes da API com o executor nativo do Node (`node:test`) sobre o código compilado pelo `tsc` | O NestJS depende de decoradores; compilar com o próprio `tsc` elimina diferenças entre teste e produção e dispensa um transpilador a mais | Vitest com SWC ou esbuild: mais uma peça que trata decoradores de outro jeito |
+| 016 | (12 out 2026) Injeção de dependência sempre explícita (`@Inject(Classe)`) | Não depende de metadados emitidos pelo compilador | Depender de `emitDecoratorMetadata` |
+| 017 | (12 out 2026) Bloqueio de login contado no banco (`auth_events`) | Vale para todas as instâncias da API e sobrevive a reinícios | Contagem em memória |
+| 018 | (12 out 2026) Consultas da Fase 1 em SQL com `pg`; Drizzle entra com as tabelas do CRM na Fase 2 | As consultas de autenticação e administração são poucas e passam por funções do banco | Adotar o ORM antes de haver ganho |
+| 019 | (12 out 2026) Uma imagem para API, migração e cópia do banco, com o cliente do PostgreSQL 18 | Menos imagens para manter; o `pg_dump` precisa ser da mesma versão do servidor | Imagem separada para a cópia |
+| 020 | (12 out 2026) Segredos do Docker Swarm, criados por `deploy/criar-segredos.sh` | Senhas fora das variáveis da stack e do Portainer | Variáveis de ambiente em texto |
 
 ## Detalhes que as migrações já fixaram
 

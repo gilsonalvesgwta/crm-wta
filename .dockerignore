@@ -1,0 +1,11 @@
+**/node_modules
+**/.next
+**/dist
+**/.test-out
+**/test-results
+**/e2e-shots
+.git
+.github
+docs
+*.md
+!packages/**/*.md
