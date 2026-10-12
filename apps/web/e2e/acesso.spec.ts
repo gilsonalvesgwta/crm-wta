@@ -98,6 +98,7 @@ test('esqueci a senha: o link do e-mail cria uma senha nova', async ({ page }) =
 
 test('verificação em duas etapas: ativar, sair e entrar com o código', async ({ page }) => {
   await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+  await expect(page.getByRole('heading', { name: /^Olá,/ })).toBeVisible();
   await page.goto('/conta');
   await page.getByRole('button', { name: 'Configurar' }).click();
   const secret = (await page.locator('code').innerText()).replace(/\s/g, '');

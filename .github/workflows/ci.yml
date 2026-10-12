@@ -192,31 +192,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Construir a imagem da API
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: api
-          tags: crmwta-api:teste
-          load: true
-          cache-from: type=gha,scope=api
-          cache-to: type=gha,scope=api,mode=max
-
-      - name: Construir a imagem da interface
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: web
-          tags: crmwta-web:teste
-          load: true
-          cache-from: type=gha,scope=web
-          cache-to: type=gha,scope=web,mode=max
+      - name: Construir as imagens
+        run: |
+          mkdir -p ../saida-stack
+          set -o pipefail
+          {
+            docker build --progress=plain --target api -t crmwta-api:teste . &&
+            docker build --progress=plain --target web -t crmwta-web:teste .
+          } 2>&1 | tee ../saida-stack/7-construir.txt | tail -n 400
 
       - name: Subir e testar a stack
         run: |
-          mkdir -p ../saida-stack
           docker image ls --format '{{.Repository}}:{{.Tag}} {{.Size}}' | grep crmwta | tee ../saida-stack/7-imagens.txt
           set -o pipefail
           IMAGEM_API=crmwta-api:teste IMAGEM_WEB=crmwta-web:teste deploy/teste-stack.sh 2>&1 | tee ../saida-stack/7-stack.txt
