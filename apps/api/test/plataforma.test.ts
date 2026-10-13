@@ -64,6 +64,12 @@ describe('empresas na plataforma', () => {
     assert.equal((await owner.post(`/api/v1/platform/tenants/${c.body.id}/delete`, { confirm: 'errado' })).status, 422);
     assert.equal((await owner.post(`/api/v1/platform/tenants/${c.body.id}/delete`, { confirm: 'apagar-ja' })).status, 204);
     assert.equal((await owner.get(`/api/v1/platform/tenants/${c.body.id}`)).status, 404);
+    // A empresa em que o administrador está trabalhando não sai.
+    await owner.post('/api/v1/auth/tenant', { tenantId: f.tenantA });
+    const slugA = (await f.admin.query<{ slug: string }>('select slug from tenants where id = $1', [f.tenantA])).rows[0]!.slug;
+    const cur = await owner.post(`/api/v1/platform/tenants/${f.tenantA}/delete`, { confirm: slugA });
+    assert.equal(cur.status, 409);
+    assert.match(cur.body.title, /trabalhando nesta empresa/);
     const wta = await f.admin.query<{ id: string }>("insert into tenants (name, slug) values ('WTA', 'wta') returning id");
     assert.equal((await owner.post(`/api/v1/platform/tenants/${wta.rows[0]!.id}/delete`, { confirm: 'wta' })).status, 409);
   });

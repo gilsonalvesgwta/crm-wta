@@ -204,6 +204,10 @@ export class PlatformService {
         throw Problem.badRequest('Confirmação não confere.', [{ field: 'confirm', message: `Digite ${row.slug} para confirmar.` }]);
       }
       if (row.slug === 'wta') throw Problem.conflict('A empresa da WTA não pode ser excluída.');
+      // Quem administra não fica sem empresa por engano.
+      if (id === actor.tenantId) throw Problem.conflict('Você está trabalhando nesta empresa agora. Entre em outra antes de excluí-la.');
+      const others = await q.query<{ n: number }>('select count(*)::int as n from tenants where id <> $1', [id]);
+      if (others.rows[0]!.n === 0) throw Problem.conflict('Esta é a única empresa do CRM e não pode ser excluída.');
       await q.query('delete from tenants where id = $1', [id]);
       return row.slug;
     });
