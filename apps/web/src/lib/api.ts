@@ -68,6 +68,8 @@ export type LoginResponse = {
 /** Para onde ir depois do login, conforme o que falta. */
 export function nextStep(r: { mfaRequired?: boolean; mfa?: { pending: boolean }; tenantId: string | null }, back?: string | null): string {
   if (r.mfaRequired || r.mfa?.pending) return '/entrar/verificacao' + (back ? `?voltar=${encodeURIComponent(back)}` : '');
+  // Aceitar um convite não depende de ter empresa: volta direto para ele.
+  if (!r.tenantId && safeBack(back)?.startsWith('/convite')) return back!;
   if (!r.tenantId) return '/entrar/empresa' + (back ? `?voltar=${encodeURIComponent(back)}` : '');
   return safeBack(back) ?? '/inicio';
 }

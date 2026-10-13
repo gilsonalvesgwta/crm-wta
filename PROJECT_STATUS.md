@@ -103,7 +103,10 @@ Fase 2, ramo `claude/fase2-crm`, 13 de outubro de 2026, no GitHub Actions (os me
 
 ## Bugs conhecidos
 
-Nenhum.
+Nenhum aberto. Corrigidos em 13 out 2026 (acesso):
+
+- Administrador geral sem empresa ativa ficava preso em "Escolha a empresa"; agora vai para a Plataforma. A plataforma recusa excluir a empresa em uso e a última empresa.
+- Conta que ficou sem empresa (empresa excluída) não conseguia entrar nem aceitar um convite novo. Agora entra sem empresa (só alcança a própria conta e os convites), e o convite de quem já tem conta pede a senha na própria página e já entra na empresa.
 
 ## Dependências externas
 

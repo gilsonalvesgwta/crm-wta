@@ -2,7 +2,7 @@
 import { Suspense, useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ApiError, api, type Me } from '@/lib/api';
+import { ApiError, api, type LoginResponse, type Me } from '@/lib/api';
 import { AuthShell } from '@/components/auth/auth-shell';
 import { useNewPassword } from '@/components/auth/new-password';
 import { Field } from '@/components/ui/field';
@@ -21,6 +21,7 @@ function Invite() {
   const [name, setName] = useState('');
   const pw = useNewPassword({ password: 'Crie uma senha', confirm: 'Confirme a senha' });
   const [loading, setLoading] = useState(false);
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<ApiError | null>(null);
 
   useEffect(() => {
@@ -66,17 +67,40 @@ function Invite() {
   if (info.userExists) {
     const signedAs = me?.user.email;
     if (signedAs !== info.email) {
+      const back = `/convite?token=${token}`;
+      // Entra com a senha aqui mesmo e aceita em seguida, sem passar pela escolha de empresa.
+      const loginAndAccept = async (e: FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        setError(null);
+        try {
+          if (signedAs) await api('POST', '/api/v1/auth/logout').catch(() => undefined);
+          const r = await api<LoginResponse>('POST', '/api/v1/auth/login', { email: info.email, password });
+          if (r.mfaRequired) {
+            router.replace(`/entrar/verificacao?voltar=${encodeURIComponent(back)}`);
+            return;
+          }
+          const a = await api<{ tenantId: string }>('POST', '/api/v1/auth/invitations/accept', { token });
+          await api('POST', '/api/v1/auth/tenant', { tenantId: a.tenantId });
+          router.replace('/inicio');
+        } catch (err) {
+          setError(err instanceof ApiError ? err : new ApiError(0, 'error', 'Algo deu errado. Tente de novo.'));
+          setLoading(false);
+        }
+      };
       return (
-        <div className="flex flex-col gap-4">
+        <form onSubmit={loginAndAccept} noValidate className="flex flex-col gap-4">
           <Alert tone="info">
-            O e-mail <strong>{info.email}</strong> já tem conta. Entre com ela para aceitar o convite de <strong>{info.tenantName}</strong>.
+            O e-mail <strong>{info.email}</strong> já tem conta no CRM. Digite a senha dela para aceitar o convite de <strong>{info.tenantName}</strong>.
           </Alert>
-          {signedAs ? <p className="text-[13px] text-muted">Você está conectado como {signedAs}.</p> : null}
-          <Link href={`/entrar?voltar=${encodeURIComponent(`/convite?token=${token}`)}`}
-            className="inline-flex h-[46px] items-center justify-center rounded-[6px] bg-primary text-[15px] font-semibold text-primary-fg">
-            Entrar com {info.email}
-          </Link>
-        </div>
+          {signedAs ? <p className="text-[13px] text-muted">Você está conectado como {signedAs}; ao continuar, entra como {info.email}.</p> : null}
+          {error ? <Alert tone="error">{error.title}</Alert> : null}
+          <Field label="E-mail" value={info.email} readOnly disabled />
+          <Field label="Senha" type="password" autoComplete="current-password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)}
+            aside={<Link href={`/recuperar-senha?email=${encodeURIComponent(info.email)}`} className="text-[13px] font-medium text-accent hover:underline">Esqueci minha senha</Link>} />
+          <Button type="submit" size="lg" loading={loading} disabled={!password}>Entrar e aceitar o convite</Button>
+          <p className="text-[13px] text-muted">Não lembra a senha? Use &ldquo;Esqueci minha senha&rdquo;, crie uma nova e abra este link do convite de novo.</p>
+        </form>
       );
     }
     return (
@@ -101,7 +125,7 @@ function Invite() {
 
 export default function InvitePage() {
   return (
-    <AuthShell title="Convite" subtitle="Crie sua conta para começar.">
+    <AuthShell title="Convite" subtitle="Aceite o convite para entrar na empresa.">
       <Suspense><Invite /></Suspense>
     </AuthShell>
   );

@@ -135,10 +135,18 @@ describe('login', () => {
     assert.equal((await b.get('/api/v1/auth/me')).status, 401);
   });
 
-  test('conta sem empresa ativa não entra', async () => {
-    const r = await new Browser(app, '10.1.0.7').login('sem.empresa@x.test');
-    assert.equal(r.status, 403);
-    assert.equal(r.body.type, 'no-tenant');
+  test('conta sem empresa ativa entra sem empresa e não alcança dado de empresa alguma', async () => {
+    const b = new Browser(app, '10.1.0.7');
+    const r = await b.login('sem.empresa@x.test');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.tenantId, null);
+    assert.deepEqual(r.body.tenants, []);
+    const me = await b.get('/api/v1/auth/me');
+    assert.equal(me.status, 200);
+    assert.deepEqual(me.body.tenants, []);
+    const c = await b.get('/api/v1/contacts');
+    assert.equal(c.status, 403);
+    assert.equal(c.body.type, 'tenant-required');
   });
 });
 
@@ -379,6 +387,17 @@ describe('convites', () => {
     const me = await b.get('/api/v1/auth/me');
     assert.equal(me.body.permissions['campaigns:edit'], 'tenant', 'perfil Marketing aplicado');
     assert.equal((await b.get(`/api/v1/auth/invitations/${token}`)).status, 404, 'convite usado não vale mais');
+  });
+
+  test('conta que ficou sem empresa entra e aceita um convite novo', async () => {
+    const token = await invite(f.tenantA, 'sem.empresa@x.test', 'sales');
+    const b = new Browser(app, '10.8.0.9');
+    assert.equal((await b.login('sem.empresa@x.test')).status, 200);
+    const r = await b.post('/api/v1/auth/invitations/accept', { token });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal(r.body.tenantId, f.tenantA);
+    assert.equal((await b.post('/api/v1/auth/tenant', { tenantId: f.tenantA })).status, 204);
+    assert.equal((await b.get('/api/v1/contacts')).status, 200);
   });
 
   test('quem já tem conta precisa estar logado como ela', async () => {

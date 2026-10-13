@@ -366,6 +366,11 @@ describe('plataforma', () => {
     const s = await p.req('PATCH', `/api/v1/platform/tenants/${c.body.id}`, { status: 'suspended' });
     assert.equal(s.status, 200);
     assert.equal((await d.get('/api/v1/auth/me')).status, 401, 'empresa suspensa derruba a sessão');
-    assert.equal((await d.login('diretora@aurora.test', 'senha forte da clinica 2026')).status, 403);
+    // Entra sem empresa: nenhum dado da empresa suspensa fica ao alcance.
+    const again = await d.login('diretora@aurora.test', 'senha forte da clinica 2026');
+    assert.equal(again.status, 200);
+    assert.deepEqual(again.body.tenants, []);
+    assert.equal((await d.get('/api/v1/contacts')).status, 403);
+    assert.equal((await d.post('/api/v1/auth/tenant', { tenantId: c.body.id })).status, 404, 'não escolhe a empresa suspensa');
   });
 });

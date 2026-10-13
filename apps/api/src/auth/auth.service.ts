@@ -95,11 +95,10 @@ export class AuthService {
     const expiresAt = new Date(now.getTime() + (remember ? REMEMBER_DAYS * 24 : SESSION_HOURS) * 3_600_000);
 
     return this.db.auth(async (q) => {
+      // Conta sem empresa ativa também entra: a sessão fica sem empresa e só
+      // alcança a própria conta e os convites (para aceitar um convite novo).
       const tenants = await this.tenantsOf(q, user.id);
-      if (tenants.length === 0 && !user.is_platform_admin) {
-        await this.event(q, 'login.no_tenant', info, { email, userId: user.id });
-        throw Problem.forbidden('Sua conta não está ativa em nenhuma empresa. Fale com o administrador.', 'no-tenant');
-      }
+      if (tenants.length === 0 && !user.is_platform_admin) await this.event(q, 'login.no_tenant', info, { email, userId: user.id });
       const s = await q.query<{ id: string }>('select app.session_create($1, $2, $3, $4, $5) as id',
         [user.id, tokenHash(token), expiresAt, info.ip, info.userAgent]);
       const sessionId = s.rows[0]!.id;
