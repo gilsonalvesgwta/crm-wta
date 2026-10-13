@@ -1,0 +1,68 @@
+
+> crm-wta@ build /home/runner/work/crm-wta/crm-wta
+> pnpm -r --if-present build
+
+Scope: 2 of 3 workspace projects
+apps/api build$ tsc -p tsconfig.build.json
+apps/web build$ next build
+apps/web build: ▲ Next.js 16.4.0 (Turbopack)
+apps/web build: ✓ Running next.config.ts took 49ms
+apps/web build: ⚠ No build cache found. Please configure build caching for faster rebuilds. Read more: https://nextjs.org/docs/messages/no-cache
+apps/web build: Attention: Next.js now collects completely anonymous telemetry regarding usage.
+apps/web build: This information is used to shape Next.js' roadmap and prioritize features.
+apps/web build: You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+apps/web build: https://nextjs.org/telemetry
+apps/web build:   Creating an optimized production build ...
+apps/api build: Done
+apps/web build: ✓ Compiled successfully in 7.2s
+apps/web build:   Running TypeScript ...
+apps/web build:   Finished TypeScript in 6.2s ...
+apps/web build:   Collecting page data using 3 workers ...
+apps/web build:   Generating static pages using 3 workers (0/35) ...
+apps/web build:   Generating static pages using 3 workers (8/35) 
+apps/web build:   Generating static pages using 3 workers (17/35) 
+apps/web build:   Generating static pages using 3 workers (26/35) 
+apps/web build: ✓ Generating static pages using 3 workers (35/35) in 335ms
+apps/web build:   Finalizing page optimization ...
+apps/web build: Route (app)
+apps/web build: ┌ ƒ /
+apps/web build: ├ ƒ /_not-found
+apps/web build: ├ ƒ /agenda
+apps/web build: ├ ƒ /configuracoes
+apps/web build: ├ ƒ /configuracoes/auditoria
+apps/web build: ├ ƒ /configuracoes/campos
+apps/web build: ├ ƒ /configuracoes/canais
+apps/web build: ├ ƒ /configuracoes/distribuicao
+apps/web build: ├ ƒ /configuracoes/dominio
+apps/web build: ├ ƒ /configuracoes/empresa
+apps/web build: ├ ƒ /configuracoes/equipes
+apps/web build: ├ ƒ /configuracoes/etiquetas
+apps/web build: ├ ƒ /configuracoes/funis
+apps/web build: ├ ƒ /configuracoes/identidade-visual
+apps/web build: ├ ƒ /configuracoes/motivos
+apps/web build: ├ ƒ /configuracoes/perfis
+apps/web build: ├ ƒ /configuracoes/produtos
+apps/web build: ├ ƒ /configuracoes/usuarios
+apps/web build: ├ ƒ /conta
+apps/web build: ├ ƒ /contatos
+apps/web build: ├ ƒ /contatos/[id]
+apps/web build: ├ ƒ /contatos/importar
+apps/web build: ├ ƒ /conversas
+apps/web build: ├ ƒ /convite
+apps/web build: ├ ƒ /entrar
+apps/web build: ├ ƒ /entrar/empresa
+apps/web build: ├ ƒ /entrar/verificacao
+apps/web build: ├ ○ /icon.svg
+apps/web build: ├ ƒ /inicio
+apps/web build: ├ ƒ /leads
+apps/web build: ├ ƒ /leads/[id]
+apps/web build: ├ ƒ /negocios
+apps/web build: ├ ƒ /negocios/[id]
+apps/web build: ├ ƒ /organizacoes
+apps/web build: ├ ƒ /organizacoes/[id]
+apps/web build: ├ ƒ /plataforma
+apps/web build: ├ ƒ /recuperar-senha
+apps/web build: └ ƒ /redefinir-senha
+apps/web build: ○  (Static)   prerendered as static content
+apps/web build: ƒ  (Dynamic)  server-rendered on demand
+apps/web build: Done
