@@ -5,11 +5,10 @@
 #   2. Defina as variáveis da stack: DOMINIO, REDE_TRAEFIK, IMAGEM_API, IMAGEM_WEB
 #      e, só na primeira vez, BOOTSTRAP_EMAIL e BOOTSTRAP_NAME.
 #
-# Atualização automática: o ramo "implantacao" do repositório tem esta mesma
-# stack com as imagens da última versão publicada já preenchidas. Uma stack do
-# Portainer criada a partir desse ramo (Repository, com atualização automática)
-# se atualiza sozinha a cada versão nova. Nesse caso, não defina IMAGEM_API nem
-# IMAGEM_WEB.
+# Versão: IMAGEM_API e IMAGEM_WEB com a etiqueta ":main" pegam sempre a última
+# versão aprovada no CI, quando a stack é atualizada no Portainer com
+# "Re-pull image and redeploy". Com uma versão fixa (AAAA.MM.DD-xxxxxxx), a
+# stack fica nela até a variável mudar.
 #
 # Nenhuma porta é publicada. Só "web" e "api" entram na rede do Traefik.
 # Banco e backup ficam na rede interna da própria stack.
@@ -41,6 +40,11 @@ x-api-env: &api-env
   # Verificação em duas etapas obrigatória nas áreas administrativas. Em testes,
   # EXIGIR_2FA=false desliga a exigência (cada pessoa ainda pode ativar a sua).
   REQUIRE_MFA: ${EXIGIR_2FA:-true}
+  # Endereço do webhook da Greenn: https://<DOMINIO>/api/v1/webhooks/greenn/<SEGREDO_DA_GREENN>.
+  # Use um texto longo e aleatório (16 caracteres ou mais). Sem ele, o webhook não existe.
+  GREENN_SECRET: ${SEGREDO_DA_GREENN:-}
+  # Para onde o domínio próprio de cada cliente aponta (CNAME). Padrão: o DOMINIO.
+  CLIENT_DOMAIN_TARGET: ${DOMINIO_ALVO_CLIENTES:-}
   STORAGE_DIR: /data/files
 
 x-api-labels: &api-labels
@@ -52,6 +56,14 @@ x-api-labels: &api-labels
   - traefik.http.routers.crmwta-api.tls=true
   - traefik.http.routers.crmwta-api.tls.certresolver=${RESOLVEDOR_TLS:-letsencryptresolver}
   - traefik.http.services.crmwta-api.loadbalancer.server.port=3001
+  # Domínios próprios dos clientes, atrás do Cloudflare for SaaS (o Cloudflare
+  # emite o certificado do cliente). Desligado enquanto REGRA_DOMINIOS_CLIENTES
+  # não for definida; ver docs/DEPLOYMENT.md, "Domínio próprio dos clientes".
+  - traefik.http.routers.crmwta-api-clientes.rule=(${REGRA_DOMINIOS_CLIENTES:-Host(`dominios-clientes-desligados.invalid`)}) && PathPrefix(`/api`)
+  - traefik.http.routers.crmwta-api-clientes.priority=2
+  - traefik.http.routers.crmwta-api-clientes.entrypoints=${ENTRADA_TRAEFIK:-websecure}
+  - traefik.http.routers.crmwta-api-clientes.tls=true
+  - traefik.http.routers.crmwta-api-clientes.service=crmwta-api
 
 x-web-labels: &web-labels
   - traefik.enable=true
@@ -62,6 +74,11 @@ x-web-labels: &web-labels
   - traefik.http.routers.crmwta-web.tls=true
   - traefik.http.routers.crmwta-web.tls.certresolver=${RESOLVEDOR_TLS:-letsencryptresolver}
   - traefik.http.services.crmwta-web.loadbalancer.server.port=3000
+  - traefik.http.routers.crmwta-web-clientes.rule=${REGRA_DOMINIOS_CLIENTES:-Host(`dominios-clientes-desligados.invalid`)}
+  - traefik.http.routers.crmwta-web-clientes.priority=1
+  - traefik.http.routers.crmwta-web-clientes.entrypoints=${ENTRADA_TRAEFIK:-websecure}
+  - traefik.http.routers.crmwta-web-clientes.tls=true
+  - traefik.http.routers.crmwta-web-clientes.service=crmwta-web
 
 services:
   db:

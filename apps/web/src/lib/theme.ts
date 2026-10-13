@@ -6,8 +6,20 @@ export type Theme = {
   accentOnLight: string;
   accentOnDark: string;
   mode: 'light' | 'dark';
+  sidebar?: string;
+  sidebarAccent?: string;
 };
-export type Branding = { productName: string; theme: Theme; customized: boolean };
+export type Branding = {
+  productName: string; theme: Theme; customized: boolean;
+  logoUrl?: string | null; iconUrl?: string | null; tenantName?: string;
+};
+
+/** Mistura a cor com branco (para os tons do menu lateral). */
+function lighten(hex: string, t: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((x) => Math.round(x + (255 - x) * t));
+  return '#' + c.map((x) => x.toString(16).padStart(2, '0')).join('').toUpperCase();
+}
 
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 
@@ -27,7 +39,15 @@ export function themeVars(b: Branding): Record<string, string> {
     '--accent': dark ? t.accentOnDark : t.accentOnLight,
     '--accent-soft': soft(t.primary, dark ? 0.16 : 0.1),
   };
-  if (b.customized) {
+  if (t.sidebar && HEX.test(t.sidebar)) {
+    // Menu na cor escolhida pela empresa (escura, conferida pela API).
+    Object.assign(vars, {
+      '--side': t.sidebar,
+      '--side-active': lighten(t.sidebar, 0.1),
+      '--side-border': lighten(t.sidebar, 0.1),
+      '--side-mark': t.sidebarAccent && HEX.test(t.sidebarAccent) ? t.sidebarAccent : t.accentOnDark,
+    });
+  } else if (b.customized) {
     // Empresa com marca própria: menu lateral neutro, marca só nos destaques.
     Object.assign(vars, {
       '--side': '#101828',

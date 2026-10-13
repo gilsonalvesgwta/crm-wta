@@ -30,9 +30,17 @@ const acceptBody = z.object({
   password: z.string().min(1).max(200).optional(),
 });
 
+/** Domínio pelo qual a pessoa acessou (o Traefik repassa em X-Forwarded-Host). */
+export function requestHost(req: FastifyRequest): string | null {
+  const fwd = req.headers['x-forwarded-host'];
+  const raw = (Array.isArray(fwd) ? fwd[0] : fwd) ?? req.headers.host ?? '';
+  const host = String(raw).split(',')[0]!.trim().toLowerCase().replace(/:\d+$/, '');
+  return /^[a-z0-9.-]{3,253}$/.test(host) ? host : null;
+}
+
 export function clientInfo(req: FastifyRequest): ClientInfo {
   const ua = req.headers['user-agent'];
-  return { ip: req.ip || null, userAgent: typeof ua === 'string' ? ua.slice(0, 400) : null };
+  return { ip: req.ip || null, userAgent: typeof ua === 'string' ? ua.slice(0, 400) : null, host: requestHost(req) };
 }
 
 @Controller('v1/auth')

@@ -38,6 +38,11 @@ const schema = z.object({
    * plataforma. Padrão: sim. Desligar só em período de testes.
    */
   REQUIRE_MFA: z.enum(['true', 'false', '1', '0']).optional().transform((v) => v === undefined || v === 'true' || v === '1'),
+  /** Segredo do endereço do webhook da Greenn (variável SEGREDO_DA_GREENN da stack). Sem ele, o endereço não existe. */
+  // Segredo fora do formato não derruba a API: o webhook só fica desligado (a tela da plataforma avisa).
+  GREENN_SECRET: z.string().optional().transform((v) => (v && /^[A-Za-z0-9_-]{16,200}$/.test(v) ? v : undefined)),
+  /** Para onde o domínio próprio de um cliente aponta (CNAME). Padrão: o endereço do CRM. */
+  CLIENT_DOMAIN_TARGET: z.string().regex(/^[a-z0-9.-]{3,253}$/).optional().or(z.literal('').transform(() => undefined)),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'silent']).default('info'),
 });
 

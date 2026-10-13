@@ -4,7 +4,7 @@ Atualizado em 13 de outubro de 2026.
 
 ## Fase atual
 
-**Fase 2: CRM comercial.** Construída e testada, com o CI verde nas duas arquiteturas.
+**Lote 1 (plataforma comercial, Greenn, marca e domínio próprio das empresas)**, pedido em 13 de outubro de 2026 sobre a Fase 2 já instalada. Lotes 2 (WhatsApp e e-mail dentro do CRM) e 3 (automações e n8n) na sequência.
 
 **Instalação:** no ar em `https://crm.wtatech.com.br` desde 13 de outubro de 2026, versão `2026.10.13-40971d2`, stack `crmwta` criada pelo Portainer da VPS. Migrações aplicadas, administrador criado, `/api/readyz` respondendo.
 
@@ -22,6 +22,18 @@ Atualizado em 13 de outubro de 2026.
 | Usuários, equipes, dados da empresa, identidade visual com contraste calculado | Integração e ponta a ponta |
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
+
+### Lote 1: plataforma comercial e marca das empresas
+
+| Item | Evidência |
+| --- | --- |
+| Plataforma: editar empresa (nome, responsável, e-mail, telefone, documento, observações), reenviar convite de administrador, excluir com o identificador digitado (WTA protegida), apagando também os arquivos | Banco; integração; ponta a ponta |
+| Planos com preço, período, dias de acesso e limites (usuários, WhatsApp, e-mail, automações, domínio próprio, API); assinatura por empresa com situação e vigência; vencida, a empresa é suspensa sozinha | Banco; integração; ponta a ponta |
+| Limite de usuários aplicado no convite e na reativação | Integração |
+| Greenn: webhook com segredo, compra paga cria ou renova, reembolso suspende, cancelamento vale até o fim do período, avisos repetidos uma vez só, registro de cada aviso | Integração (avisos no formato da documentação; compra real pendente) |
+| Identidade visual: 4 modelos de cores, cor do menu com contraste conferido, logotipo e ícone | Integração; ponta a ponta |
+| Domínio próprio: cadastro, instruções de DNS, verificação de DNS e rota; tela de login com o logotipo e as cores da empresa pelo endereço; empresa escolhida sozinha no login | Banco; integração; ponta a ponta |
+| Plano, vigência e uso dos limites em Configurações › Empresa | Ponta a ponta |
 
 ### Fase 2: CRM comercial
 
@@ -49,7 +61,9 @@ Atualizado em 13 de outubro de 2026.
 
 ## Testes executados
 
-Ramo `claude/fase2-crm`, 13 de outubro de 2026, no GitHub Actions (os mesmos conjuntos também rodam no ambiente de desenvolvimento).
+Lote 1, ramo `claude/lote1-plataforma`, ambiente de desenvolvimento (o CI repete tudo, nas duas arquiteturas): banco 352 verificações; API 160 de 160; ponta a ponta 22 de 22, com axe em cada tela nova.
+
+Fase 2, ramo `claude/fase2-crm`, 13 de outubro de 2026, no GitHub Actions (os mesmos conjuntos também rodam no ambiente de desenvolvimento).
 
 | Conjunto | Onde | Resultado |
 | --- | --- | --- |
@@ -62,8 +76,11 @@ Ramo `claude/fase2-crm`, 13 de outubro de 2026, no GitHub Actions (os mesmos con
 ## Pendências
 
 - **Limite de requisições geral** por IP e por usuário: entra com o Redis, na Fase 3. O login já tem bloqueio.
-- **Logotipo e favicon por empresa**: o armazenamento de arquivos já existe; falta a tela de envio e o uso no tema.
-- **Tela de login com a marca da empresa pelo domínio próprio.**
+- **Modelo de planilha CSV para importar contatos** (pedido em 13 out 2026): botão para baixar um exemplo e imagem ilustrativa de como preencher, na tela de importação.
+- **Certificado dos domínios próprios**: decidir entre Cloudflare for SaaS e a lista no Traefik (DEPLOYMENT.md).
+- **Greenn**: teste com uma compra real.
+- **Lote 2**: instâncias da Evolution cadastradas pelo CRM, WhatsApp e e-mail dentro do CRM, histórico completo por contato.
+- **Lote 3**: automações (e-mail, WhatsApp, aniversário, acompanhamento, lembretes) e cadastro de lead, contato e negócio pelo n8n no funil e etapa escolhidos.
 - **Visões salvas**: a API existe; falta a tela para salvar e escolher filtros.
 - **Lembretes só dentro do CRM.** Lembrete por e-mail ou WhatsApp entra com os canais (Fases 4 e 5).
 - **Metas comerciais**: Fase 7, junto com os dashboards avançados.
@@ -95,7 +112,6 @@ Nenhum.
 ## Riscos
 
 - **Verificação em duas etapas desligada nas áreas administrativas** durante os testes (`EXIGIR_2FA=false`). Religar antes de receber clientes.
-- **Toda versão mesclada no `main` vai para o ar sozinha.** O CI completo (banco, API, telas, stack nas duas arquiteturas) precisa passar antes; a versão anterior pode ser fixada pela stack.
 
 - **Repositório público.** Recomendação: torná-lo privado. Nenhum segredo foi gravado nele.
 - **Cópias do banco e arquivos só na VPS** até haver destino externo.
@@ -103,9 +119,10 @@ Nenhum.
 
 ## Próximas ações
 
-1. Recriar a stack `crmwta` pelo ramo `implantacao`, com atualização automática e `EXIGIR_2FA=false` durante os testes.
-2. Primeiro acesso: trocar a senha, testar o e-mail e remover `BOOTSTRAP_EMAIL` da stack.
-3. Fase 3: API pública com chaves, webhooks, eventos, filas com Redis e integração com o n8n.
+1. Lote 1: colar a stack nova no editor web do Portainer, uma vez, com as variáveis novas (`IMAGEM_*` em `:main`, `EXIGIR_2FA=false`, `SEGREDO_DA_GREENN`); atualizar com "Re-pull image and redeploy" e testar.
+2. Cadastrar o endereço do webhook na Greenn e ligar os produtos aos planos.
+3. Lote 2: Evolution API (endereço e chave global), WhatsApp e e-mail dentro do CRM, histórico por contato.
+4. Lote 3: automações e entrada pelo n8n.
 
 ## Aprovações pendentes
 

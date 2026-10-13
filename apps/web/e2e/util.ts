@@ -60,6 +60,8 @@ export async function shot(page: Page, name: string): Promise<void> {
 
 /** Sem violações de acessibilidade graves ou críticas (axe, WCAG 2.2 AA). */
 export async function expectAccessible(page: Page): Promise<void> {
+  // Painéis que ainda carregam mudam a página no meio da análise.
+  await page.waitForLoadState('networkidle').catch(() => undefined);
   const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
   const serious = r.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
   expect(serious.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);

@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { z } from 'zod';
 import { parse } from '../http/validate.js';
-import { CurrentActor, PlatformAdmin, Require } from '../access/decorators.js';
+import { CurrentActor, ExternalWebhook, PlatformAdmin, Public, Require } from '../access/decorators.js';
 import type { Actor } from '../access/actor.js';
 import { AdminService } from './admin.service.js';
 import { PlatformService } from './platform.service.js';
@@ -18,6 +18,7 @@ const tenantPatch = z.object({
   locale: z.enum(['pt-BR', 'en-US', 'es']).optional(),
 });
 const brandingBody = z.object({
+  sidebar: z.string().regex(/^#[0-9a-fA-F]{6}$/, { message: 'Use uma cor no formato #RRGGBB.' }).nullable().optional(),
   productName: name(80, 'o nome do produto'),
   primary: z.string().regex(/^#[0-9a-fA-F]{6}$/, { message: 'Use uma cor no formato #RRGGBB.' }),
   mode: z.enum(['light', 'dark']).default('light'),
@@ -183,6 +184,46 @@ export class AdminController {
   }
 }
 
+const optText = (max: number) => z.string().trim().max(max).nullable().optional().transform((v) => (v === '' ? null : v));
+const tenantEdit = z.object({
+  name: name(200, 'o nome da empresa').optional(),
+  contactName: optText(200),
+  contactEmail: email.nullable().optional(),
+  phone: optText(40),
+  document: optText(30),
+  notes: optText(4000),
+});
+const limitsBody = z.object({
+  max_users: z.number().int().min(1).max(100000).nullable().optional(),
+  max_whatsapp: z.number().int().min(0).max(1000).nullable().optional(),
+  max_email_accounts: z.number().int().min(0).max(1000).nullable().optional(),
+  max_automations: z.number().int().min(0).max(100000).nullable().optional(),
+  custom_domain: z.boolean().optional(),
+  api_access: z.boolean().optional(),
+});
+const planBody = z.object({
+  name: name(120, 'o nome do plano'),
+  description: optText(2000),
+  priceCents: z.number().int().min(0).max(1_000_000_000).default(0),
+  currency: z.string().regex(/^[A-Z]{3}$/).default('BRL'),
+  billingPeriod: z.enum(['monthly', 'quarterly', 'yearly', 'one_time']).default('monthly'),
+  durationDays: z.number().int().min(1).max(3660).default(30),
+  limits: limitsBody.default({}),
+  active: z.boolean().optional(),
+  position: z.number().int().min(0).optional(),
+});
+const offerBody = z.object({
+  externalProduct: z.string().trim().regex(/^[0-9A-Za-z_-]{1,40}$/, { message: 'Use o código do produto na Greenn (números).' }),
+  label: optText(120),
+  durationDays: z.number().int().min(1).max(3660).nullable().optional(),
+});
+const subscriptionBody = z.object({
+  planId: uuid.nullable(),
+  status: z.enum(['trial', 'active', 'past_due', 'canceled', 'expired', 'inactive']),
+  currentPeriodEnd: z.string().datetime({ offset: true }).nullable(),
+  notes: optText(2000),
+});
+
 @Controller('v1/platform')
 export class PlatformController {
   constructor(@Inject(PlatformService) private readonly platform: PlatformService) {}
@@ -200,8 +241,95 @@ export class PlatformController {
   }
 
   @PlatformAdmin()
+  @Get('tenants/:id')
+  get(@CurrentActor() a: Actor, @Param('id') id: string) {
+    return this.platform.get(a, parse(uuid, id));
+  }
+
+  /** Situação (status) ou dados da empresa (nome, contato, documento, observações). */
+  @PlatformAdmin()
   @Patch('tenants/:id')
-  setStatus(@CurrentActor() a: Actor, @Param('id') id: string, @Body() b: unknown) {
-    return this.platform.setStatus(a, parse(uuid, id), parse(statusBody, b).status);
+  update(@CurrentActor() a: Actor, @Param('id') id: string, @Body() b: unknown) {
+    const tid = parse(uuid, id);
+    if (b && typeof b === 'object' && 'status' in b) return this.platform.setStatus(a, tid, parse(statusBody, b).status);
+    return this.platform.update(a, tid, parse(tenantEdit, b));
+  }
+
+  @PlatformAdmin()
+  @Post('tenants/:id/delete')
+  @HttpCode(204)
+  async remove(@CurrentActor() a: Actor, @Param('id') id: string, @Body() b: unknown) {
+    await this.platform.remove(a, parse(uuid, id), parse(z.object({ confirm: z.string().max(80) }), b).confirm);
+  }
+
+  @PlatformAdmin()
+  @Post('tenants/:id/invite-admin')
+  @HttpCode(200)
+  inviteAdmin(@CurrentActor() a: Actor, @Param('id') id: string, @Body() b: unknown) {
+    return this.platform.inviteAdmin(a, parse(uuid, id), parse(z.object({ email: email.optional() }), b).email);
+  }
+
+  @PlatformAdmin()
+  @Put('tenants/:id/subscription')
+  subscription(@CurrentActor() a: Actor, @Param('id') id: string, @Body() b: unknown) {
+    return this.platform.setSubscription(a, parse(uuid, id), parse(subscriptionBody, b));
+  }
+
+  @PlatformAdmin()
+  @Get('plans')
+  async plans(@CurrentActor() a: Actor) {
+    return { items: await this.platform.plans(a) };
+  }
+
+  @PlatformAdmin()
+  @Post('plans')
+  createPlan(@CurrentActor() a: Actor, @Body() b: unknown) {
+    return this.platform.savePlan(a, null, parse(planBody, b));
+  }
+
+  @PlatformAdmin()
+  @Patch('plans/:id')
+  updatePlan(@CurrentActor() a: Actor, @Param('id') id: string, @Body() b: unknown) {
+    return this.platform.savePlan(a, parse(uuid, id), parse(planBody.partial(), b));
+  }
+
+  @PlatformAdmin()
+  @Delete('plans/:id')
+  @HttpCode(204)
+  async deletePlan(@CurrentActor() a: Actor, @Param('id') id: string) {
+    await this.platform.deletePlan(a, parse(uuid, id));
+  }
+
+  @PlatformAdmin()
+  @Post('plans/:id/offers')
+  createOffer(@CurrentActor() a: Actor, @Param('id') id: string, @Body() b: unknown) {
+    return this.platform.saveOffer(a, parse(uuid, id), parse(offerBody, b));
+  }
+
+  @PlatformAdmin()
+  @Delete('offers/:id')
+  @HttpCode(204)
+  async deleteOffer(@CurrentActor() a: Actor, @Param('id') id: string) {
+    await this.platform.deleteOffer(a, parse(uuid, id));
+  }
+
+  @PlatformAdmin()
+  @Get('greenn')
+  async greenn(@CurrentActor() a: Actor) {
+    return { ...this.platform.greennInfo(), events: await this.platform.billingEvents(a) };
+  }
+}
+
+/** Avisos da Greenn. O segredo no endereço é a autorização. */
+@Controller('v1/webhooks')
+export class WebhooksController {
+  constructor(@Inject(PlatformService) private readonly platform: PlatformService) {}
+
+  @Public()
+  @ExternalWebhook()
+  @Post('greenn/:secret')
+  @HttpCode(200)
+  greenn(@Param('secret') secret: string, @Body() b: unknown) {
+    return this.platform.handleGreenn(secret, b);
   }
 }

@@ -9,9 +9,12 @@ export const META_NO_TENANT = 'crm:no-tenant';
 export const META_PENDING_MFA = 'crm:pending-mfa';
 export const META_REQUIRE = 'crm:require';
 export const META_PLATFORM = 'crm:platform';
+export const META_NO_CSRF = 'crm:no-csrf';
 
 /** Rota sem login (login, nova senha, convite, saúde). */
 export const Public = () => SetMetadata(META_PUBLIC, true);
+/** Webhook de terceiros (Greenn, Evolution): sem cookie, sem o cabeçalho anti-CSRF; o segredo vem no endereço. */
+export const ExternalWebhook = () => SetMetadata(META_NO_CSRF, true);
 /** Rota que funciona antes de escolher a empresa. */
 export const NoTenant = () => SetMetadata(META_NO_TENANT, true);
 /** Rota liberada antes de confirmar o código de 2FA (o próprio código, sair). */

@@ -34,7 +34,7 @@ export async function createApp(cfg: Config, opts: { logger?: boolean } = {}): P
   app.enableShutdownHooks();
   const fastify = app.getHttpAdapter().getInstance();
   fastify.addHook('onSend', async (_req, reply) => {
-    reply.header('cache-control', 'no-store');
+    if (!reply.hasHeader('cache-control')) reply.header('cache-control', 'no-store');
     reply.header('x-content-type-options', 'nosniff');
     reply.header('referrer-policy', 'same-origin');
     reply.header('x-frame-options', 'DENY');

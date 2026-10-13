@@ -10,8 +10,10 @@ import { AuthController } from './auth/auth.controller.js';
 import { HealthController } from './health/health.controller.js';
 import { AdminService } from './admin/admin.service.js';
 import { PlatformService } from './admin/platform.service.js';
-import { AdminController, PlatformController } from './admin/admin.controller.js';
+import { AdminController, PlatformController, WebhooksController } from './admin/admin.controller.js';
 import { Storage } from './infra/storage.js';
+import { TenantFeaturesService } from './admin/tenant-features.service.js';
+import { TenantFeaturesController } from './admin/tenant-features.controller.js';
 import { ActivitiesService } from './crm/activities.service.js';
 import { CatalogService } from './crm/catalog.service.js';
 import { ContactsService } from './crm/contacts.service.js';
@@ -36,7 +38,7 @@ export class AppModule {
     return {
       module: AppModule,
       controllers: [
-        HealthController, AuthController, AdminController, PlatformController, ContactsController, OrganizationsController,
+        HealthController, AuthController, AdminController, PlatformController, WebhooksController, TenantFeaturesController, ContactsController, OrganizationsController,
         CatalogController, PipelinesController, DealsController, LeadsController, ActivitiesController, RecordsController,
         ImportsController, PrivacyController, DashboardController,
       ],
@@ -48,6 +50,7 @@ export class AppModule {
         AdminService,
         PlatformService,
         Storage,
+        TenantFeaturesService,
         ContactsService,
         OrganizationsService,
         CatalogService,

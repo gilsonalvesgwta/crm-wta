@@ -11,6 +11,9 @@ const config: NextConfig = {
   outputFileTracingRoot: path.resolve(process.cwd(), '../..'),
   poweredByHeader: false,
   reactStrictMode: true,
+  // Título e ícone da empresa vêm de uma busca à API (generateMetadata). Sem isto o
+  // Next os manda depois do corpo, e a página fica um instante sem título.
+  htmlLimitedBots: /.*/,
   async rewrites() {
     return [{ source: '/api/:path*', destination: `${api}/api/:path*` }];
   },
