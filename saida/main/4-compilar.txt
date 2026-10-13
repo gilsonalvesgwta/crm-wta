@@ -14,33 +14,49 @@ apps/web build: You can learn more, including how to opt-out if you'd not like t
 apps/web build: https://nextjs.org/telemetry
 apps/web build:   Creating an optimized production build ...
 apps/api build: Done
-apps/web build: ✓ Compiled successfully in 4.3s
+apps/web build: ✓ Compiled successfully in 4.2s
 apps/web build:   Running TypeScript ...
-apps/web build:   Finished TypeScript in 2.8s ...
+apps/web build:   Finished TypeScript in 3.6s ...
 apps/web build:   Collecting page data using 3 workers ...
-apps/web build:   Generating static pages using 3 workers (0/20) ...
-apps/web build:   Generating static pages using 3 workers (5/20) 
-apps/web build:   Generating static pages using 3 workers (10/20) 
-apps/web build:   Generating static pages using 3 workers (15/20) 
-apps/web build: ✓ Generating static pages using 3 workers (20/20) in 270ms
+apps/web build:   Generating static pages using 3 workers (0/32) ...
+apps/web build:   Generating static pages using 3 workers (8/32) 
+apps/web build:   Generating static pages using 3 workers (16/32) 
+apps/web build:   Generating static pages using 3 workers (24/32) 
+apps/web build: ✓ Generating static pages using 3 workers (32/32) in 210ms
 apps/web build:   Finalizing page optimization ...
 apps/web build: Route (app)
 apps/web build: ┌ ƒ /
 apps/web build: ├ ƒ /_not-found
+apps/web build: ├ ƒ /agenda
 apps/web build: ├ ƒ /configuracoes
 apps/web build: ├ ƒ /configuracoes/auditoria
+apps/web build: ├ ƒ /configuracoes/campos
+apps/web build: ├ ƒ /configuracoes/distribuicao
 apps/web build: ├ ƒ /configuracoes/empresa
 apps/web build: ├ ƒ /configuracoes/equipes
+apps/web build: ├ ƒ /configuracoes/etiquetas
+apps/web build: ├ ƒ /configuracoes/funis
 apps/web build: ├ ƒ /configuracoes/identidade-visual
+apps/web build: ├ ƒ /configuracoes/motivos
 apps/web build: ├ ƒ /configuracoes/perfis
+apps/web build: ├ ƒ /configuracoes/produtos
 apps/web build: ├ ƒ /configuracoes/usuarios
 apps/web build: ├ ƒ /conta
+apps/web build: ├ ƒ /contatos
+apps/web build: ├ ƒ /contatos/[id]
+apps/web build: ├ ƒ /contatos/importar
 apps/web build: ├ ƒ /convite
 apps/web build: ├ ƒ /entrar
 apps/web build: ├ ƒ /entrar/empresa
 apps/web build: ├ ƒ /entrar/verificacao
 apps/web build: ├ ○ /icon.svg
 apps/web build: ├ ƒ /inicio
+apps/web build: ├ ƒ /leads
+apps/web build: ├ ƒ /leads/[id]
+apps/web build: ├ ƒ /negocios
+apps/web build: ├ ƒ /negocios/[id]
+apps/web build: ├ ƒ /organizacoes
+apps/web build: ├ ƒ /organizacoes/[id]
 apps/web build: ├ ƒ /plataforma
 apps/web build: ├ ƒ /recuperar-senha
 apps/web build: └ ƒ /redefinir-senha
