@@ -552,7 +552,9 @@ describe('arquivos', () => {
     assert.equal(dl.status, 200, 'o endereço assinado basta, sem sessão');
     assert.deepEqual(dl.body, pdf);
     assert.match(String(dl.headers['content-disposition']), /^attachment/);
-    const tampered = url.body.url.replace(/.$/, (c: string) => (c === 'A' ? 'B' : 'A'));
+    // Troca um caractere do meio da assinatura (o último carrega bits de preenchimento).
+    const sig = url.body.url.lastIndexOf('.') + 5;
+    const tampered = url.body.url.slice(0, sig) + (url.body.url[sig] === 'A' ? 'B' : 'A') + url.body.url.slice(sig + 1);
     assert.equal((await new Browser(app).raw(tampered)).status, 404);
   });
 

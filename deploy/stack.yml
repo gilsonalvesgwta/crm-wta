@@ -5,6 +5,12 @@
 #   2. Defina as variáveis da stack: DOMINIO, REDE_TRAEFIK, IMAGEM_API, IMAGEM_WEB
 #      e, só na primeira vez, BOOTSTRAP_EMAIL e BOOTSTRAP_NAME.
 #
+# Atualização automática: o ramo "implantacao" do repositório tem esta mesma
+# stack com as imagens da última versão publicada já preenchidas. Uma stack do
+# Portainer criada a partir desse ramo (Repository, com atualização automática)
+# se atualiza sozinha a cada versão nova. Nesse caso, não defina IMAGEM_API nem
+# IMAGEM_WEB.
+#
 # Nenhuma porta é publicada. Só "web" e "api" entram na rede do Traefik.
 # Banco e backup ficam na rede interna da própria stack.
 #
@@ -32,6 +38,9 @@ x-api-env: &api-env
   SMTP_PASS: ${SMTP_PASS:-}
   SMTP_PASS_FILE: /run/secrets/crmwta_smtp_pass
   LOG_LEVEL: ${LOG_LEVEL:-info}
+  # Verificação em duas etapas obrigatória nas áreas administrativas. Em testes,
+  # EXIGIR_2FA=false desliga a exigência (cada pessoa ainda pode ativar a sua).
+  REQUIRE_MFA: ${EXIGIR_2FA:-true}
   STORAGE_DIR: /data/files
 
 x-api-labels: &api-labels

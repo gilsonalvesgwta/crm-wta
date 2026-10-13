@@ -84,7 +84,7 @@ export default function HomePage() {
         ) : null}
       </div>
 
-      {isAdmin && !me.mfa.enabled ? (
+      {isAdmin && me.mfa.adminRequired && !me.mfa.enabled ? (
         <Alert tone="warning">
           <span className="inline-flex items-center gap-1.5"><ShieldAlert size={16} aria-hidden />Você administra esta empresa. Ative a verificação em duas etapas para abrir as configurações.</span>{' '}
           <Link href="/conta#dois-fatores" className="font-semibold underline">Ativar agora</Link>

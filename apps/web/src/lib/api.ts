@@ -53,7 +53,7 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
 
 export type Me = {
   user: { id: string; email: string; name: string; isPlatformAdmin: boolean };
-  mfa: { enabled: boolean; verified: boolean; pending: boolean };
+  mfa: { enabled: boolean; verified: boolean; pending: boolean; adminRequired: boolean };
   tenantId: string | null;
   tenants: { id: string; name: string; slug: string }[];
   permissions: Record<string, 'own' | 'team' | 'tenant'>;

@@ -31,6 +31,8 @@ As decisões 001 a 014 foram aprovadas pelo responsável pelo produto em 11 de o
 | 025 | (12 out 2026) Imagens para amd64 e arm64, cada uma construída e testada na própria arquitetura | A VPS é ARM (Oracle, aarch64). O teste da stack roda nas duas | Emulação QEMU: lenta e não testa de verdade |
 | 026 | (12 out 2026) Exportação CSV com ponto e vírgula e marca UTF-8; importação aceita vírgula, ponto e vírgula ou tabulação, em UTF-8 ou Windows-1252 | É o que o Excel em português abre e salva sem estragar acentos | CSV com vírgula, que o Excel brasileiro abre numa coluna só |
 | 027 | (12 out 2026) Anonimizar o titular mantém o registro sem identificação, em vez de apagá-lo | Negócios, leads e números de origem continuam corretos; tudo o que identifica a pessoa é apagado | Apagar o contato e perder o histórico comercial |
+| 028 | (13 out 2026) Atualização automática: o CI grava no ramo `implantacao` a stack com a versão publicada, e o Portainer acompanha esse ramo | Sem tocar na VPS a cada versão; a versão fica fixa e registrada no ramo (dá para saber o que está no ar e voltar), e o ramo só muda depois que as imagens existem | Tag `:main` com atualização por consulta ao registro: a versão no ar fica indefinida e um serviço extra precisaria do soquete do Docker |
+| 029 | (13 out 2026) Exigência de 2FA nas áreas administrativas controlada pela variável `EXIGIR_2FA` da stack, ligada por padrão | Pedido do responsável para o período de testes; a regra continua no servidor e volta com uma variável | Configuração por empresa na tela, que exigiria a própria 2FA para ser mudada |
 
 ## Detalhes que as migrações já fixaram
 

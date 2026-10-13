@@ -94,14 +94,18 @@ Nenhum.
 
 ## Riscos
 
+- **Verificação em duas etapas desligada nas áreas administrativas** durante os testes (`EXIGIR_2FA=false`). Religar antes de receber clientes.
+- **Toda versão mesclada no `main` vai para o ar sozinha.** O CI completo (banco, API, telas, stack nas duas arquiteturas) precisa passar antes; a versão anterior pode ser fixada pela stack.
+
 - **Repositório público.** Recomendação: torná-lo privado. Nenhum segredo foi gravado nele.
 - **Cópias do banco e arquivos só na VPS** até haver destino externo.
 - **VPS sem swap** e com muitos serviços em imagens `latest`, que podem mudar sozinhas numa reinicialização. Não é do CRM, mas afeta a máquina toda.
 
 ## Próximas ações
 
-1. Primeiro acesso: trocar a senha, ativar 2FA, testar o e-mail e remover `BOOTSTRAP_EMAIL` da stack.
-2. Fase 3: API pública com chaves, webhooks, eventos, filas com Redis e integração com o n8n.
+1. Recriar a stack `crmwta` pelo ramo `implantacao`, com atualização automática e `EXIGIR_2FA=false` durante os testes.
+2. Primeiro acesso: trocar a senha, testar o e-mail e remover `BOOTSTRAP_EMAIL` da stack.
+3. Fase 3: API pública com chaves, webhooks, eventos, filas com Redis e integração com o n8n.
 
 ## Aprovações pendentes
 

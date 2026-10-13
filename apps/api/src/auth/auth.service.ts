@@ -204,7 +204,7 @@ export class AuthService {
 
   async disableMfa(actor: Actor, password: string, info: ClientInfo): Promise<void> {
     await this.checkPassword(actor.userId, password);
-    if (actor.permissions.has('users:admin') || actor.permissions.has('settings:admin') || actor.isPlatformAdmin) {
+    if (this.cfg.REQUIRE_MFA && (actor.permissions.has('users:admin') || actor.permissions.has('settings:admin') || actor.isPlatformAdmin)) {
       throw Problem.forbidden('Administradores precisam manter a verificação em duas etapas.', 'mfa-mandatory');
     }
     await this.db.auth(async (q) => {
