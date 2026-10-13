@@ -9,7 +9,7 @@ dependencies:
 @nestjs/core 12.1.2
 @nestjs/platform-fastify 12.1.2
 @node-rs/argon2 2.2.2
-csv-parse 6.2.1
+csv-parse 7.0.3
 csv-stringify 6.9.0
 fastify 5.12.5
 file-type 21.3.4
