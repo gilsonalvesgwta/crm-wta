@@ -1,0 +1,21 @@
+Creating network crmwta_interna
+Creating service crmwta_web
+Creating service crmwta_backup
+Creating service crmwta_db
+Creating service crmwta_migrate
+Creating service crmwta_api
+aguardando os serviços...
+crmwta_api 1/1
+crmwta_backup 1/1
+crmwta_db 1/1
+crmwta_migrate 1/1
+crmwta_web 1/1
+traefik-teste 1/1
+OK   API pronta atrás do Traefik
+OK   interface responde
+ERRO login (401)
+ERRO cookie
+ERRO cookie sem Secure
+ERRO me: {"type":"unauthenticated","title":"Faça login para continuar.","status":401,"request_id":"6327b547-2e65-4def-a3b5-19e0d6f3d46a"}
+OK   página interna renderiza
+curl: (6) Could not resolve host: crm.teste.localhostnull
