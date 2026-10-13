@@ -6,7 +6,7 @@ Atualizado em 13 de outubro de 2026.
 
 **Fase 2: CRM comercial.** Construída e testada, com o CI verde nas duas arquiteturas.
 
-**Instalação:** a VPS foi inventariada em 12 de outubro. O endereço será `crm.wtatech.com.br`, direto no ambiente definitivo. Nada foi instalado ainda; o plano de instalação aguarda a sua aprovação.
+**Instalação:** no ar em `https://crm.wtatech.com.br` desde 13 de outubro de 2026, versão `2026.10.13-40971d2`, stack `crmwta` criada pelo Portainer da VPS. Migrações aplicadas, administrador criado, `/api/readyz` respondendo.
 
 ## Concluído, com teste
 
@@ -85,7 +85,12 @@ Nenhum.
 
 ## Mudanças de infraestrutura
 
-Nenhuma. O inventário da VPS foi só leitura. Nada foi instalado.
+13 de outubro de 2026, com aprovação do responsável, na VPS `Wtatechor3`:
+
+- Registro DNS `crm.wtatech.com.br` (Cloudflare).
+- Segredos `crmwta_db_password`, `crmwta_api_db_password`, `crmwta_master_keys`, `crmwta_smtp_pass`, `crmwta_bootstrap_password`.
+- Stack `crmwta` (serviços `db`, `migrate`, `api`, `web`, `backup`; volumes `crmwta_db`, `crmwta_backup`, `crmwta_arquivos`), ligada à rede existente `Wtatechor3Net` só pelos serviços `api` e `web`.
+- Nenhum serviço, rede, volume ou configuração existente foi alterado.
 
 ## Riscos
 
@@ -95,12 +100,11 @@ Nenhuma. O inventário da VPS foi só leitura. Nada foi instalado.
 
 ## Próximas ações
 
-1. Instalar em `crm.wtatech.com.br`, depois da sua aprovação do plano.
+1. Primeiro acesso: trocar a senha, ativar 2FA, testar o e-mail e remover `BOOTSTRAP_EMAIL` da stack.
 2. Fase 3: API pública com chaves, webhooks, eventos, filas com Redis e integração com o n8n.
 
 ## Aprovações pendentes
 
-- Plano de instalação em `crm.wtatech.com.br`.
 - ADR 021: consultas em SQL, sem ORM.
 - Usar o MinIO da VPS para os arquivos, ou manter o volume da stack (ADR 023).
 - Matriz de permissões.
