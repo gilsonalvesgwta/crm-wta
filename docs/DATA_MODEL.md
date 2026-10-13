@@ -145,6 +145,19 @@ O processamento de cada item acontece depois, no contexto da empresa, como `crm_
 
 `app.norm(texto)` devolve o texto em minúsculas e sem acentos (extensão `unaccent`), com índice de trigramas (`pg_trgm`) em nomes de contato, organização e negócio.
 
+### Plataforma comercial (migração 0005)
+
+| Tabela | Conteúdo |
+| --- | --- |
+| `tenants` (colunas novas) | `contact_name`, `contact_email`, `phone`, `document`, `notes` |
+| `plans` | Nome único, preço em centavos, moeda, período (`monthly`, `quarterly`, `yearly`, `one_time`), dias de acesso, `limits` (jsonb), ativo, posição |
+| `plan_offers` | Produto da Greenn (`external_product`, único por provedor) ligado a um plano, com dias de acesso próprios opcionais |
+| `tenant_subscriptions` | Uma por empresa: plano, situação (`trial`, `active`, `past_due`, `canceled`, `expired`, `inactive`), fim da vigência, origem (`manual`, `greenn`), comprador, contrato e venda da Greenn |
+| `billing_events` | Cada aviso da Greenn, com impressão digital única (aplicado uma vez), ação tomada e detalhe |
+| `tenant_domains` (colunas novas) | `dns_ok`, `routing_ok`, `checked_at`, `last_error`; no máximo um domínio `custom` por empresa |
+
+`plans`, `plan_offers` e `billing_events` são da plataforma (`crm_platform`); a empresa só lê o próprio plano e a própria assinatura. `app.public_branding(domínio)` devolve a marca de um domínio verificado de empresa ativa (tela de login). `app.expire_subscriptions()`, no despachante, marca como vencidas as assinaturas com a vigência passada e suspende a empresa. Exclusão de empresa apaga em cascata, inclusive as exportações (o gatilho que as protege deixa passar a cascata).
+
 ## Tabelas planejadas
 
 Entram com as migrações de cada fase e podem mudar quando as integrações forem testadas de verdade.

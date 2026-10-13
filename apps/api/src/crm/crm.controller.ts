@@ -31,7 +31,7 @@ function sendCsv(res: FastifyReply, name: string, data: Buffer) {
 }
 
 /** Lê o arquivo de um envio multipart (campo "file"), com o limite de tamanho. */
-async function readUpload(req: FastifyRequest, maxMb: number): Promise<{ name: string; data: Buffer }> {
+export async function readUpload(req: FastifyRequest, maxMb: number): Promise<{ name: string; data: Buffer }> {
   const r = req as FastifyRequest & { isMultipart?: () => boolean; file?: (o?: unknown) => Promise<{ filename: string; toBuffer(): Promise<Buffer>; fieldname: string } | undefined> };
   if (!r.isMultipart?.() || !r.file) throw new Problem(415, 'Envie o arquivo como multipart/form-data.');
   const part = await r.file({ limits: { fileSize: maxMb * 1024 * 1024, files: 1 } });

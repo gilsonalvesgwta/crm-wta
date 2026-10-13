@@ -49,7 +49,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       <nav aria-label="Menu principal"
         className={`fixed inset-y-0 left-0 z-40 flex w-[232px] flex-col gap-[18px] border-r border-side-border bg-side px-3 pb-4 pt-5 text-side-text transition-transform lg:static lg:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex h-9 items-center justify-between px-3">
-          {branding?.customized
+          {branding?.logoUrl
+            ? <img src={branding.logoUrl} alt={branding.productName} className="h-8 max-w-[160px] object-contain" />
+            : branding?.customized
             ? <span className="truncate text-[17px] font-semibold tracking-[-0.01em] text-white">{branding.productName}</span>
             : <img src="/brand/wta-marca.svg" alt="WTA" width={106} height={24} className="h-6 w-auto" />}
           <button type="button" className="lg:hidden" aria-label="Fechar menu" onClick={() => setOpen(false)}><X size={20} /></button>

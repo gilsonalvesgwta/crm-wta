@@ -9,6 +9,7 @@ import { LoadError } from '@/components/ui/states';
 const tabs = [
   { href: '/configuracoes/empresa', label: 'Empresa', perm: 'settings:admin' },
   { href: '/configuracoes/identidade-visual', label: 'Identidade visual', perm: 'settings:admin' },
+  { href: '/configuracoes/dominio', label: 'Domínio próprio', perm: 'settings:admin' },
   { href: '/configuracoes/usuarios', label: 'Usuários', perm: 'users:admin' },
   { href: '/configuracoes/equipes', label: 'Equipes', perm: 'users:admin' },
   { href: '/configuracoes/perfis', label: 'Perfis e permissões', perm: 'users:admin' },

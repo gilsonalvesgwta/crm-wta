@@ -14,6 +14,7 @@ Cada integração terá um de três estados neste arquivo: **planejada**, **impl
 | Gmail e Microsoft 365 | OAuth, Gmail API, Microsoft Graph | 5 | Planejada |
 | n8n | Webhooks assinados na saída; API com chave na entrada | 3 | Planejada |
 | Captação de leads | Endereço de captação com token | 7 | Planejada |
+| Greenn (cobrança das empresas clientes) | Webhook da Greenn para o CRM | Lote 1 | Implementada, aguardando teste real |
 
 ## Evolution API
 
@@ -86,6 +87,29 @@ O primeiro a ser construído é o IMAP/SMTP. Falta saber qual provedor de e-mail
 Conferido ([nó Webhook](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.webhook/)): o nó aceita autenticação básica, por cabeçalho ou JWT; o corpo vai até 16 MB por padrão; os endereços de teste e de produção são diferentes.
 
 O contrato dos eventos e da API de entrada está em [`API.md`](API.md). O n8n não acessa o banco do CRM.
+
+## Greenn
+
+Cobrança das empresas que compram o CRM. Mesma regra da plataforma Português com João Paulo, que já está em produção com a Greenn.
+
+**Endereço:** `https://crm.wtatech.com.br/api/v1/webhooks/greenn/<SEGREDO_DA_GREENN>`. O segredo é a variável `SEGREDO_DA_GREENN` da stack (16 a 200 letras, números, hífen ou sublinhado). Fora desse formato o webhook fica desligado, e a aba Greenn da Plataforma avisa. A aba mostra o endereço completo para copiar.
+
+**O que cada aviso faz:**
+
+| Aviso | Efeito |
+| --- | --- |
+| Venda avulsa paga | Ativa ou renova: soma os dias da oferta (ou do plano) à vigência em dia |
+| Assinatura (`contract`) paga ou em teste | Ativa até `contract.current_period_end` |
+| Assinatura não paga ou cancelada | Vale até o fim do período já pago; depois o despachante suspende |
+| Venda reembolsada ou contestada | Encerra e suspende na hora |
+| Aguardando pagamento, recusada, carrinho abandonado, lead | Só registrado |
+
+- O produto é ligado ao plano pelo código da Greenn (aba Planos). Produto sem plano fica registrado como "Produto sem plano" e não muda nada.
+- A empresa é achada pelo contrato da Greenn ou pelo e-mail do comprador. Compra paga de quem ainda não tem empresa cria a empresa (nome do comprador), coloca no plano e manda o convite de administrador para o e-mail do comprador.
+- Aviso repetido é aplicado uma vez só (impressão digital do aviso). Segredo errado responde 404.
+- Todos os avisos aparecem na aba Greenn, com o resultado.
+
+**Teste real pendente:** uma compra de teste com o produto ligado a um plano, conferindo a empresa criada, o convite e a vigência.
 
 ## Credenciais necessárias
 

@@ -40,7 +40,7 @@ export class Db implements OnModuleDestroy {
   }
 
   /** Transação da administração da plataforma. */
-  platform<T>(userId: string, fn: (q: Q) => Promise<T>): Promise<T> {
+  platform<T>(userId: string | null, fn: (q: Q) => Promise<T>): Promise<T> {
     return this.tx('crm_platform', { tenantId: null, userId }, fn);
   }
 

@@ -1,7 +1,7 @@
 // Tema por empresa. A empresa escolhe a cor da marca; o sistema deriva as cores
 // de texto que garantem contraste (WCAG 2.2 AA) e recusa o que não tem conserto.
 
-export type ThemeInput = { primary: string; mode?: 'light' | 'dark' };
+export type ThemeInput = { primary: string; mode?: 'light' | 'dark'; sidebar?: string | null };
 
 export type Theme = {
   primary: string;
@@ -11,7 +11,19 @@ export type Theme = {
   /** Cor da marca para links e destaques sobre fundo escuro. */
   accentOnDark: string;
   mode: 'light' | 'dark';
+  /** Cor do menu lateral e do painel da tela de login. Sem ela, um grafite neutro. */
+  sidebar?: string;
+  /** Marca sobre o menu lateral (item ativo, logotipo em texto). */
+  sidebarAccent?: string;
 };
+
+/** Paletas prontas que cada empresa pode escolher. A cor livre continua possível. */
+export const PALETTES: { key: string; name: string; description: string; primary: string; sidebar: string; mode: 'light' | 'dark' }[] = [
+  { key: 'wta', name: 'WTA', description: 'Laranja sobre azul-marinho, a marca padrão.', primary: '#FF6600', sidebar: '#051628', mode: 'light' },
+  { key: 'executivo', name: 'Executivo', description: 'Azul firme sobre grafite: sóbrio e corporativo.', primary: '#2563EB', sidebar: '#0F172A', mode: 'light' },
+  { key: 'esmeralda', name: 'Esmeralda', description: 'Verde sobre verde profundo: saúde, finanças, sustentabilidade.', primary: '#059669', sidebar: '#062C26', mode: 'light' },
+  { key: 'noturno', name: 'Noturno', description: 'Âmbar sobre preto, com o sistema em modo escuro.', primary: '#F59E0B', sidebar: '#0B0F19', mode: 'dark' },
+];
 
 export const DEFAULT_THEME: Theme = {
   primary: '#FF6600',
@@ -26,6 +38,8 @@ const INK = '#051628';
 const WHITE = '#FFFFFF';
 const SURFACE_LIGHT = '#FFFFFF';
 const SURFACE_DARK = '#0B2038';
+/** Texto do menu lateral; o fundo escolhido precisa dar 4,5:1 com ele. */
+const SIDE_TEXT = '#C4D0E0';
 
 export function isHex(v: string): boolean {
   return HEX.test(v);
@@ -92,10 +106,24 @@ export function buildTheme(input: ThemeInput): { theme: Theme } | { problems: Th
   if (contrast(primary, surface) < 1.5) {
     problems.push({ field: 'primary', message: 'Essa cor quase não aparece contra o fundo. Escolha um tom com mais contraste.' });
   }
+  let sidebar: string | undefined;
+  if (input.sidebar) {
+    if (!isHex(input.sidebar)) {
+      problems.push({ field: 'sidebar', message: 'Use uma cor no formato #RRGGBB.' });
+    } else {
+      sidebar = input.sidebar.toUpperCase();
+      if (contrast(SIDE_TEXT, sidebar) < 4.5) {
+        problems.push({ field: 'sidebar', message: 'O menu precisa de uma cor escura, para o texto claro continuar legível.' });
+      }
+    }
+  }
   if (problems.length) return { problems };
   const accentOnLight = adjustFor(primary, SURFACE_LIGHT, 4.5, -1)!;
   const accentOnDark = adjustFor(primary, SURFACE_DARK, 4.5, 1)!;
-  return {
-    theme: { primary, primaryForeground: fg, accentOnLight, accentOnDark, mode: input.mode ?? 'light' },
-  };
+  const theme: Theme = { primary, primaryForeground: fg, accentOnLight, accentOnDark, mode: input.mode ?? 'light' };
+  if (sidebar) {
+    theme.sidebar = sidebar;
+    theme.sidebarAccent = adjustFor(primary, sidebar, 3, 1) ?? '#FFFFFF';
+  }
+  return { theme };
 }

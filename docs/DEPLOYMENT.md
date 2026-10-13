@@ -96,18 +96,36 @@ Cada passo marcado com **aprovação** espera o seu sinal.
 10. **Ensaio**: cópia, restauração e retorno de versão em homologação.
 11. **Produção** (aprovação): mesma imagem, janela definida por você.
 
-## Atualização automática
+## Atualização
 
-Decisão do responsável em 13 de outubro de 2026: cada versão nova entra no ar sozinha, sem mexer na VPS.
+Decisão do responsável em 13 de outubro de 2026: a stack é a do editor web do Portainer, com as variáveis; a atualização acontece só quando ele manda.
 
-- A cada mesclagem no `main` com o CI verde, o CI publica as imagens (amd64 e arm64) e, só depois, grava no ramo `implantacao` a stack com essa versão já preenchida (`stack.yml`) e o número da versão (`VERSAO`).
-- A stack `crmwta` do Portainer é criada a partir desse ramo (**Repository**, referência `refs/heads/implantacao`, arquivo `stack.yml`) com **GitOps updates** ligado, por consulta a cada 5 minutos. Quando o ramo muda, o Portainer reimplanta: o serviço `migrate` aplica as migrações novas e a API e a interface trocam de versão sem parar (o contêiner novo sobe antes do antigo sair; se não ficar saudável, o Swarm volta sozinho).
-- As variáveis (`DOMINIO`, `SMTP_*`, `EXIGIR_2FA`...) continuam na stack, no Portainer. **Não defina `IMAGEM_API` nem `IMAGEM_WEB`**: elas vêm do ramo. Definidas, fixam a versão.
-- Para segurar uma versão ou voltar a uma anterior: defina `IMAGEM_API` e `IMAGEM_WEB` na stack com a versão desejada (`ghcr.io/gilsonalvesgwta/crm-wta-api:<versão>` e `-web:<versão>`) e atualize a stack. Para voltar ao automático, apague as duas.
-- As migrações só acrescentam; uma versão anterior funciona com o banco de uma versão mais nova.
-- A API nova só fica saudável (e só então recebe tráfego) quando o banco já tem todas as migrações que ela traz: `/api/healthz` responde 503 até lá, e a versão anterior continua atendendo. A imagem dá até 3 minutos para isso.
+- `IMAGEM_API=ghcr.io/gilsonalvesgwta/crm-wta-api:main` e `IMAGEM_WEB=ghcr.io/gilsonalvesgwta/crm-wta-web:main`. A etiqueta `main` é movida pelo CI para cada versão que passa em todos os testes (banco, API, telas e stack em amd64 e arm64).
+- Para atualizar: no Portainer, **Update the stack** com **Re-pull image and redeploy** ligado. Sem essa opção, a versão em uso continua.
+- Quando a stack ganha variáveis ou serviços, o arquivo novo (`deploy/stack.yml`) é colado no editor antes do clique. Cada entrega diz se isso é necessário.
+- Para fixar uma versão (ou voltar a uma anterior): trocar `:main` pela versão, `AAAA.MM.DD-xxxxxxx`, que aparece no resumo do CI.
+- O serviço `migrate` aplica as migrações novas a cada atualização. A API nova só fica saudável, e só então recebe tráfego, depois que o banco tem as migrações dela (`/api/healthz` responde 503 até lá); enquanto isso, a anterior continua atendendo. As migrações só acrescentam, então uma versão anterior funciona com o banco mais novo.
 
-Atualização manual (stack criada pelo editor web): trocar `IMAGEM_API` e `IMAGEM_WEB` e atualizar a stack.
+## Variáveis da stack
+
+| Variável | Obrigatória | Para quê |
+| --- | --- | --- |
+| `DOMINIO`, `REDE_TRAEFIK`, `IMAGEM_API`, `IMAGEM_WEB` | Sim | Endereço, rede do Traefik e versões (`:main` para seguir a última aprovada) |
+| `BOOTSTRAP_EMAIL`, `BOOTSTRAP_NAME` | Só na primeira vez | Superadministrador inicial |
+| `MAIL_MODE`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_FROM`, `SMTP_PASS` | Para enviar e-mails | Caixa da Hostinger |
+| `EXIGIR_2FA` | Não (padrão `true`) | `false` durante os testes |
+| `SEGREDO_DA_GREENN` | Para a Greenn | Final do endereço do webhook |
+| `DOMINIO_ALVO_CLIENTES` | Não (padrão: `DOMINIO`) | Para onde o CNAME dos domínios próprios aponta |
+| `REGRA_DOMINIOS_CLIENTES` | Para domínios próprios | Regra do Traefik que aceita os domínios das empresas (ver abaixo) |
+
+## Domínio próprio das empresas
+
+A empresa cadastra o domínio em Configurações › Domínio próprio (se o plano incluir) e cria um CNAME para `DOMINIO_ALVO_CLIENTES`. O botão Verificar confere o DNS e se o endereço chega ao CRM com certificado.
+
+O DNS e a marca na tela de login funcionam sozinhos. O certificado não: o Traefik da VPS emite certificado por desafio HTTP, só para os endereços listados nas regras. Os roteadores `crmwta-api-clientes` e `crmwta-web-clientes` da stack ficam desligados até `REGRA_DOMINIOS_CLIENTES` ser preenchida. Duas formas, a decidir:
+
+1. **Cloudflare for SaaS (recomendado):** a zona `wtatech.com.br` no Cloudflare recebe os domínios das empresas como "hostnames personalizados" (grátis até 100). O Cloudflare emite e renova o certificado de cada um; o CNAME das empresas aponta para um endereço de destino da WTA. Na stack: `REGRA_DOMINIOS_CLIENTES=HostRegexp(`.+`)`. Não altera o Traefik nem outros serviços.
+2. **Lista no Traefik:** a cada empresa nova, acrescentar `Host(`crm.empresa.com.br`)` na variável (separados por `||`) e atualizar a stack. O Traefik emite pelo Let's Encrypt. Simples para poucas empresas, manual a cada uma.
 
 ## Verificação em duas etapas nas áreas administrativas
 

@@ -19,7 +19,7 @@ const REMEMBER_DAYS = 30;
 const RESET_MINUTES = 60;
 const INVITE_DAYS = 7;
 
-export type ClientInfo = { ip: string | null; userAgent: string | null };
+export type ClientInfo = { ip: string | null; userAgent: string | null; host?: string | null };
 export type TenantChoice = { id: string; name: string; slug: string };
 
 export type LoginResult = {
@@ -104,10 +104,13 @@ export class AuthService {
         [user.id, tokenHash(token), expiresAt, info.ip, info.userAgent]);
       const sessionId = s.rows[0]!.id;
       let tenantId: string | null = null;
-      if (tenants.length === 1) {
-        tenantId = tenants[0]!.id;
-        await q.query('select app.session_set_tenant($1, $2)', [sessionId, tenantId]);
-      }
+      // No domínio próprio de uma empresa, a pessoa entra direto nela.
+      const byHost = info.host
+        ? (await q.query<{ tenant_id: string }>('select tenant_id from app.auth_resolve_domain($1)', [info.host])).rows[0]?.tenant_id
+        : undefined;
+      if (byHost && tenants.some((t) => t.id === byHost)) tenantId = byHost;
+      else if (tenants.length === 1) tenantId = tenants[0]!.id;
+      if (tenantId) await q.query('select app.session_set_tenant($1, $2)', [sessionId, tenantId]);
       await this.event(q, 'login.ok', info, { email, userId: user.id, tenantId });
       return { token, expiresAt, remember, mfaRequired: user.totp_enabled, tenantId, tenants };
     });
@@ -275,8 +278,8 @@ export class AuthService {
     return { id: r.rows[0]!.id, token, expiresAt };
   }
 
-  async sendInvitation(to: string, tenantName: string, inviter: string, token: string): Promise<void> {
-    const url = `${this.cfg.APP_URL}/convite?token=${encodeURIComponent(token)}`;
+  async sendInvitation(to: string, tenantName: string, inviter: string, token: string, baseUrl?: string): Promise<void> {
+    const url = `${baseUrl ?? this.cfg.APP_URL}/convite?token=${encodeURIComponent(token)}`;
     await this.mailer.send(invitationEmail(this.cfg.APP_NAME, to, tenantName, inviter, url));
   }
 

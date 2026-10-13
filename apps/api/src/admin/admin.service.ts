@@ -7,8 +7,24 @@ import { tenantCtx } from '../access/decorators.js';
 import type { Actor } from '../access/actor.js';
 import { AuthService } from '../auth/auth.service.js';
 import { audit } from './audit.js';
+import { CONFIG, type Config } from '../config.js';
+import { assertWithin, seatsInUse, tenantBaseUrl } from '../crm/limits.js';
 
 const TIMEZONES = new Set(Intl.supportedValuesOf('timeZone'));
+
+/** Marca como a interface usa: tema validado, logotipo e ícone por endereço público. */
+export function brandingView(row: { tenant_id: string; product_name: string | null; theme: Partial<Theme>; logo: string | null; icon: string | null } | null) {
+  const built = row?.theme?.primary ? buildTheme({ primary: row.theme.primary, mode: row.theme.mode, sidebar: row.theme.sidebar }) : null;
+  const theme = built && 'theme' in built ? built.theme : DEFAULT_THEME;
+  const url = (kind: string, file: string | null) => (row && file ? `/api/v1/public/branding/${row.tenant_id}/${kind}/${file}` : null);
+  return {
+    productName: row?.product_name ?? 'CRM WTA',
+    theme,
+    customized: !!row?.theme?.primary,
+    logoUrl: url('logo', row?.logo ?? null),
+    iconUrl: url('icon', row?.icon ?? null),
+  };
+}
 
 export type MemberRow = {
   membershipId: string; userId: string; name: string; email: string; status: string;
@@ -20,6 +36,7 @@ export class AdminService {
   constructor(
     @Inject(Db) private readonly db: Db,
     @Inject(AuthService) private readonly auth: AuthService,
+    @Inject(CONFIG) private readonly cfg: Config,
   ) {}
 
   // ---- Empresa ---------------------------------------------------------------
@@ -49,20 +66,19 @@ export class AdminService {
 
   // ---- Identidade visual -----------------------------------------------------
 
-  async branding(actor: Actor): Promise<{ productName: string; theme: Theme; customized: boolean }> {
+  async branding(actor: Actor) {
     return this.db.app(tenantCtx(actor), (q) => this.readBranding(q));
   }
 
   private async readBranding(q: Q) {
-    const r = await q.query<{ product_name: string | null; theme: Partial<Theme> }>('select product_name, theme from tenant_branding');
+    const r = await q.query<{ tenant_id: string; product_name: string | null; theme: Partial<Theme>; logo: string | null; icon: string | null }>(
+      'select tenant_id, product_name, theme, logo_file_key as logo, logo_compact_file_key as icon from tenant_branding');
     const row = r.rows[0];
-    const built = row?.theme?.primary ? buildTheme({ primary: row.theme.primary, mode: row.theme.mode }) : null;
-    const theme = built && 'theme' in built ? built.theme : DEFAULT_THEME;
-    return { productName: row?.product_name ?? 'CRM WTA', theme, customized: !!row?.theme?.primary };
+    return brandingView(row ?? null);
   }
 
-  async updateBranding(actor: Actor, input: { productName: string; primary: string; mode: 'light' | 'dark' }) {
-    const built = buildTheme({ primary: input.primary, mode: input.mode });
+  async updateBranding(actor: Actor, input: { productName: string; primary: string; mode: 'light' | 'dark'; sidebar?: string | null }) {
+    const built = buildTheme({ primary: input.primary, mode: input.mode, sidebar: input.sidebar });
     if ('problems' in built) throw Problem.badRequest('Ajuste as cores.', built.problems);
     return this.db.app(tenantCtx(actor), async (q) => {
       await q.query(
@@ -139,6 +155,7 @@ export class AdminService {
         }
       }
       if (patch.status) {
+        if (patch.status === 'active' && row.status !== 'active') await assertWithin(q, 'max_users', (await seatsInUse(q)) + 1);
         await q.query('update memberships set status = $1 where id = $2', [patch.status, membershipId]);
       }
       // Regra: a empresa nunca fica sem quem administre usuários.
@@ -176,12 +193,14 @@ export class AdminService {
       const already = await q.query(`select 1 from memberships m join users u on u.id = m.user_id where u.email = $1 and m.status = 'active'`, [email]);
       if (already.rowCount) throw Problem.conflict('Essa pessoa já tem acesso a esta empresa.');
       await q.query(`update invitations set revoked_at = now() where email = $1 and accepted_at is null and revoked_at is null`, [email]);
+      const hasMembership = await q.query(`select 1 from memberships m join users u on u.id = m.user_id where u.email = $1 and m.status = 'invited'`, [email]);
+      if (!hasMembership.rowCount) await assertWithin(q, 'max_users', (await seatsInUse(q)) + 1);
       const inv = await this.auth.createInvitation(q, actor.tenantId!, email, roleId, actor.membershipId);
       const t = await q.query<{ name: string }>('select name from tenants');
       await audit(q, actor, 'invitation.created', 'invitation', inv.id, { email, roleId });
-      return { ...inv, tenantName: t.rows[0]!.name };
+      return { ...inv, tenantName: t.rows[0]!.name, baseUrl: await tenantBaseUrl(q, this.cfg.APP_URL) };
     });
-    await this.auth.sendInvitation(email, out.tenantName, actor.name, out.token);
+    await this.auth.sendInvitation(email, out.tenantName, actor.name, out.token, out.baseUrl);
     return { id: out.id, email, expiresAt: out.expiresAt };
   }
 
@@ -195,9 +214,9 @@ export class AdminService {
       const inv = await this.auth.createInvitation(q, actor.tenantId!, row.email, row.role_id, actor.membershipId);
       const t = await q.query<{ name: string }>('select name from tenants');
       await audit(q, actor, 'invitation.resent', 'invitation', inv.id, { email: row.email, replaces: id });
-      return { ...inv, email: row.email, tenantName: t.rows[0]!.name };
+      return { ...inv, email: row.email, tenantName: t.rows[0]!.name, baseUrl: await tenantBaseUrl(q, this.cfg.APP_URL) };
     });
-    await this.auth.sendInvitation(r.email, r.tenantName, actor.name, r.token);
+    await this.auth.sendInvitation(r.email, r.tenantName, actor.name, r.token, r.baseUrl);
     return { id: r.id, email: r.email, expiresAt: r.expiresAt };
   }
 

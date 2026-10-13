@@ -109,9 +109,33 @@ Toda rota exige sessão, salvo as marcadas como pública. Mutações exigem o ca
 | Método e caminho | Acesso | Função |
 | --- | --- | --- |
 | `GET, POST /api/v1/platform/tenants` | Superadministrador + 2FA | Lista e cria empresas; a criação prepara os perfis e convida o administrador |
-| `PATCH /api/v1/platform/tenants/:id` | Superadministrador + 2FA | Suspende, reativa ou arquiva |
+| `GET /api/v1/platform/tenants/:id` | Superadministrador + 2FA | Empresa com contato, assinatura e domínio próprio |
+| `PATCH /api/v1/platform/tenants/:id` | Superadministrador + 2FA | Com `status`: suspende, reativa ou arquiva. Sem `status`: nome, responsável, e-mail, telefone, documento, observações |
+| `POST /api/v1/platform/tenants/:id/delete` | Superadministrador + 2FA | Exclui a empresa e tudo dela, inclusive arquivos. Corpo `{confirm: "<identificador>"}`; a empresa `wta` é recusada |
+| `POST /api/v1/platform/tenants/:id/invite-admin` | Superadministrador + 2FA | Novo convite de administrador (`{email?}`; sem e-mail, vai para o de contato) |
+| `PUT /api/v1/platform/tenants/:id/subscription` | Superadministrador + 2FA | Plano, situação e vigência manuais. Em dia reativa a empresa; `inactive` ou `expired` suspende |
+| `GET, POST /api/v1/platform/plans` | Superadministrador + 2FA | Planos com preço, período, dias de acesso e limites (`max_users`, `max_whatsapp`, `max_email_accounts`, `max_automations`, `custom_domain`, `api_access`; número vazio = sem limite) |
+| `PATCH, DELETE /api/v1/platform/plans/:id` | Superadministrador + 2FA | Plano em uso não é excluído (409) |
+| `POST /api/v1/platform/plans/:id/offers`, `DELETE /api/v1/platform/offers/:id` | Superadministrador + 2FA | Liga e desliga códigos de produto da Greenn ao plano |
+| `GET /api/v1/platform/greenn` | Superadministrador + 2FA | Endereço do webhook (quando `GREENN_SECRET` existe) e os 100 últimos avisos |
+| `POST /api/v1/webhooks/greenn/:segredo` | Público; o segredo no caminho é a autorização | Avisos da Greenn (ver INTEGRATIONS.md). Segredo errado: 404 |
 
 Para quem não é superadministrador, as rotas da plataforma respondem 404.
+
+### Marca, domínio próprio e plano da empresa
+
+| Método e caminho | Acesso | Função |
+| --- | --- | --- |
+| `POST, DELETE /api/v1/branding/logo` e `/branding/icon` | `settings:admin` | Logotipo e ícone (PNG, JPG ou WebP até 2 MB, tipo conferido pelo conteúdo). Devolvem a marca atualizada |
+| `PUT /api/v1/branding` | `settings:admin` | Aceita também `sidebar` (cor do menu, `#RRGGBB` escura ou `null`) |
+| `GET, PUT, DELETE /api/v1/domain` | `settings:admin` | Domínio próprio (um por empresa). `PUT` exige o recurso `custom_domain` no plano (403 `plan-limit`) |
+| `POST /api/v1/domain/check` | `settings:admin` | Confere o DNS (CNAME para o alvo ou os mesmos IPs) e a rota (`https://<domínio>/api/v1/public/domain-check` responde com esta empresa) |
+| `GET /api/v1/subscription` | Qualquer pessoa da empresa | Plano, situação, vigência, limites e uso |
+| `GET /api/v1/public/branding` | Público | Marca da empresa dona do domínio acessado (verificado e empresa ativa); `{found:false}` no endereço principal |
+| `GET /api/v1/public/branding/:empresa/:tipo/:arquivo` | Público | Imagem atual da marca, com cache longo; outra imagem qualquer responde 404 |
+| `GET /api/v1/public/domain-check` | Público | Qual empresa este endereço identifica (teste de rota) |
+
+No login, se o endereço acessado é o domínio próprio de uma empresa da pessoa, essa empresa já fica escolhida.
 
 ### CRM comercial (Fase 2)
 

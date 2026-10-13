@@ -85,3 +85,10 @@ $$;
 
 select t.seed_crm(t.a(), t.ma(), t.team_a());
 select t.seed_crm(t.b(), t.mb(), t.team_b());
+
+-- Planos e assinaturas (Fase 2, venda do CRM).
+insert into plans (id, name, limits) values
+  ('00000000-0000-7000-8000-0000000000f1', 'Essencial', '{"max_users": 3, "custom_domain": false}');
+insert into tenant_subscriptions (tenant_id, plan_id, status, current_period_end) values
+  (t.a(), '00000000-0000-7000-8000-0000000000f1', 'active', now() + interval '30 days'),
+  (t.b(), '00000000-0000-7000-8000-0000000000f1', 'active', now() + interval '30 days');

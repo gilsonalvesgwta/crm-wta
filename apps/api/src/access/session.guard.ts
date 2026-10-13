@@ -7,7 +7,7 @@ import { tokenHash } from '../domain/secrets.js';
 import { REQUIRES_MFA, mergeGrants, scopeCovers, type Permission, type Scope } from '../domain/permissions.js';
 import { Problem } from '../http/problem.js';
 import type { Actor } from './actor.js';
-import { META_NO_TENANT, META_PENDING_MFA, META_PLATFORM, META_PUBLIC, META_REQUIRE } from './decorators.js';
+import { META_NO_CSRF, META_NO_TENANT, META_PENDING_MFA, META_PLATFORM, META_PUBLIC, META_REQUIRE } from './decorators.js';
 
 export const SESSION_COOKIE = 'crm_session';
 export const CSRF_HEADER = 'x-crm-request';
@@ -32,7 +32,7 @@ export class SessionGuard implements CanActivate {
     const flag = (key: string) => this.reflector.getAllAndOverride<boolean>(key, targets) === true;
     const req = ctx.switchToHttp().getRequest<FastifyRequest>();
 
-    if (!SAFE_METHODS.has(req.method) && req.headers[CSRF_HEADER] !== '1') {
+    if (!SAFE_METHODS.has(req.method) && req.headers[CSRF_HEADER] !== '1' && !flag(META_NO_CSRF)) {
       throw Problem.forbidden('Requisição recusada.', 'csrf');
     }
 

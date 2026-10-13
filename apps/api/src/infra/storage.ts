@@ -47,6 +47,12 @@ export class Storage {
     await rm(this.file(key), { force: true });
   }
 
+  /** Apaga todos os arquivos de uma empresa (exclusão da empresa). */
+  async removeTenant(tenantId: string): Promise<void> {
+    if (!/^[0-9a-f-]{36}$/.test(tenantId)) throw new Error('empresa inválida');
+    await rm(path.join(this.root, tenantId), { recursive: true, force: true });
+  }
+
   /** O armazenamento está gravável (verificação de prontidão). */
   async check(): Promise<void> {
     await mkdir(this.root, { recursive: true });

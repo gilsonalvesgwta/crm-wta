@@ -43,7 +43,7 @@ export class DispatcherService implements OnApplicationBootstrap, OnApplicationS
   }
 
   /** Uma rodada completa. Exposto para os testes. */
-  async runOnce(budgetMs = 10_000): Promise<{ reminders: number; importBatches: number; seriesExtended: number }> {
+  async runOnce(budgetMs = 10_000): Promise<{ reminders: number; importBatches: number; seriesExtended: number; expired: number }> {
     const started = Date.now();
     const reminders = await this.reminders();
     let importBatches = 0;
@@ -63,7 +63,10 @@ export class DispatcherService implements OnApplicationBootstrap, OnApplicationS
       }
     }
     const seriesExtended = await this.extendSeries();
-    return { reminders, importBatches, seriesExtended };
+    // Assinatura vencida suspende a empresa.
+    const expired = await this.db.dispatch(async (q) => (await q.query('select tenant_id from app.expire_subscriptions()')).rowCount ?? 0);
+    if (expired) this.log.log(`${expired} assinatura(s) vencida(s): empresa(s) suspensa(s)`);
+    return { reminders, importBatches, seriesExtended, expired };
   }
 
   private async reminders(): Promise<number> {
