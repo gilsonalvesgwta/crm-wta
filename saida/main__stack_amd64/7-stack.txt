@@ -1,14 +1,14 @@
 Creating network crmwta_interna
+Creating service crmwta_migrate
+Creating service crmwta_api
 Creating service crmwta_web
 Creating service crmwta_backup
 Creating service crmwta_db
-Creating service crmwta_migrate
-Creating service crmwta_api
 aguardando os serviços...
 crmwta_api 1/1
 crmwta_backup 1/1
 crmwta_db 1/1
-crmwta_migrate 1/1
+crmwta_migrate 0/1
 crmwta_web 1/1
 traefik-teste 1/1
 OK   API pronta atrás do Traefik
@@ -21,7 +21,7 @@ OK   página interna renderiza
 OK   arquivo gravado no volume e baixado pelo endereço assinado
 OK   nenhuma porta da stack publicada
 OK   reimplantar não duplica a configuração inicial
-backup: crm-20261013-131247.dump (328K)
+backup: crm-20261013-131249.dump (328K)
 OK   cópia do banco
 restaurado em crm_restaurado: 4 migrações, 1 empresas
 OK   restauração em banco novo
@@ -37,18 +37,18 @@ OK   serviço db em 1/1
 OK   serviço api em 1/1
 OK   serviço web em 1/1
 OK   serviço backup em 1/1
-migrate| crmwta_migrate.1.hni6cbfv3pml@runnervmmprz5    | aguardando o banco...
-migrate| crmwta_migrate.1.hni6cbfv3pml@runnervmmprz5    | aguardando o banco...
-migrate| crmwta_migrate.1.hni6cbfv3pml@runnervmmprz5    | aguardando o banco...
-migrate| crmwta_migrate.1.hni6cbfv3pml@runnervmmprz5    | aguardando o banco...
-migrate| crmwta_migrate.1.hni6cbfv3pml@runnervmmprz5    | aguardando o banco...
-migrate| crmwta_migrate.1.hni6cbfv3pml@runnervmmprz5    | aguardando o banco...
-migrate| crmwta_migrate.1.hni6cbfv3pml@runnervmmprz5    | aguardando o banco...
-migrate| crmwta_migrate.1.hni6cbfv3pml@runnervmmprz5    | aplicando 0001_fundacao
-migrate| crmwta_migrate.1.hni6cbfv3pml@runnervmmprz5    | aplicando 0002_autenticacao
-migrate| crmwta_migrate.1.hni6cbfv3pml@runnervmmprz5    | aplicando 0003_nomes_unicos
-migrate| crmwta_migrate.1.hni6cbfv3pml@runnervmmprz5    | aplicando 0004_crm
-migrate| crmwta_migrate.1.hni6cbfv3pml@runnervmmprz5    | migrações aplicadas agora: 4
-migrate| crmwta_migrate.1.hni6cbfv3pml@runnervmmprz5    | papel crm_api pronto
-migrate| crmwta_migrate.1.hni6cbfv3pml@runnervmmprz5    | pronto: empresa af157910-e09f-4346-a6b3-a4ca062bc158, superadministrador e77e5433-1389-4d96-bbc1-1608f2dbc7e1
-migrate| crmwta_migrate.1.hni6cbfv3pml@runnervmmprz5    | migrate: concluído
+migrate| crmwta_migrate.1.kvh71z7k3j22@runnervmmprz5    | aguardando o banco...
+migrate| crmwta_migrate.1.kvh71z7k3j22@runnervmmprz5    | aguardando o banco...
+migrate| crmwta_migrate.1.kvh71z7k3j22@runnervmmprz5    | aguardando o banco...
+migrate| crmwta_migrate.1.kvh71z7k3j22@runnervmmprz5    | aguardando o banco...
+migrate| crmwta_migrate.1.kvh71z7k3j22@runnervmmprz5    | aguardando o banco...
+migrate| crmwta_migrate.1.kvh71z7k3j22@runnervmmprz5    | aguardando o banco...
+migrate| crmwta_migrate.1.kvh71z7k3j22@runnervmmprz5    | aguardando o banco...
+migrate| crmwta_migrate.1.kvh71z7k3j22@runnervmmprz5    | aplicando 0001_fundacao
+migrate| crmwta_migrate.1.kvh71z7k3j22@runnervmmprz5    | aplicando 0002_autenticacao
+migrate| crmwta_migrate.1.kvh71z7k3j22@runnervmmprz5    | aplicando 0003_nomes_unicos
+migrate| crmwta_migrate.1.kvh71z7k3j22@runnervmmprz5    | aplicando 0004_crm
+migrate| crmwta_migrate.1.kvh71z7k3j22@runnervmmprz5    | migrações aplicadas agora: 4
+migrate| crmwta_migrate.1.kvh71z7k3j22@runnervmmprz5    | papel crm_api pronto
+migrate| crmwta_migrate.1.kvh71z7k3j22@runnervmmprz5    | pronto: empresa 018cd488-9848-4fbe-adf4-156f62a6370b, superadministrador 908aa1f7-e1f6-4fc0-8fde-a37dd4b21617
+migrate| crmwta_migrate.1.kvh71z7k3j22@runnervmmprz5    | migrate: concluído
