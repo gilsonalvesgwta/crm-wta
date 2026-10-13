@@ -29,7 +29,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
   const visible = tabs.filter((t) => can(t.perm) && (t.perm !== 'deals:assign' || me.permissions['deals:assign'] === 'tenant'));
   const current = tabs.find((t) => pathname.startsWith(t.href));
   // Áreas administrativas só abrem com a verificação em duas etapas confirmada.
-  const needsMfa = current && MFA_PERMS.has(current.perm) && !me.mfa.verified;
+  const needsMfa = me.mfa.adminRequired && current && MFA_PERMS.has(current.perm) && !me.mfa.verified;
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-5">
       <h1 className="text-2xl font-semibold tracking-[-0.02em]">Configurações</h1>

@@ -2,6 +2,7 @@ import { Inject, Injectable, type CanActivate, type ExecutionContext } from '@ne
 import { Reflector } from '@nestjs/core';
 import type { FastifyRequest } from 'fastify';
 import { Db } from '../infra/db.js';
+import { CONFIG, type Config } from '../config.js';
 import { tokenHash } from '../domain/secrets.js';
 import { REQUIRES_MFA, mergeGrants, scopeCovers, type Permission, type Scope } from '../domain/permissions.js';
 import { Problem } from '../http/problem.js';
@@ -23,6 +24,7 @@ export class SessionGuard implements CanActivate {
   constructor(
     @Inject(Reflector) private readonly reflector: Reflector,
     @Inject(Db) private readonly db: Db,
+    @Inject(CONFIG) private readonly cfg: Config,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -48,7 +50,9 @@ export class SessionGuard implements CanActivate {
 
     if (flag(META_PLATFORM)) {
       if (!actor.isPlatformAdmin) throw Problem.notFound();
-      if (!actor.mfaVerified) throw Problem.forbidden('Ative a verificação em duas etapas para administrar a plataforma.', 'mfa-required');
+      if (this.cfg.REQUIRE_MFA && !actor.mfaVerified) {
+        throw Problem.forbidden('Ative a verificação em duas etapas para administrar a plataforma.', 'mfa-required');
+      }
       return true;
     }
 
@@ -59,7 +63,7 @@ export class SessionGuard implements CanActivate {
     const need = this.reflector.getAllAndOverride<{ permission: Permission; scope: Scope } | undefined>(META_REQUIRE, targets);
     if (need) {
       if (!scopeCovers(actor.permissions.get(need.permission), need.scope)) throw Problem.forbidden();
-      if (REQUIRES_MFA.has(need.permission) && !actor.mfaVerified) {
+      if (this.cfg.REQUIRE_MFA && REQUIRES_MFA.has(need.permission) && !actor.mfaVerified) {
         throw Problem.forbidden('Ative a verificação em duas etapas para acessar esta área.', 'mfa-required');
       }
     }

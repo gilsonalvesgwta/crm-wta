@@ -167,7 +167,7 @@ function DisableTwoFactor() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
-  if (me.user.isPlatformAdmin || ADMIN_PERMS.some(can)) {
+  if (me.mfa.adminRequired && (me.user.isPlatformAdmin || ADMIN_PERMS.some(can))) {
     return <p className="text-[13px] text-muted">Sua conta está protegida. Administradores precisam manter a verificação ativa.</p>;
   }
   if (!open) {

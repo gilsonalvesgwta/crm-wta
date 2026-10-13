@@ -33,6 +33,11 @@ const schema = z.object({
   UPLOAD_MAX_MB: z.coerce.number().int().min(1).max(200).default(25),
   /** Despachante de lembretes, importações e séries: intervalo em segundos; 0 desliga. */
   DISPATCH_INTERVAL_S: z.coerce.number().int().min(0).max(3600).default(15),
+  /**
+   * Exige a verificação em duas etapas nas áreas administrativas e na
+   * plataforma. Padrão: sim. Desligar só em período de testes.
+   */
+  REQUIRE_MFA: z.enum(['true', 'false', '1', '0']).optional().transform((v) => v === undefined || v === 'true' || v === '1'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'silent']).default('info'),
 });
 

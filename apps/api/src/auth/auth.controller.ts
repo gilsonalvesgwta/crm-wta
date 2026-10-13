@@ -91,7 +91,11 @@ export class AuthController {
     const tenants = await this.auth.tenants(actor);
     return {
       user: { id: actor.userId, email: actor.email, name: actor.name, isPlatformAdmin: actor.isPlatformAdmin },
-      mfa: { enabled: actor.totpEnabled, verified: actor.mfaVerified, pending: actor.totpEnabled && !actor.mfaVerified },
+      mfa: {
+        enabled: actor.totpEnabled, verified: actor.mfaVerified, pending: actor.totpEnabled && !actor.mfaVerified,
+        // A verificação é exigida nas áreas administrativas (desligável pela variável EXIGIR_2FA da stack).
+        adminRequired: this.cfg.REQUIRE_MFA,
+      },
       tenantId: actor.tenantId,
       tenants,
       permissions: Object.fromEntries(ALL_PERMISSIONS.filter((p) => actor.permissions.has(p)).map((p) => [p, actor.permissions.get(p)])),

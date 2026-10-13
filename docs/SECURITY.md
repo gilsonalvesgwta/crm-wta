@@ -23,7 +23,7 @@ Camada de aplicação, Fase 1, conferida por `apps/api/test` e `apps/web/e2e`:
 - Bloqueio progressivo: 5 falhas no e-mail, 1 minuto; 8 falhas, 15 minutos; 30 falhas no IP, 15 minutos. Contado no banco.
 - Sessão no servidor, revogável, em cookie `httpOnly`, `Secure`, `SameSite=Lax`. Trocar ou redefinir a senha encerra as outras sessões.
 - CSRF: toda mutação exige o cabeçalho `x-crm-request`, que um site de terceiros não envia sem CORS.
-- 2FA por TOTP (RFC 6238), segredo cifrado com AES-256-GCM e chave fora do banco; 10 códigos de recuperação de uso único. Áreas administrativas e a plataforma só abrem com o código confirmado na sessão; administrador não desliga.
+- 2FA por TOTP (RFC 6238); a exigência nas áreas administrativas pode ser desligada pela variável `EXIGIR_2FA` da stack, só para testes, segredo cifrado com AES-256-GCM e chave fora do banco; 10 códigos de recuperação de uso único. Áreas administrativas e a plataforma só abrem com o código confirmado na sessão; administrador não desliga.
 - Consultas sempre parametrizadas; entradas validadas por esquema.
 - Cabeçalhos: `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: same-origin`, `Cache-Control: no-store` na API.
 - Registros em JSON em produção, sem senha, token ou corpo de requisição.

@@ -97,8 +97,9 @@ export async function createUser(
   return userId;
 }
 
-export function testConfig(f: Fixture): Config {
+export function testConfig(f: Fixture, extra: Record<string, string> = {}): Config {
   return loadConfig({
+    ...extra,
     NODE_ENV: 'test',
     DATABASE_URL: f.dbUrl,
     APP_URL: 'https://crm.teste.local',
@@ -111,8 +112,8 @@ export function testConfig(f: Fixture): Config {
   });
 }
 
-export async function startApi(f: Fixture): Promise<{ app: NestFastifyApplication; mailer: MemoryMailer }> {
-  const app = await createApp(testConfig(f), { logger: false });
+export async function startApi(f: Fixture, extra: Record<string, string> = {}): Promise<{ app: NestFastifyApplication; mailer: MemoryMailer }> {
+  const app = await createApp(testConfig(f, extra), { logger: false });
   return { app, mailer: app.get<MemoryMailer>(MAILER) };
 }
 

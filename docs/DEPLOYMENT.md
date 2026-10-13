@@ -96,9 +96,21 @@ Cada passo marcado com **aprovação** espera o seu sinal.
 10. **Ensaio**: cópia, restauração e retorno de versão em homologação.
 11. **Produção** (aprovação): mesma imagem, janela definida por você.
 
-## Atualização
+## Atualização automática
 
-Trocar `IMAGEM_API` e `IMAGEM_WEB` para a versão nova e atualizar a stack. O contêiner novo sobe antes de o antigo parar; se a verificação de saúde falhar, o Swarm volta sozinho para a versão anterior. O serviço `migrate` roda de novo e aplica só as migrações novas.
+Decisão do responsável em 13 de outubro de 2026: cada versão nova entra no ar sozinha, sem mexer na VPS.
+
+- A cada mesclagem no `main` com o CI verde, o CI publica as imagens (amd64 e arm64) e, só depois, grava no ramo `implantacao` a stack com essa versão já preenchida (`stack.yml`) e o número da versão (`VERSAO`).
+- A stack `crmwta` do Portainer é criada a partir desse ramo (**Repository**, referência `refs/heads/implantacao`, arquivo `stack.yml`) com **GitOps updates** ligado, por consulta a cada 5 minutos. Quando o ramo muda, o Portainer reimplanta: o serviço `migrate` aplica as migrações novas e a API e a interface trocam de versão sem parar (o contêiner novo sobe antes do antigo sair; se não ficar saudável, o Swarm volta sozinho).
+- As variáveis (`DOMINIO`, `SMTP_*`, `EXIGIR_2FA`...) continuam na stack, no Portainer. **Não defina `IMAGEM_API` nem `IMAGEM_WEB`**: elas vêm do ramo. Definidas, fixam a versão.
+- Para segurar uma versão ou voltar a uma anterior: defina `IMAGEM_API` e `IMAGEM_WEB` na stack com a versão desejada (`ghcr.io/gilsonalvesgwta/crm-wta-api:<versão>` e `-web:<versão>`) e atualize a stack. Para voltar ao automático, apague as duas.
+- As migrações só acrescentam; uma versão anterior funciona com o banco de uma versão mais nova.
+
+Atualização manual (stack criada pelo editor web): trocar `IMAGEM_API` e `IMAGEM_WEB` e atualizar a stack.
+
+## Verificação em duas etapas nas áreas administrativas
+
+Variável `EXIGIR_2FA` da stack. Padrão `true`: usuários, perfis, configurações da empresa, contas conectadas, chaves de API, privacidade e a plataforma só abrem com o código confirmado na sessão, e administradores não desligam a própria verificação. Com `EXIGIR_2FA=false` (período de testes, decisão de 13 de outubro de 2026), essas áreas abrem só com a senha; quem ativou a verificação continua precisando do código para entrar. Antes de receber clientes, voltar para `true`.
 
 ## Reversão
 
