@@ -7,7 +7,9 @@ import { Empty } from '@/components/ui/states';
 export default function SettingsIndex() {
   const router = useRouter();
   const { can } = useSession();
-  const first = can('settings:admin') ? '/configuracoes/empresa' : can('users:admin') ? '/configuracoes/usuarios' : can('audit:view') ? '/configuracoes/auditoria' : null;
+  const first = can('settings:admin') ? '/configuracoes/empresa' : can('users:admin') ? '/configuracoes/usuarios'
+    : can('pipelines:admin') ? '/configuracoes/funis' : can('products:admin') ? '/configuracoes/produtos'
+      : can('contacts:delete') ? '/configuracoes/etiquetas' : can('audit:view') ? '/configuracoes/auditoria' : null;
   useEffect(() => {
     if (first) router.replace(first);
   }, [first, router]);

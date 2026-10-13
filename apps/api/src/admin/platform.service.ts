@@ -3,7 +3,7 @@ import { Db, pgCode, type Q } from '../infra/db.js';
 import { Problem } from '../http/problem.js';
 import type { Actor } from '../access/actor.js';
 import { AuthService } from '../auth/auth.service.js';
-import { seedRoleTemplates } from '../platform/seed.js';
+import { seedCrmDefaults, seedRoleTemplates } from '../platform/seed.js';
 import { audit } from './audit.js';
 
 type TenantRow = { id: string; name: string; slug: string; status: string; created_at: Date };
@@ -45,6 +45,7 @@ export class PlatformService {
       }
       await this.asTenant(q, tenant.id, actor);
       const roles = await seedRoleTemplates(q, tenant.id);
+      await seedCrmDefaults(q, tenant.id);
       await q.query('insert into tenant_branding (tenant_id, theme) values ($1, $2)', [tenant.id, JSON.stringify({})]);
       const inv = await this.auth.createInvitation(q, tenant.id, input.adminEmail, roles.get('admin')!, null);
       await audit(q, actor, 'tenant.created', 'tenant', tenant.id, { name: input.name, slug: input.slug, adminEmail: input.adminEmail },

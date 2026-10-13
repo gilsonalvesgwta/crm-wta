@@ -192,7 +192,7 @@ export class ImportExportService {
       const d = await this.detailIn(q, id);
       if (!d) throw Problem.notFound('Importação não encontrada.');
       return (await q.query(
-        `select row_number as "row", status, errors from import_rows where import_id = $1 and status in ('error', 'skipped')
+        `select row_number as "row", status, errors from import_rows where import_id = $1 and (status in ('error', 'skipped') or jsonb_array_length(errors) > 0)
           order by row_number limit 5000`, [id])).rows;
     });
   }
@@ -284,7 +284,7 @@ export class ImportExportService {
           await q.query(
             `insert into notifications (tenant_id, membership_id, kind, title, body, link)
              values (app.tenant_id(), $1, 'import.done', 'Importação concluída', $2, $3)`,
-            [imp.created_by, `${processed.toLocaleString('pt-BR')} linhas processadas`, `/contatos/importar/${importId}`]);
+            [imp.created_by, `${processed.toLocaleString('pt-BR')} linhas processadas`, '/contatos/importar']);
         }
         return done;
       });

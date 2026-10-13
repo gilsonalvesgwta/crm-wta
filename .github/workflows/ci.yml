@@ -140,7 +140,7 @@ jobs:
 
             DATABASE_URL=postgres://crm_api:senha-e2e@localhost:5432/crm_e2e \
             APP_URL=http://localhost:3000 MASTER_KEYS="1:$(openssl rand -base64 32)" \
-            MAIL_MODE=file MAIL_DIR=/tmp/crm-mail TRUST_PROXY=true COOKIE_SECURE=false LOG_LEVEL=warn PORT=3001 \
+            MAIL_MODE=file MAIL_DIR=/tmp/crm-mail STORAGE_DIR=/tmp/crm-files DISPATCH_INTERVAL_S=2 TRUST_PROXY=true COOKIE_SECURE=false LOG_LEVEL=warn PORT=3001 \
               nohup node apps/api/dist/main.js > "$SAIDA/6-api-servidor.txt" 2>&1 &
 
             W=apps/web/.next/standalone/apps/web

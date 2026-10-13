@@ -12,16 +12,24 @@ const tabs = [
   { href: '/configuracoes/usuarios', label: 'Usuários', perm: 'users:admin' },
   { href: '/configuracoes/equipes', label: 'Equipes', perm: 'users:admin' },
   { href: '/configuracoes/perfis', label: 'Perfis e permissões', perm: 'users:admin' },
+  { href: '/configuracoes/funis', label: 'Funis', perm: 'pipelines:admin' },
+  { href: '/configuracoes/campos', label: 'Campos', perm: 'pipelines:admin' },
+  { href: '/configuracoes/motivos', label: 'Ganho e perda', perm: 'pipelines:admin' },
+  { href: '/configuracoes/produtos', label: 'Produtos', perm: 'products:admin' },
+  { href: '/configuracoes/etiquetas', label: 'Etiquetas', perm: 'contacts:delete' },
+  { href: '/configuracoes/distribuicao', label: 'Distribuição de leads', perm: 'deals:assign' },
   { href: '/configuracoes/auditoria', label: 'Auditoria', perm: 'audit:view' },
 ];
+/** Áreas que pedem a verificação em duas etapas confirmada (iguais às da API). */
+const MFA_PERMS = new Set(['settings:admin', 'users:admin']);
 
 export default function SettingsLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { can, me } = useSession();
-  const visible = tabs.filter((t) => can(t.perm));
+  const visible = tabs.filter((t) => can(t.perm) && (t.perm !== 'deals:assign' || me.permissions['deals:assign'] === 'tenant'));
   const current = tabs.find((t) => pathname.startsWith(t.href));
   // Áreas administrativas só abrem com a verificação em duas etapas confirmada.
-  const needsMfa = current && current.perm !== 'audit:view' && !me.mfa.verified;
+  const needsMfa = current && MFA_PERMS.has(current.perm) && !me.mfa.verified;
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-5">
       <h1 className="text-2xl font-semibold tracking-[-0.02em]">Configurações</h1>

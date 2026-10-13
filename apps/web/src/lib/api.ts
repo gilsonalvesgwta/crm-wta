@@ -10,6 +10,7 @@ export class ApiError extends Error {
     readonly title: string,
     readonly errors: FieldError[] = [],
     readonly retryAfter?: number,
+    readonly body?: unknown,
   ) {
     super(title);
   }
@@ -45,7 +46,7 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
     const p = (data ?? {}) as { type?: string; title?: string; errors?: FieldError[] };
     const retry = Number(res.headers.get('retry-after'));
     throw new ApiError(res.status, p.type ?? 'error', p.title ?? 'Algo deu errado. Tente de novo.', p.errors ?? [],
-      Number.isFinite(retry) && retry > 0 ? retry : undefined);
+      Number.isFinite(retry) && retry > 0 ? retry : undefined, data);
   }
   return data as T;
 }
@@ -75,4 +76,22 @@ export function nextStep(r: { mfaRequired?: boolean; mfa?: { pending: boolean };
 export function safeBack(back: string | null | undefined): string | null {
   if (!back || !back.startsWith('/') || back.startsWith('//') || back.startsWith('/api')) return null;
   return back;
+}
+
+/** Envio de arquivo (multipart, campo "file"). */
+export async function apiUpload<T = unknown>(path: string, file: File): Promise<T> {
+  const fd = new FormData();
+  fd.append('file', file);
+  let res: Response;
+  try {
+    res = await fetch(path, { method: 'POST', credentials: 'same-origin', headers: { 'x-crm-request': '1' }, body: fd });
+  } catch {
+    throw new ApiError(0, 'network', 'Sem conexão com o servidor. Confira a internet e tente de novo.');
+  }
+  const data = await res.json().catch(() => null) as { type?: string; title?: string; errors?: FieldError[] } | null;
+  if (!res.ok) {
+    throw new ApiError(res.status, data?.type ?? 'error',
+      res.status === 413 ? 'O arquivo é grande demais.' : data?.title ?? 'Não foi possível enviar o arquivo.', data?.errors ?? []);
+  }
+  return data as T;
 }

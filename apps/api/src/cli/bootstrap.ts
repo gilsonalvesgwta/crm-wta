@@ -7,7 +7,7 @@
 import pg from 'pg';
 import { hash } from '@node-rs/argon2';
 import { passwordProblem } from '../domain/password-policy.js';
-import { seedRoleTemplates } from '../platform/seed.js';
+import { seedCrmDefaults, seedRoleTemplates } from '../platform/seed.js';
 
 function need(name: string): string {
   const v = process.env[name]?.trim();
@@ -36,6 +36,7 @@ export async function bootstrap(env = process.env): Promise<{ tenantId: string; 
       `insert into tenant_branding (tenant_id, theme) values ($1, '{}')
        on conflict (tenant_id) do nothing`, [tenantId]);
     const roles = await seedRoleTemplates(client, tenantId);
+    await seedCrmDefaults(client, tenantId);
 
     const existing = await client.query<{ id: string }>('select id from users where email = $1', [email]);
     let userId = existing.rows[0]?.id;

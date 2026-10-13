@@ -715,6 +715,10 @@ describe('painel', () => {
       [f.tenantA, m['vendas1@a.test'], teamAlpha]);
     assert.equal(mine.body.deals.openCount, Number(own.rows[0]!.n));
     assert.ok(mine.body.deals.openCount < all.body.deals.openCount);
+    const pipe = (await manager.get('/api/v1/pipelines')).body[0];
+    const byPipe = await manager.get(`/api/v1/dashboard?from=${from}&to=${to}&pipelineId=${pipe.id}&ownerId=${m['vendas1@a.test']}`);
+    assert.equal(byPipe.status, 200, 'filtro por funil e pessoa');
+    assert.ok(byPipe.body.deals.byStage.length > 0);
     const v = await viewer.get(`/api/v1/dashboard?from=${from}&to=${to}`);
     assert.equal(v.body.activities, undefined, 'sem permissão de tarefas, o bloco não aparece');
   });

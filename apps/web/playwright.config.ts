@@ -14,6 +14,8 @@ export default defineConfig({
     timezoneId: 'America/Sao_Paulo',
     trace: 'off',
     screenshot: 'only-on-failure',
+    // Ambiente de desenvolvimento: Chromium já instalado fora do Playwright.
+    ...(process.env.PW_CHROMIUM ? { launchOptions: { executablePath: process.env.PW_CHROMIUM } } : {}),
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 });

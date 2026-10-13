@@ -22,13 +22,17 @@ export class DashboardService {
 
       const dr = tryReach(actor, 'deals:view');
       if (dr) {
-        const p = new Params();
-        const where = [reachSql(p, 'd', dr, dealOwnExtra), `exists (select 1 from pipelines pl where pl.id = d.pipeline_id and ${pipelineAccessSql(p, actor, 'pl')})`];
-        if (f.pipelineId) where.push(`d.pipeline_id = ${p.add(f.pipelineId)}`);
-        if (f.ownerId) where.push(`d.owner_membership_id = ${p.add(f.ownerId)}`);
-        const from = p.add(f.from);
-        const to = p.add(f.to);
-        const w = where.join(' and ');
+        // Cada consulta monta os próprios parâmetros: parâmetro sem uso faz o Postgres recusar a consulta.
+        const scoped = () => {
+          const p = new Params();
+          const where = [reachSql(p, 'd', dr, dealOwnExtra), `exists (select 1 from pipelines pl where pl.id = d.pipeline_id and ${pipelineAccessSql(p, actor, 'pl')})`];
+          if (f.pipelineId) where.push(`d.pipeline_id = ${p.add(f.pipelineId)}`);
+          if (f.ownerId) where.push(`d.owner_membership_id = ${p.add(f.ownerId)}`);
+          return { p, w: where.join(' and ') };
+        };
+        let { p, w } = scoped();
+        let from = p.add(f.from);
+        let to = p.add(f.to);
         const k = (await q.query<Record<string, string>>(
           `select count(*) filter (where d.status = 'open') as open_count,
                   coalesce(sum(d.value_cents) filter (where d.status = 'open'), 0) as open_value,
@@ -43,11 +47,17 @@ export class DashboardService {
         const won = Number(k.won_count);
         const lost = Number(k.lost_count);
         const byStage = f.pipelineId
-          ? (await q.query(
+          ? await (async () => {
+            ({ p, w } = scoped());
+            return (await q.query(
             `select s.id, s.name, s.color, s.kind, count(d.id)::int as count, coalesce(sum(d.value_cents), 0)::bigint::text as "valueCents"
                from pipeline_stages s left join deals d on d.stage_id = s.id and d.status = 'open' and ${w}
-              where s.pipeline_id = ${p.add(f.pipelineId)} and s.kind = 'open' group by s.id order by s.position`, p.values)).rows
+              where s.pipeline_id = ${p.add(f.pipelineId)} and s.kind = 'open' group by s.id order by s.position`, p.values)).rows;
+          })()
           : [];
+        ({ p, w } = scoped());
+        from = p.add(f.from);
+        to = p.add(f.to);
         const lostReasons = (await q.query(
           `select coalesce(r.name, 'Sem motivo') as name, count(*)::int as count
              from deals d left join outcome_reasons r on r.id = d.outcome_reason_id
