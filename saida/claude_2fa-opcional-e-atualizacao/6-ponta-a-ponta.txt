@@ -4,7 +4,7 @@ aplicando 0003_nomes_unicos
 aplicando 0004_crm
 migrações aplicadas agora: 4
 papel crm_api pronto
-pronto: empresa 94a7d399-59b4-4f95-9253-f09322fafbef, superadministrador 5bf2c6b1-b939-4538-94b6-b2ee95aa1918
+pronto: empresa aa841067-b31c-4f22-84d5-9f982f0607aa, superadministrador dd433976-0753-4cbc-b73e-1d6e4e0af66f
 {"status":"ok","database":"ok"}
 
 Running kernel seems to be up-to-date.
@@ -24,24 +24,24 @@ No VM guests are running outdated hypervisor (qemu) binaries on this host.
 
 Running 19 tests using 1 worker
 
-  ✓   1 [chromium] › e2e/acesso.spec.ts:12:1 › a tela de login é acessível, no computador e no celular (938ms)
-  ✓   2 [chromium] › e2e/acesso.spec.ts:24:1 › senha errada mostra a mensagem e não entra (358ms)
-  ✓   3 [chromium] › e2e/acesso.spec.ts:30:1 › sem sessão, a área interna manda para o login e volta depois (1.3s)
-  ✓   4 [chromium] › e2e/acesso.spec.ts:40:1 › o administrador entra e vê o aviso para ativar a verificação em duas etapas (1.2s)
-  ✓   5 [chromium] › e2e/acesso.spec.ts:49:1 › convite: a pessoa cria a conta e entra (1.2s)
-  ✓   6 [chromium] › e2e/acesso.spec.ts:72:1 › esqueci a senha: o link do e-mail cria uma senha nova (1.5s)
-  ✓   7 [chromium] › e2e/acesso.spec.ts:99:1 › verificação em duas etapas: ativar, sair e entrar com o código (2.5s)
-  ✓   8 [chromium] › e2e/admin.spec.ts:14:1 › convidar, aceitar, trocar o perfil e desativar (2.9s)
-  ✓   9 [chromium] › e2e/admin.spec.ts:54:1 › equipes: criar e definir as pessoas (1.8s)
-  ✓  10 [chromium] › e2e/admin.spec.ts:72:1 › perfis: o administrador é protegido; um perfil novo nasce de um modelo (2.3s)
-  ✓  11 [chromium] › e2e/admin.spec.ts:89:1 › identidade visual: recusa cor sem contraste, aplica a nova e restaura (2.1s)
-  ✓  12 [chromium] › e2e/admin.spec.ts:119:1 › auditoria mostra o que foi feito, com filtro (1.3s)
-  ✓  13 [chromium] › e2e/admin.spec.ts:130:1 › plataforma: criar e suspender uma empresa (1.5s)
-  ✓  14 [chromium] › e2e/crm.spec.ts:8:1 › contatos: cadastrar, anotar, agendar, anexar e achar duplicado (4.1s)
-  ✓  15 [chromium] › e2e/crm.spec.ts:85:1 › negócios: funil padrão, quadro, regras de etapa, ganho e perda (4.1s)
-  ✓  16 [chromium] › e2e/crm.spec.ts:145:1 › leads: cadastrar e qualificar em negócio (1.6s)
-  ✓  17 [chromium] › e2e/crm.spec.ts:165:1 › agenda e painel (2.3s)
-  ✓  18 [chromium] › e2e/crm.spec.ts:182:1 › importar planilha CSV com erro por linha (4.1s)
-  ✓  19 [chromium] › e2e/crm.spec.ts:203:1 › configurações do CRM: funis e campos (2.9s)
+  ✓   1 [chromium] › e2e/acesso.spec.ts:12:1 › a tela de login é acessível, no computador e no celular (585ms)
+  ✓   2 [chromium] › e2e/acesso.spec.ts:24:1 › senha errada mostra a mensagem e não entra (255ms)
+  ✓   3 [chromium] › e2e/acesso.spec.ts:30:1 › sem sessão, a área interna manda para o login e volta depois (1.1s)
+  ✓   4 [chromium] › e2e/acesso.spec.ts:40:1 › o administrador entra e vê o aviso para ativar a verificação em duas etapas (816ms)
+  ✓   5 [chromium] › e2e/acesso.spec.ts:49:1 › convite: a pessoa cria a conta e entra (817ms)
+  ✓   6 [chromium] › e2e/acesso.spec.ts:72:1 › esqueci a senha: o link do e-mail cria uma senha nova (999ms)
+  ✓   7 [chromium] › e2e/acesso.spec.ts:99:1 › verificação em duas etapas: ativar, sair e entrar com o código (1.8s)
+  ✓   8 [chromium] › e2e/admin.spec.ts:14:1 › convidar, aceitar, trocar o perfil e desativar (1.9s)
+  ✓   9 [chromium] › e2e/admin.spec.ts:54:1 › equipes: criar e definir as pessoas (1.4s)
+  ✓  10 [chromium] › e2e/admin.spec.ts:72:1 › perfis: o administrador é protegido; um perfil novo nasce de um modelo (1.7s)
+  ✓  11 [chromium] › e2e/admin.spec.ts:89:1 › identidade visual: recusa cor sem contraste, aplica a nova e restaura (1.4s)
+  ✓  12 [chromium] › e2e/admin.spec.ts:119:1 › auditoria mostra o que foi feito, com filtro (826ms)
+  ✓  13 [chromium] › e2e/admin.spec.ts:130:1 › plataforma: criar e suspender uma empresa (995ms)
+  ✓  14 [chromium] › e2e/crm.spec.ts:8:1 › contatos: cadastrar, anotar, agendar, anexar e achar duplicado (3.5s)
+  ✓  15 [chromium] › e2e/crm.spec.ts:85:1 › negócios: funil padrão, quadro, regras de etapa, ganho e perda (3.0s)
+  ✓  16 [chromium] › e2e/crm.spec.ts:145:1 › leads: cadastrar e qualificar em negócio (1.0s)
+  ✓  17 [chromium] › e2e/crm.spec.ts:165:1 › agenda e painel (1.6s)
+  ✓  18 [chromium] › e2e/crm.spec.ts:182:1 › importar planilha CSV com erro por linha (3.5s)
+  ✓  19 [chromium] › e2e/crm.spec.ts:203:1 › configurações do CRM: funis e campos (1.7s)
 
-  19 passed (41.9s)
+  19 passed (29.6s)
