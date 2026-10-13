@@ -27,6 +27,9 @@ x-api-env: &api-env
   SMTP_PORT: ${SMTP_PORT:-587}
   SMTP_USER: ${SMTP_USER:-}
   SMTP_FROM: ${SMTP_FROM:-}
+  # Senha do e-mail: a variável SMTP_PASS da stack, se preenchida; senão, o
+  # segredo crmwta_smtp_pass.
+  SMTP_PASS: ${SMTP_PASS:-}
   SMTP_PASS_FILE: /run/secrets/crmwta_smtp_pass
   LOG_LEVEL: ${LOG_LEVEL:-info}
   STORAGE_DIR: /data/files

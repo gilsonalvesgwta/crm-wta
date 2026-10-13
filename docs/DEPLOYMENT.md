@@ -86,7 +86,9 @@ Cada passo marcado com **aprovação** espera o seu sinal.
    | `SMTP_USER` | o endereço completo da caixa |
    | `SMTP_FROM` | `Nome <mesmo endereço da caixa>`; a Hostinger recusa remetente diferente da caixa autenticada |
 
-   A senha da caixa não vai em variável: é o segredo `crmwta_smtp_pass`, pedido por `deploy/criar-segredos.sh`. Para que os e-mails não caiam no spam, o domínio precisa dos registros SPF, DKIM e DMARC que a Hostinger indica no painel do e-mail.
+   | `SMTP_PASS` | a senha da caixa (opcional) |
+
+   A senha pode ficar na variável `SMTP_PASS` da stack, para ser trocada pelo Portainer (decisão do responsável em 13 out 2026). Sem ela, vale o segredo `crmwta_smtp_pass`, pedido por `deploy/criar-segredos.sh`. Na variável, a senha fica visível para quem administra o Portainer e em `docker service inspect`. Para que os e-mails não caiam no spam, o domínio precisa dos registros SPF, DKIM e DMARC que a Hostinger indica no painel do e-mail.
 
 7. **Conferência**: os serviços `db`, `api`, `web` e `backup` em 1/1, `migrate` em 0/1 com "migrate: concluído" no registro; `https://<domínio>/api/readyz` responde; o login funciona com a senha inicial.
 8. **Primeiro acesso**: entre, troque a senha e ative a verificação em duas etapas.
