@@ -6,11 +6,12 @@ Cada integração terá um de três estados neste arquivo: **planejada**, **impl
 
 | Integração | Mecanismo | Fase | Estado |
 | --- | --- | --- | --- |
-| WhatsApp pela Evolution API | Webhook da instância para o CRM; API REST da Evolution para envio | 4 | Planejada |
+| WhatsApp pela Evolution API | Webhook da instância para o CRM; API REST da Evolution para envio | Lote 2 | Implementada, aguardando teste real |
 | WhatsApp oficial (Cloud API) | Webhooks e Graph API da Meta | 6 | Planejada |
 | Coexistência | Embedded Signup v4 e sincronização de histórico | 6 | Planejada, condicionada à elegibilidade |
 | Instagram Direct | Login do Instagram, webhooks, `graph.instagram.com` | 6 | Planejada |
-| E-mail por IMAP/SMTP | Sincronização por UID; envio por SMTP | 5 | Planejada |
+| E-mail por SMTP (envio) | SMTP da caixa da empresa | Lote 2 | Implementada, aguardando teste real |
+| E-mail por IMAP (leitura das respostas) | Sincronização por UID | 5 | Planejada |
 | Gmail e Microsoft 365 | OAuth, Gmail API, Microsoft Graph | 5 | Planejada |
 | n8n | Webhooks assinados na saída; API com chave na entrada | 3 | Planejada |
 | Captação de leads | Endereço de captação com token | 7 | Planejada |
@@ -34,6 +35,16 @@ Estratégia:
 4. Mensagens deduplicadas pelo identificador do WhatsApp mais a instância.
 5. Envio pela fila da instância, com intervalo mínimo e teto diário configuráveis.
 6. Mídia copiada para o armazenamento do CRM assim que chega.
+
+**Implementado (lote 2):**
+
+- Configurações › Canais › Conectar número: o CRM cria a instância `crmwta-<empresa>-<código>` (`POST /instance/create`, integração `WHATSAPP-BAILEYS`, webhook com `MESSAGES_UPSERT`, `MESSAGES_UPDATE`, `SEND_MESSAGE`, `CONNECTION_UPDATE` e mídia em base64) e mostra o QR code (`GET /instance/connect`), renovado a cada 30 s. A tela confere o estado a cada 4 s (`connectionState`, `fetchInstances` para o número).
+- Recebimento: mensagem de número desconhecido cria o contato (nome do perfil do WhatsApp, origem "whatsapp"); número sem o nono dígito encontra o contato cadastrado com ele. Grupos, status, canais e reações ficam fora. Mídia é guardada no armazenamento do CRM.
+- Envio: texto (`sendText`) e arquivo (`sendMedia`), com estado enviado, entregue e lido pelos avisos `MESSAGES_UPDATE`. Mensagem mandada pelo celular também entra no histórico.
+- Desconectar (`logout`), remover (`delete`) e refazer o webhook (`webhook/set`) só nas instâncias do CRM.
+- Variáveis da stack: `EVOLUTION_URL` e `EVOLUTION_CHAVE`; opcional `ENDERECO_DO_CRM_PARA_EVOLUTION`, se a Evolution não alcançar o endereço público do CRM.
+
+Testado contra uma Evolution falsa que segue a documentação (`apps/api/test/fakes.ts`). **Falta o teste com a Evolution da VPS:** conectar um número de teste, receber, responder, mandar arquivo.
 
 Limitações declaradas no produto: em modo Baileys o canal não é oficial e há risco de bloqueio do número; grupos ficam fora do escopo inicial; confirmação de leitura depende da privacidade do contato.
 
@@ -80,7 +91,9 @@ Conferido:
 | Gmail API | Google Workspace e Gmail | Aplicativo interno atende só o Workspace da WTA; clientes exigem a verificação do Google |
 | Microsoft Graph | Microsoft 365 | Consentimento do administrador de cada cliente |
 
-O primeiro a ser construído é o IMAP/SMTP. Falta saber qual provedor de e-mail a WTA usa no dia a dia.
+O primeiro a ser construído é o IMAP/SMTP.
+
+**Implementado (lote 2), envio por SMTP:** cada empresa cadastra caixas em Configurações › Canais (atalhos para Hostinger, Gmail com senha de app e Microsoft 365). Ao salvar, o CRM confere a conexão e manda um e-mail de teste para quem cadastrou. O envio sai do histórico do contato ou das Conversas, com assunto, texto e anexo; o Message-ID fica guardado. As respostas continuam chegando na caixa de sempre; a leitura delas (IMAP) fica para a Fase 5. Testado contra um SMTP falso; **falta o teste com uma caixa real** (na Hostinger, a porta 587 costuma passar onde a 465 é bloqueada).
 
 ## n8n
 

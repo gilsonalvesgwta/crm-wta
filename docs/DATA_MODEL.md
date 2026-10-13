@@ -158,6 +158,15 @@ O processamento de cada item acontece depois, no contexto da empresa, como `crm_
 
 `plans`, `plan_offers` e `billing_events` são da plataforma (`crm_platform`); a empresa só lê o próprio plano e a própria assinatura. `app.public_branding(domínio)` devolve a marca de um domínio verificado de empresa ativa (tela de login). `app.expire_subscriptions()`, no despachante, marca como vencidas as assinaturas com a vigência passada e suspende a empresa. Exclusão de empresa apaga em cascata, inclusive as exportações (o gatilho que as protege deixa passar a cascata).
 
+### Canais e mensagens (migração 0006)
+
+| Tabela | Conteúdo |
+| --- | --- |
+| `channel_accounts` | Conta da empresa: `whatsapp_evolution` (instância `crmwta-*`, única no servidor) ou `email_smtp`; estado, número ou endereço, configuração sem segredo, senha cifrada (`secret`), SHA-256 do token do webhook |
+| `messages` | Cada mensagem enviada ou recebida: canal, direção, estado (`queued`, `sent`, `delivered`, `read`, `failed`, `received`), contato, conta, destino, assunto, texto, tipo, arquivo, quem enviou, horários de envio, entrega, leitura e visualização. Único por conta e identificador externo |
+
+`files.purpose` ganha `message`. `app.channel_by_webhook(hash)` devolve empresa e conta do token (só empresa ativa), para o webhook achar o contexto. Excluir o contato apaga as mensagens; remover a conta mantém o histórico sem ela; mesclar contatos leva as mensagens.
+
 ## Tabelas planejadas
 
 Entram com as migrações de cada fase e podem mudar quando as integrações forem testadas de verdade.

@@ -43,6 +43,13 @@ const schema = z.object({
   GREENN_SECRET: z.string().optional().transform((v) => (v && /^[A-Za-z0-9_-]{16,200}$/.test(v) ? v : undefined)),
   /** Para onde o domínio próprio de um cliente aponta (CNAME). Padrão: o endereço do CRM. */
   CLIENT_DOMAIN_TARGET: z.string().regex(/^[a-z0-9.-]{3,253}$/).optional().or(z.literal('').transform(() => undefined)),
+  /** Evolution API (WhatsApp): endereço e chave global. Sem eles, o WhatsApp fica indisponível. */
+  EVOLUTION_URL: z.string().optional().transform((v) => (v && /^https?:\/\/[^\s]+$/.test(v.trim()) ? v.trim().replace(/\/+$/, '') : undefined)),
+  EVOLUTION_API_KEY: z.string().optional().transform((v) => (v && v.trim() ? v.trim() : undefined)),
+  /** Endereço do CRM que a Evolution usa para avisar mensagens. Padrão: APP_URL. */
+  EVOLUTION_WEBHOOK_BASE: z.string().optional().transform((v) => (v && /^https?:\/\/[^\s]+$/.test(v.trim()) ? v.trim().replace(/\/+$/, '') : undefined)),
+  /** Só desenvolvimento e testes: permite servidor SMTP de empresa em endereço interno. */
+  CHANNEL_ALLOW_PRIVATE_HOSTS: bool,
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'silent']).default('info'),
 });
 
@@ -51,7 +58,7 @@ export type Config = z.infer<typeof schema> & { masterKeys: Record<number, Buffe
 export const CONFIG = Symbol('CONFIG');
 
 /** Segredos podem vir de arquivo (segredos do Docker): FOO_FILE=/run/secrets/foo. */
-const FILE_KEYS = ['DATABASE_URL', 'MASTER_KEYS', 'SMTP_PASS'] as const;
+const FILE_KEYS = ['DATABASE_URL', 'MASTER_KEYS', 'SMTP_PASS', 'EVOLUTION_API_KEY'] as const;
 
 function withFiles(env: Record<string, string | undefined>): Record<string, string | undefined> {
   const out = { ...env };

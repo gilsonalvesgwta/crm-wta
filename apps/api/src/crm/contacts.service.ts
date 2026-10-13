@@ -469,7 +469,7 @@ export class ContactsService {
       await q.query(
         `insert into contact_tags (tenant_id, contact_id, tag_id)
          select tenant_id, $1, tag_id from contact_tags where contact_id = $2 on conflict do nothing`, [keepId, mergedId]);
-      for (const table of ['deals', 'leads', 'notes', 'activities', 'files']) {
+      for (const table of ['deals', 'leads', 'notes', 'activities', 'files', 'messages']) {
         await q.query(`update ${table} set contact_id = $1 where contact_id = $2`, [keepId, mergedId]);
       }
       // Registros só de inserção são copiados para o contato mantido.

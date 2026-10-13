@@ -1,13 +1,13 @@
 'use client';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Building, Building2, CalendarDays, ChevronDown, Handshake, House, Inbox, LogOut, Menu, Settings, ShieldCheck, UserRound, Users, X } from 'lucide-react';
+import { Building, Building2, CalendarDays, ChevronDown, Handshake, House, Inbox, LogOut, Menu, MessagesSquare, Settings, ShieldCheck, UserRound, Users, X } from 'lucide-react';
 import { Notifications } from './notifications';
 import { api } from '@/lib/api';
 import { useSession } from './session';
 
-type Item = { href: string; label: string; icon: ReactNode; show?: boolean };
+type Item = { href: string; label: string; icon: ReactNode; show?: boolean; badge?: number };
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { me, branding, can } = useSession();
@@ -15,16 +15,30 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [unread, setUnread] = useState(0);
+  const canChat = !!me.tenantId && can('conversations:reply');
+
+  // Conversas com mensagem não lida, no menu. Atualiza sozinho e quando uma conversa é aberta.
+  useEffect(() => {
+    if (!canChat) return;
+    let alive = true;
+    const load = () => api<{ count: number }>('GET', '/api/v1/conversations/unread').then((r) => { if (alive) setUnread(r.count); }).catch(() => undefined);
+    void load();
+    const t = setInterval(() => { if (document.visibilityState === 'visible') void load(); }, 20000);
+    window.addEventListener('crm-unread', load);
+    return () => { alive = false; clearInterval(t); window.removeEventListener('crm-unread', load); };
+  }, [canChat]);
 
   const work: Item[] = [
     { href: '/inicio', label: 'Início', icon: <House size={18} strokeWidth={1.75} aria-hidden /> },
+    { href: '/conversas', label: 'Conversas', icon: <MessagesSquare size={18} strokeWidth={1.75} aria-hidden />, show: canChat, badge: unread },
     { href: '/negocios', label: 'Negócios', icon: <Handshake size={18} strokeWidth={1.75} aria-hidden />, show: can('deals:view') },
     { href: '/leads', label: 'Leads', icon: <Inbox size={18} strokeWidth={1.75} aria-hidden />, show: can('leads:view') },
     { href: '/contatos', label: 'Contatos', icon: <Users size={18} strokeWidth={1.75} aria-hidden />, show: can('contacts:view') },
     { href: '/organizacoes', label: 'Organizações', icon: <Building size={18} strokeWidth={1.75} aria-hidden />, show: can('contacts:view') },
     { href: '/agenda', label: 'Agenda', icon: <CalendarDays size={18} strokeWidth={1.75} aria-hidden />, show: can('tasks:manage') },
   ].filter((i) => i.show !== false && !!me.tenantId);
-  const admin = ['settings:admin', 'users:admin', 'audit:view', 'pipelines:admin', 'products:admin', 'contacts:delete'].some(can);
+  const admin = ['settings:admin', 'users:admin', 'audit:view', 'pipelines:admin', 'products:admin', 'contacts:delete', 'channels:admin'].some(can);
   const tenant = me.tenants.find((t) => t.id === me.tenantId);
   const initials = me.user.name.split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 
@@ -40,6 +54,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         className={`flex h-10 items-center gap-3 rounded-[6px] px-3 ${active ? 'bg-side-active font-semibold text-side-active-text [&_svg]:text-side-mark' : 'font-medium text-side-text hover:bg-side-active/60'}`}>
         {i.icon}
         {i.label}
+        {i.badge ? <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-side-mark px-1.5 text-[11px] font-semibold text-side">{i.badge > 99 ? '99+' : i.badge}<span className="sr-only"> não lidas</span></span> : null}
       </Link>
     );
   };

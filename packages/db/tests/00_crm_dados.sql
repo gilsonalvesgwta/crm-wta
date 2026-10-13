@@ -11,7 +11,7 @@ $$;
 -- Identificadores fixos: t.id(empresa, n), com n por tipo de registro.
 -- 1 organização, 2 contato, 3 funil, 4 etapa aberta, 5 etapa ganha, 6 etapa
 -- perdida, 7 negócio, 8 lead, 9 produto, 10 motivo, 11 atividade, 12 arquivo,
--- 13 importação, 14 etiqueta, 15 roteiro, 16 série, 17 campo.
+-- 13 importação, 14 etiqueta, 15 roteiro, 16 série, 17 campo, 18 conta de canal, 19 mensagem.
 
 create function t.seed_crm(p_tenant uuid, p_member uuid, p_team uuid) returns void
 language plpgsql
@@ -80,6 +80,13 @@ begin
   values (p_tenant, t.id(p_tenant, 13), 2, 'error', '[{"field":"email","message":"inválido"}]');
   insert into exports (tenant_id, entity, row_count, created_by) values (p_tenant, 'contacts', 1, p_member);
   insert into saved_views (tenant_id, membership_id, entity, name, shared) values (p_tenant, p_member, 'contacts', 'Meus VIP', true);
+
+  -- Canais (lote 2): uma conta de WhatsApp e uma mensagem recebida.
+  insert into channel_accounts (id, tenant_id, kind, name, status, external_id, address, webhook_token_hash, created_by)
+  values (t.id(p_tenant, 18), p_tenant, 'whatsapp_evolution', 'Comercial', 'connected',
+          'crmwta-' || right(replace(p_tenant::text, '-', ''), 12), '+5511988887777', sha256(convert_to('token-' || p_tenant::text, 'UTF8')), p_member);
+  insert into messages (id, tenant_id, channel_account_id, channel, direction, status, contact_id, external_id, remote, body)
+  values (t.id(p_tenant, 19), p_tenant, t.id(p_tenant, 18), 'whatsapp', 'in', 'received', t.id(p_tenant, 2), 'MSG-1', '+5511999990000', 'Olá');
 end
 $$;
 

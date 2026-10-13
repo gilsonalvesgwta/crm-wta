@@ -122,6 +122,26 @@ Toda rota exige sessão, salvo as marcadas como pública. Mutações exigem o ca
 
 Para quem não é superadministrador, as rotas da plataforma respondem 404.
 
+### Canais e mensagens (lote 2)
+
+| Método e caminho | Acesso | Função |
+| --- | --- | --- |
+| `GET /api/v1/channels` | `channels:admin` + 2FA | Contas (WhatsApp e e-mail), uso dos limites do plano e se a Evolution está configurada. A senha nunca volta (`smtp.hasPassword`) |
+| `POST /api/v1/channels/whatsapp` | `channels:admin` + 2FA | `{name}`. Cria a instância na Evolution e devolve `{account, qr, pairingCode}`. Limite `max_whatsapp`; sem Evolution, 409 `evolution-not-configured` |
+| `GET /api/v1/channels/:id/qr` | `channels:admin` + 2FA | QR code novo (ou `qr: null` se já conectado) |
+| `POST /api/v1/channels/:id/refresh`, `/rewire`, `/disconnect` | `channels:admin` + 2FA | Estado atual; webhook refeito com token novo; desconectar o celular |
+| `DELETE /api/v1/channels/:id` | `channels:admin` + 2FA | Apaga a instância na Evolution e a conta; o histórico fica |
+| `POST /api/v1/channels/email`, `PATCH /api/v1/channels/email/:id` | `channels:admin` + 2FA | `{name, address, fromName, host, port, secure, user, pass}`; `pass: null` na edição mantém a senha. Limite `max_email_accounts` |
+| `POST /api/v1/channels/:id/test` | `channels:admin` + 2FA | Confere o SMTP e manda um e-mail de teste para quem pediu; grava o estado |
+| `GET /api/v1/channels/available` | `conversations:reply` | Contas que podem enviar agora |
+| `GET /api/v1/conversations` | `conversations:reply` | Contatos no alcance com a última mensagem e as não lidas (`unread=1`, `q`, `page`) |
+| `GET /api/v1/conversations/unread` | `conversations:reply` | Quantos contatos têm mensagem não lida |
+| `GET /api/v1/contacts/:id/messages` | `contacts:view`, no alcance | Histórico (200 mais recentes; `before` para as anteriores) com conta, quem enviou, estado e arquivo |
+| `POST /api/v1/contacts/:id/messages` | `conversations:reply`, no alcance | `{accountId, to?, text, subject?}` (assunto obrigatório no e-mail). Responde 201 com a mensagem; falha de entrega volta como `status: "failed"` e `error` |
+| `POST /api/v1/contacts/:id/messages/file` | `conversations:reply`, no alcance | Multipart: campos `accountId`, `to`, `text`, `subject` antes do arquivo `file` (até 16 MB) |
+| `POST /api/v1/contacts/:id/messages/seen` | `contacts:view` | Marca as recebidas como vistas |
+| `POST /api/v1/webhooks/evolution/:token` | Público; o token é a autorização | Avisos da Evolution. Token errado: 404 |
+
 ### Marca, domínio próprio e plano da empresa
 
 | Método e caminho | Acesso | Função |

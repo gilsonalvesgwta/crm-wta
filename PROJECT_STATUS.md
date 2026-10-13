@@ -4,7 +4,7 @@ Atualizado em 13 de outubro de 2026.
 
 ## Fase atual
 
-**Lote 1 (plataforma comercial, Greenn, marca e domínio próprio das empresas)**, pedido em 13 de outubro de 2026 sobre a Fase 2 já instalada. Lotes 2 (WhatsApp e e-mail dentro do CRM) e 3 (automações e n8n) na sequência.
+**Lote 2 (WhatsApp pela Evolution, e-mail da empresa, Conversas e histórico por contato)**, sobre o lote 1 já mesclado. Lote 3 (automações e n8n) na sequência.
 
 **Instalação:** no ar em `https://crm.wtatech.com.br` desde 13 de outubro de 2026, versão `2026.10.13-40971d2`, stack `crmwta` criada pelo Portainer da VPS. Migrações aplicadas, administrador criado, `/api/readyz` respondendo.
 
@@ -22,6 +22,18 @@ Atualizado em 13 de outubro de 2026.
 | Usuários, equipes, dados da empresa, identidade visual com contraste calculado | Integração e ponta a ponta |
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
+
+### Lote 2: canais e mensagens
+
+| Item | Evidência |
+| --- | --- |
+| Configurações › Canais: conectar número de WhatsApp pelo CRM (instância `crmwta-*` criada na Evolution existente, QR code renovado, fecha sozinho ao conectar), desconectar, refazer o webhook, remover | Integração e ponta a ponta, contra uma Evolution falsa |
+| Receber WhatsApp: contato criado para número novo, número sem o nono dígito casa com o cadastrado, mídia guardada, grupos e reações fora, aviso repetido entra uma vez | Integração; domínio |
+| Enviar WhatsApp: texto e arquivo, estados enviada, entregue e lida (sem regredir), mensagem do celular no histórico, falha com o motivo | Integração; ponta a ponta |
+| E-mail da empresa por SMTP: cadastro com senha cifrada, teste com envio real, envio com assunto e anexo, erro de senha explicado; proteção contra servidor interno | Integração contra um SMTP falso; domínio |
+| Conversas: lista no alcance de quem atende, não lidas no menu, resposta pelo canal escolhido | Integração; ponta a ponta |
+| Histórico completo no contato: painel Mensagens e linha do tempo (recebida, enviada, não enviada) | Ponta a ponta |
+| Limites do plano para números de WhatsApp e caixas de e-mail; privacidade (exportar e anonimizar incluem as mensagens); mesclagem leva as mensagens | Integração; banco |
 
 ### Lote 1: plataforma comercial e marca das empresas
 
@@ -61,7 +73,9 @@ Atualizado em 13 de outubro de 2026.
 
 ## Testes executados
 
-Lote 1, ramo `claude/lote1-plataforma`, ambiente de desenvolvimento (o CI repete tudo, nas duas arquiteturas): banco 352 verificações; API 160 de 160; ponta a ponta 22 de 22, com axe em cada tela nova.
+Lote 2, ramo `claude/lote2-canais`, ambiente de desenvolvimento (o CI repete tudo, nas duas arquiteturas): banco 367 verificações; API 185 de 185; ponta a ponta 24 de 24, com axe em cada tela nova.
+
+Lote 1, ramo `claude/lote1-plataforma`: banco 352 verificações; API 160 de 160; ponta a ponta 22 de 22.
 
 Fase 2, ramo `claude/fase2-crm`, 13 de outubro de 2026, no GitHub Actions (os mesmos conjuntos também rodam no ambiente de desenvolvimento).
 
@@ -79,7 +93,8 @@ Fase 2, ramo `claude/fase2-crm`, 13 de outubro de 2026, no GitHub Actions (os me
 - **Modelo de planilha CSV para importar contatos** (pedido em 13 out 2026): botão para baixar um exemplo e imagem ilustrativa de como preencher, na tela de importação.
 - **Certificado dos domínios próprios**: decidir entre Cloudflare for SaaS e a lista no Traefik (DEPLOYMENT.md).
 - **Greenn**: teste com uma compra real.
-- **Lote 2**: instâncias da Evolution cadastradas pelo CRM, WhatsApp e e-mail dentro do CRM, histórico completo por contato.
+- **WhatsApp e e-mail com servidores reais**: conectar um número de teste na Evolution da VPS e cadastrar uma caixa da Hostinger.
+- **Leitura das respostas de e-mail (IMAP)**: Fase 5. Hoje as respostas chegam na caixa de sempre.
 - **Lote 3**: automações (e-mail, WhatsApp, aniversário, acompanhamento, lembretes) e cadastro de lead, contato e negócio pelo n8n no funil e etapa escolhidos.
 - **Visões salvas**: a API existe; falta a tela para salvar e escolher filtros.
 - **Lembretes só dentro do CRM.** Lembrete por e-mail ou WhatsApp entra com os canais (Fases 4 e 5).
@@ -97,7 +112,7 @@ Nenhum.
 | Registro DNS `crm` (tipo A) para o IP da VPS, no Cloudflare | Responsável pelo produto |
 | Revisão da matriz de permissões | Responsável pelo produto |
 | Caixa de e-mail na Hostinger para os e-mails do sistema | Responsável pelo produto (endereço e senha só na instalação) |
-| Endereço e chave da Evolution API, número de teste | Fase 4 |
+| Endereço e chave da Evolution API (variáveis da stack) e um número de teste | Responsável pelo produto, lote 2 |
 | Aplicativo na Meta e verificação da empresa | Fase 6 |
 
 ## Mudanças de infraestrutura
@@ -119,9 +134,9 @@ Nenhum.
 
 ## Próximas ações
 
-1. Lote 1: colar a stack nova no editor web do Portainer, uma vez, com as variáveis novas (`IMAGEM_*` em `:main`, `EXIGIR_2FA=false`, `SEGREDO_DA_GREENN`); atualizar com "Re-pull image and redeploy" e testar.
-2. Cadastrar o endereço do webhook na Greenn e ligar os produtos aos planos.
-3. Lote 2: Evolution API (endereço e chave global), WhatsApp e e-mail dentro do CRM, histórico por contato.
+1. Colar a stack nova no editor web do Portainer, com `EVOLUTION_URL` e `EVOLUTION_CHAVE`; atualizar com "Re-pull image and redeploy".
+2. Conectar um número de teste e cadastrar uma caixa de e-mail; conferir receber, responder e enviar arquivo.
+3. Cadastrar o endereço do webhook na Greenn e ligar os produtos aos planos.
 4. Lote 3: automações e entrada pelo n8n.
 
 ## Aprovações pendentes
