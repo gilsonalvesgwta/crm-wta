@@ -1,0 +1,84 @@
+aplicando 0001_fundacao
+aplicando 0002_autenticacao
+aplicando 0003_nomes_unicos
+aplicando 0004_crm
+migrações aplicadas agora: 4
+papel crm_api pronto
+pronto: empresa 0d51e3d3-abb8-4840-8fae-b9e9572364ea, superadministrador ec26f7dc-5c52-44b4-9ab9-67437a48a5ca
+{"status":"ok","database":"ok"}
+
+Running kernel seems to be up-to-date.
+
+Restarting services...
+ systemctl restart php8.3-fpm.service
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+
+> @crm/web@ e2e /home/runner/work/crm-wta/crm-wta/apps/web
+> playwright test
+
+
+Running 19 tests using 1 worker
+
+  ✓   1 [chromium] › e2e/acesso.spec.ts:12:1 › a tela de login é acessível, no computador e no celular (874ms)
+  ✓   2 [chromium] › e2e/acesso.spec.ts:24:1 › senha errada mostra a mensagem e não entra (342ms)
+  ✓   3 [chromium] › e2e/acesso.spec.ts:30:1 › sem sessão, a área interna manda para o login e volta depois (793ms)
+  ✓   4 [chromium] › e2e/acesso.spec.ts:40:1 › o administrador entra e vê o aviso para ativar a verificação em duas etapas (1.1s)
+  ✓   5 [chromium] › e2e/acesso.spec.ts:49:1 › convite: a pessoa cria a conta e entra (1.1s)
+  ✓   6 [chromium] › e2e/acesso.spec.ts:72:1 › esqueci a senha: o link do e-mail cria uma senha nova (1.4s)
+  ✓   7 [chromium] › e2e/acesso.spec.ts:99:1 › verificação em duas etapas: ativar, sair e entrar com o código (2.3s)
+  ✓   8 [chromium] › e2e/admin.spec.ts:14:1 › convidar, aceitar, trocar o perfil e desativar (2.5s)
+  ✓   9 [chromium] › e2e/admin.spec.ts:54:1 › equipes: criar e definir as pessoas (1.6s)
+  ✓  10 [chromium] › e2e/admin.spec.ts:72:1 › perfis: o administrador é protegido; um perfil novo nasce de um modelo (2.1s)
+  ✓  11 [chromium] › e2e/admin.spec.ts:89:1 › identidade visual: recusa cor sem contraste, aplica a nova e restaura (2.1s)
+  ✓  12 [chromium] › e2e/admin.spec.ts:119:1 › auditoria mostra o que foi feito, com filtro (1.5s)
+  ✓  13 [chromium] › e2e/admin.spec.ts:130:1 › plataforma: criar e suspender uma empresa (1.6s)
+  ✘  14 [chromium] › e2e/crm.spec.ts:8:1 › contatos: cadastrar, anotar, agendar, anexar e achar duplicado (4.3s)
+  -  15 [chromium] › e2e/crm.spec.ts:85:1 › negócios: funil padrão, quadro, regras de etapa, ganho e perda
+  -  16 [chromium] › e2e/crm.spec.ts:145:1 › leads: cadastrar e qualificar em negócio
+  -  17 [chromium] › e2e/crm.spec.ts:165:1 › agenda e painel
+  -  18 [chromium] › e2e/crm.spec.ts:182:1 › importar planilha CSV com erro por linha
+  -  19 [chromium] › e2e/crm.spec.ts:203:1 › configurações do CRM: funis e campos
+
+
+  1) [chromium] › e2e/crm.spec.ts:8:1 › contatos: cadastrar, anotar, agendar, anexar e achar duplicado 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "document-title: html",
+    + ]
+
+       at util.ts:65
+
+      63 |   const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+      64 |   const serious = r.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
+    > 65 |   expect(serious.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+         |                                                                                               ^
+      66 | }
+      67 |
+      68 | export async function login(page: Page, email: string, password: string): Promise<void> {
+        at expectAccessible (/home/runner/work/crm-wta/crm-wta/apps/web/e2e/util.ts:65:95)
+        at /home/runner/work/crm-wta/crm-wta/apps/web/e2e/crm.spec.ts:81:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../saida/telas/falhas/crm-contatos-cadastrar-ano-20c7b-ar-anexar-e-achar-duplicado-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../saida/telas/falhas/crm-contatos-cadastrar-ano-20c7b-ar-anexar-e-achar-duplicado-chromium/error-context.md
+
+  1 failed
+    [chromium] › e2e/crm.spec.ts:8:1 › contatos: cadastrar, anotar, agendar, anexar e achar duplicado 
+  5 did not run
+  13 passed (24.8s)
+/home/runner/work/crm-wta/crm-wta/apps/web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @crm/web@ e2e: `playwright test`
+Exit status 1
