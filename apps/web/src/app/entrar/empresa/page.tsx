@@ -17,6 +17,8 @@ function Chooser() {
     api<Me>('GET', '/api/v1/auth/me')
       .then((m) => {
         if (m.mfa.pending) router.replace('/entrar/verificacao');
+        // Administrador geral sem empresa ativa vai para a Plataforma (onde cria ou reativa empresas).
+        else if (m.tenants.length === 0 && m.user.isPlatformAdmin) router.replace('/plataforma');
         else setMe(m);
       })
       .catch(() => router.replace('/entrar?motivo=sessao'));
