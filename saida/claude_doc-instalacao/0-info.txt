@@ -1,0 +1,4 @@
+commit: d0bc13542fa424bb1472cd1097eaa9a4ea4ca73a
+ramo: claude/doc-instalacao
+execucao: 38422668886
+inicio: 2026-10-13T15:31:06Z
