@@ -10,7 +10,9 @@
 
 ## "network ... is declared as external, but could not be found" ao implantar pelo Portainer
 
-Aconteceu na instalação de 13 de outubro de 2026 na VPS da WTA. A rede `Wtatechor3Net` existia e era do Swarm (`docker network inspect` mostrava `swarm overlay`), mas o Portainer recusava a stack com essa mensagem, mesmo com os valores das variáveis redigitados. A conferência da rede é feita pelo próprio Portainer, não pela stack; a causa provável é a combinação da versão do Portainer com o Docker 29.
+A rede do Traefik não existe no Swarm em que a stack está sendo implantada.
 
-- Primeira tentativa: conferir se não há caractere invisível no fim dos valores das variáveis (comum ao colar do Windows no modo avançado).
-- Solução usada: implantar pela linha de comando da VPS com `deploy/implantar.sh`, que lê as variáveis de `/root/crmwta.env`. A stack aparece no Portainer como criada fora dele (controle limitado); para mudar uma variável, edite o arquivo e rode o script de novo.
+- Confira se o Portainer aberto é o da VPS certa. Em 13 de outubro de 2026 o erro apareceu porque a stack estava sendo criada no Portainer de outro servidor; no Portainer da VPS da WTA a implantação funcionou na primeira tentativa.
+- Na VPS: `sudo docker network inspect Wtatechor3Net --format '{{.Name}} {{.Scope}} {{.Driver}}'` deve mostrar `Wtatechor3Net swarm overlay`.
+- Valores colados no modo avançado a partir do Windows podem levar um caractere invisível no fim; redigite no modo simples se a rede existir e o erro continuar.
+- Alternativa sem o Portainer: `deploy/implantar.sh`, que lê as variáveis de um arquivo e implanta pela linha de comando.

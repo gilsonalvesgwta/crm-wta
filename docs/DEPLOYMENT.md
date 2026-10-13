@@ -2,7 +2,7 @@
 
 A stack do CRM é isolada: banco, API, interface e cópia diária próprios, sem porta publicada, sem tocar em rede, volume ou serviço existente. Ela sai inteira com a remoção de uma única stack.
 
-Situação: a stack é testada a cada envio no CI, em amd64 e em arm64, num Docker Swarm descartável com um Traefik configurado como o da VPS (`deploy/teste-stack.sh`). **Ainda não foi instalada.** O inventário foi feito em 12 de outubro de 2026; a instalação aguarda a aprovação do plano abaixo.
+Situação: a stack é testada a cada envio no CI, em amd64 e em arm64, num Docker Swarm descartável com um Traefik configurado como o da VPS (`deploy/teste-stack.sh`). Instalada em `crm.wtatech.com.br` em 13 de outubro de 2026, pelo Portainer da VPS, com a versão `2026.10.13-40971d2`.
 
 ## O que a stack contém
 
@@ -49,7 +49,7 @@ Passos:
 1. **DNS** (você): no Cloudflare, registro A `crm` para o IP da VPS, com a mesma opção de proxy dos outros endereços que já funcionam com esse Traefik.
 2. **Versão** (eu): mesclar a Fase 2 no `main`; o CI publica as imagens amd64 e arm64 com uma versão fixa.
 3. **Segredos** (você, com o roteiro): na VPS, `curl` do `deploy/criar-segredos.sh` e `sudo bash criar-segredos.sh`. O script pede a senha da caixa de e-mail e mostra uma única vez a chave mestra e a senha inicial do administrador. Guarde as duas num cofre de senhas, fora da VPS.
-4. **Stack** (você, no Portainer; se o Portainer recusar, pela linha de comando com `deploy/implantar.sh`, ver [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md)): Stacks > Add stack, nome `crmwta`, colar `deploy/stack.yml` e preencher as variáveis da tabela do roteiro, com `DOMINIO=crm.wtatech.com.br`, `REDE_TRAEFIK=Wtatechor3Net` e o e-mail da Hostinger.
+4. **Stack** (você, no Portainer da VPS; alternativa pela linha de comando: `deploy/implantar.sh`): Stacks > Add stack, nome `crmwta`, colar `deploy/stack.yml` e preencher as variáveis da tabela do roteiro, com `DOMINIO=crm.wtatech.com.br`, `REDE_TRAEFIK=Wtatechor3Net` e o e-mail da Hostinger.
 5. **Conferência** (juntos): `https://crm.wtatech.com.br/api/readyz` responde; certificado válido; login com a senha inicial; os serviços da VPS com as mesmas réplicas de antes.
 6. **Primeiro acesso** (você): trocar a senha, ativar a verificação em duas etapas e apagar `BOOTSTRAP_EMAIL` das variáveis da stack.
 
