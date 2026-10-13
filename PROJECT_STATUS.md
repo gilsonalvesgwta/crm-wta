@@ -4,7 +4,7 @@ Atualizado em 13 de outubro de 2026.
 
 ## Fase atual
 
-**Fase 2: CRM comercial.** Construída e testada no ramo `claude/fase2-crm`. Falta o CI completo nas duas arquiteturas e a sua revisão. A Fase 1 está no `main`.
+**Fase 2: CRM comercial.** Construída e testada, com o CI verde nas duas arquiteturas.
 
 **Instalação:** a VPS foi inventariada em 12 de outubro. O endereço será `crm.wtatech.com.br`, direto no ambiente definitivo. Nada foi instalado ainda; o plano de instalação aguarda a sua aprovação.
 
@@ -49,14 +49,15 @@ Atualizado em 13 de outubro de 2026.
 
 ## Testes executados
 
-13 de outubro de 2026, no ambiente de desenvolvimento, com as dependências exatas do CI.
+Ramo `claude/fase2-crm`, 13 de outubro de 2026, no GitHub Actions (os mesmos conjuntos também rodam no ambiente de desenvolvimento).
 
 | Conjunto | Onde | Resultado |
 | --- | --- | --- |
-| Banco | PostgreSQL 16 | 330 verificações aprovadas |
-| API (domínio e integração) | Node 24, PostgreSQL 16 | 137 de 137 |
+| Banco | PostgreSQL 16 e 18 | 330 verificações aprovadas em cada |
+| API (domínio e integração) | Node 24, PostgreSQL 18 | 137 de 137 |
 | Ponta a ponta | Chromium, API e interface compiladas | 19 de 19, com axe em cada tela |
-| CI completo (PostgreSQL 18, stack amd64 e arm64) | GitHub Actions | Em execução; resultado será registrado aqui |
+| Stack | Docker Swarm com Traefik 3.5 configurado como o da VPS, em amd64 e em arm64 | Todas as conferências aprovadas nas duas, incluindo arquivo gravado no volume e baixado pelo endereço assinado |
+| Dependências | `pnpm audit --prod` | Nenhuma vulnerabilidade conhecida |
 
 ## Pendências
 
@@ -94,9 +95,8 @@ Nenhuma. O inventário da VPS foi só leitura. Nada foi instalado.
 
 ## Próximas ações
 
-1. CI completo nas duas arquiteturas; abrir a revisão da Fase 2 para mesclar no `main`.
-2. Instalar em `crm.wtatech.com.br`, depois da sua aprovação do plano.
-3. Fase 3: API pública com chaves, webhooks, eventos, filas com Redis e integração com o n8n.
+1. Instalar em `crm.wtatech.com.br`, depois da sua aprovação do plano.
+2. Fase 3: API pública com chaves, webhooks, eventos, filas com Redis e integração com o n8n.
 
 ## Aprovações pendentes
 
