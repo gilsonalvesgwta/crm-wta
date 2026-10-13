@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { ConsoleLogger } from '@nestjs/common';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import fastifyCookie from '@fastify/cookie';
+import fastifyMultipart from '@fastify/multipart';
 import { randomUUID } from 'node:crypto';
 import { AppModule } from './app.module.js';
 import type { Config } from './config.js';
@@ -12,6 +13,8 @@ export async function createApp(cfg: Config, opts: { logger?: boolean } = {}): P
   const adapter = new FastifyAdapter({
     trustProxy: cfg.TRUST_PROXY,
     bodyLimit: 1_048_576,
+    // Endereços assinados de arquivo passam do limite padrão de 100 caracteres.
+    maxParamLength: 400,
     genReqId: () => randomUUID(),
     logger: opts.logger === false || cfg.LOG_LEVEL === 'silent' ? false : { level: cfg.LOG_LEVEL },
   });
@@ -25,6 +28,8 @@ export async function createApp(cfg: Config, opts: { logger?: boolean } = {}): P
   });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await app.register(fastifyCookie as any);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await app.register(fastifyMultipart as any, { limits: { fileSize: cfg.UPLOAD_MAX_MB * 1024 * 1024, files: 1, fields: 10, parts: 12 } });
   app.setGlobalPrefix('api');
   app.enableShutdownHooks();
   const fastify = app.getHttpAdapter().getInstance();

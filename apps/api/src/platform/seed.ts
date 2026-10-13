@@ -1,5 +1,6 @@
 import type { Q } from '../infra/db.js';
 import { ROLE_TEMPLATES } from '../domain/permissions.js';
+import { DEFAULT_STAGES } from '../crm/pipelines.service.js';
 
 /**
  * Cria os perfis padrão de uma empresa a partir da matriz. Idempotente: perfil
@@ -28,4 +29,30 @@ export async function seedRoleTemplates(q: Q, tenantId: string): Promise<Map<str
     }
   }
   return ids;
+}
+
+const DEFAULT_LOST_REASONS = ['Preço', 'Escolheu um concorrente', 'Sem resposta', 'Sem orçamento', 'Fora do perfil'];
+
+/**
+ * Ponto de partida do CRM de uma empresa nova: um funil "Vendas" com as etapas
+ * padrão e motivos de perda comuns. Só cria o que ainda não existe.
+ */
+export async function seedCrmDefaults(q: Q, tenantId: string): Promise<void> {
+  const has = await q.query('select 1 from pipelines where tenant_id = $1 limit 1', [tenantId]);
+  if (!has.rowCount) {
+    const p = await q.query<{ id: string }>(
+      "insert into pipelines (tenant_id, name, position) values ($1, 'Vendas', 0) returning id", [tenantId]);
+    for (const [i, s] of DEFAULT_STAGES.entries()) {
+      await q.query(
+        `insert into pipeline_stages (tenant_id, pipeline_id, name, position, color, probability, kind, required_fields)
+         values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [tenantId, p.rows[0]!.id, s.name, i, s.color, s.probability, s.kind, s.requiredFields ?? []]);
+    }
+  }
+  const reasons = await q.query('select 1 from outcome_reasons where tenant_id = $1 limit 1', [tenantId]);
+  if (!reasons.rowCount) {
+    for (const [i, name] of DEFAULT_LOST_REASONS.entries()) {
+      await q.query("insert into outcome_reasons (tenant_id, kind, name, position) values ($1, 'lost', $2, $3)", [tenantId, name, i]);
+    }
+  }
 }

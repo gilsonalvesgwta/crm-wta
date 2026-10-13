@@ -27,6 +27,12 @@ const schema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().optional(),
+  /** Pasta dos arquivos enviados (volume da stack). */
+  STORAGE_DIR: z.string().min(1).default('/data/files'),
+  /** Limite de tamanho de um arquivo enviado, em MB. */
+  UPLOAD_MAX_MB: z.coerce.number().int().min(1).max(200).default(25),
+  /** Despachante de lembretes, importações e séries: intervalo em segundos; 0 desliga. */
+  DISPATCH_INTERVAL_S: z.coerce.number().int().min(0).max(3600).default(15),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'silent']).default('info'),
 });
 

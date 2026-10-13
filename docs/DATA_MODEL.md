@@ -53,6 +53,8 @@ O RLS cuida do isolamento entre empresas. O alcance dentro da empresa (próprios
 
 ## Tabelas implementadas
 
+### Fundação (Fase 1)
+
 Migrações `0001_fundacao`, `0002_autenticacao` e `0003_nomes_unicos`. Todas com RLS ligado e forçado.
 
 | Tabela | Guarda | Acesso de `crm_app` |
@@ -95,15 +97,61 @@ Rodam com os direitos de `crm_owner`, porque precisam olhar antes de existir con
 | `app.auth_password_reset_create`, `auth_password_reset_consume` | Nova senha por link, com no máximo 3 pedidos em 10 minutos |
 | `app.auth_invitation_info`, `auth_invitation_accept` | Convites |
 
+### CRM comercial (Fase 2)
+
+Migração `0004_crm`. Todas com RLS ligado e forçado, isolamento por `tenant_id` e chaves estrangeiras compostas.
+
+| Tabela | Guarda | Acesso de `crm_app` |
+| --- | --- | --- |
+| `organizations` | Organizações: nome, razão social, documento, domínio, contato, endereço, responsável, equipe, campos | Isolamento padrão |
+| `contacts` | Pessoas: nome e sobrenome (nome completo gerado), cargo, organização, documento, aniversário com ano opcional, endereço, responsável, equipe, campos, marca de anonimização | Isolamento padrão |
+| `contact_emails`, `contact_phones` | Vários e-mails (minúsculos) e telefones (E.164) por contato, um principal | Isolamento padrão |
+| `tags`, `contact_tags`, `organization_tags`, `deal_tags` | Etiquetas com cor, nome único por empresa | Isolamento padrão |
+| `custom_field_definitions` | Campos personalizados por entidade: chave, tipo, opções, obrigatório, arquivado | Isolamento padrão |
+| `pipelines`, `pipeline_access` | Funis e a lista de pessoas e equipes de um funil restrito | Isolamento padrão |
+| `pipeline_stages`, `stage_transition_rules` | Etapas (posição, cor, probabilidade, tipo aberto, ganho ou perda, campos exigidos, prazo de inatividade) e transições permitidas | Isolamento padrão |
+| `products`, `outcome_reasons` | Produtos com preço em centavos; motivos de ganho e perda | Isolamento padrão |
+| `leads`, `assignment_rules`, `assignment_rule_members` | Leads ligados a um contato; roteiros de rodízio com a posição do último escolhido | Isolamento padrão |
+| `deals`, `deal_participants`, `deal_items` | Negócios (a etapa precisa ser do funil do negócio, garantido por chave composta), participantes e itens | Isolamento padrão |
+| `deal_stage_history` | Toda mudança de etapa, com tempo na anterior, gravada por gatilho | Lê e insere; nunca altera |
+| `notes` | Notas de contato, organização, negócio ou lead | Isolamento padrão |
+| `timeline_entries` | Linha do tempo: tipo do evento, ator e identificadores, sem valores pessoais | Lê, insere e apaga (anonimização); nunca altera |
+| `attribution_touches` | Pontos de origem: UTMs, identificadores de clique, página. A primeira origem é a linha mais antiga | Lê, insere e apaga (anonimização); nunca altera |
+| `consents` | Consentimento por canal e finalidade, com origem e evidência; vale o mais recente | Lê e insere; nunca altera nem apaga |
+| `suppression_list` | Endereços que não recebem mensagem (opt-out, devolução, reclamação) | Isolamento padrão |
+| `contact_merges` | Cópia do contato mesclado e quem mesclou | Lê e insere |
+| `activities`, `activity_series` | Tarefas e compromissos, com lembrete calculado pelo banco; séries recorrentes e até onde já foram criadas | Isolamento padrão |
+| `notifications` | Avisos para uma pessoa | Insere para qualquer pessoa da empresa; lê e marca como lidas só as próprias |
+| `files` | Arquivos: chave de armazenamento iniciada pela empresa, tipo conferido, tamanho, hash, registro ao qual pertencem | Isolamento padrão |
+| `imports`, `import_rows` | Importações em lotes, progresso e resultado de cada linha | Isolamento padrão |
+| `exports` | Registro de cada exportação: quem, o quê, filtros e linhas | Lê e insere; nunca altera nem apaga |
+| `saved_views` | Filtros salvos de uma pessoa, compartilháveis | Vê as próprias e as compartilhadas; altera só as próprias |
+
+Gatilhos: o status, a data de fechamento e o histórico do negócio acompanham a etapa; o horário do lembrete acompanha o início da atividade e é rearmado quando ele muda.
+
+### Despachante
+
+O papel `crm_dispatch` não lê tabela alguma. Ele só executa três funções que escolhem o próximo item entre empresas e devolvem identificadores:
+
+| Função | Para quê |
+| --- | --- |
+| `app.claim_due_reminders(limite)` | Lembretes vencidos, marcados como enviados na mesma operação |
+| `app.claim_import(segundos)` | Próxima importação pendente, ou em andamento com a trava vencida |
+| `app.series_needing_extension(até, limite)` | Séries recorrentes com o horizonte curto |
+
+O processamento de cada item acontece depois, no contexto da empresa, como `crm_app`. Empresa suspensa não recebe lembrete nem tem importação processada.
+
+### Busca
+
+`app.norm(texto)` devolve o texto em minúsculas e sem acentos (extensão `unaccent`), com índice de trigramas (`pg_trgm`) em nomes de contato, organização e negócio.
+
 ## Tabelas planejadas
 
 Entram com as migrações de cada fase e podem mudar quando as integrações forem testadas de verdade.
 
 | Domínio | Tabelas | Fase |
 | --- | --- | --- |
-| CRM | `contacts`, `organizations`, `contact_emails`, `contact_phones`, `contact_addresses`, `contact_identities`, `external_ids`, `tags`, `taggings`, `custom_field_definitions`, `notes`, `consents`, `suppression_list`, `contact_merges`, `leads`, `attribution_touches`, `pipelines`, `pipeline_stages`, `pipeline_access`, `stage_transition_rules`, `deals`, `deal_participants`, `deal_stage_history`, `products`, `deal_items`, `outcome_reasons`, `assignment_rules`, `goals`, `saved_views`, `imports`, `import_rows`, `exports` | 2 |
-| Atividades | `activities`, `activity_participants`, `activity_links`, `timeline_entries`, `notifications`, `notification_preferences` | 2 |
-| Arquivos | `files` | 2 |
+| CRM, depois da Fase 2 | `contact_identities` e `external_ids` (identidades de canal, Fase 4), `goals` (metas, Fase 7), `activity_participants` e `notification_preferences` | 4 e 7 |
 | Integração | `outbox_events`, `webhook_endpoints`, `webhook_deliveries`, `idempotency_keys`, `failed_jobs` | 3 |
 | Canais e caixa de entrada | `channel_accounts`, `channel_account_access`, `conversations`, `conversation_assignments`, `conversation_notes`, `messages`, `message_events`, `message_attachments`, `inbound_events`, `quick_replies` | 4 |
 | E-mail e mensagens | `email_message_details`, `email_sync_state`, `email_signatures`, `message_templates`, `scheduled_messages`, `campaigns`, `campaign_runs`, `campaign_recipients`, `sequences`, `sequence_steps`, `sequence_enrollments` | 5 |

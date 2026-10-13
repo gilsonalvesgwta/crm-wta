@@ -3,6 +3,8 @@
 import 'reflect-metadata';
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import pg from 'pg';
@@ -104,6 +106,8 @@ export function testConfig(f: Fixture): Config {
     MAIL_MODE: 'memory',
     LOG_LEVEL: 'silent',
     COOKIE_SECURE: 'true',
+    STORAGE_DIR: mkdtempSync(path.join(tmpdir(), 'crm-arquivos-')),
+    DISPATCH_INTERVAL_S: '0',
   });
 }
 
@@ -147,6 +151,31 @@ export class Browser {
 
   get(url: string) {
     return this.req('GET', url);
+  }
+  patch(url: string, body?: unknown) {
+    return this.req('PATCH', url, body ?? {});
+  }
+  put(url: string, body?: unknown) {
+    return this.req('PUT', url, body ?? {});
+  }
+
+  /** Envio multipart de um arquivo no campo "file". */
+  async upload(url: string, filename: string, content: Buffer | string, contentType = 'application/octet-stream'): Promise<Res> {
+    const boundary = `----crm${randomBytes(8).toString('hex')}`;
+    const body = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: ${contentType}\r\n\r\n`),
+      Buffer.isBuffer(content) ? content : Buffer.from(content),
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+    return this.req('POST', url, body, { 'content-type': `multipart/form-data; boundary=${boundary}`, 'x-crm-request': '1' });
+  }
+
+  /** GET que devolve o corpo bruto (CSV, arquivos). */
+  async raw(url: string): Promise<{ status: number; body: Buffer; headers: Record<string, unknown> }> {
+    const headers: Record<string, string> = {};
+    if (this.cookie) headers.cookie = this.cookie;
+    const r = await this.app.inject({ method: 'GET', url, headers, remoteAddress: this.ip });
+    return { status: r.statusCode, body: r.rawPayload, headers: r.headers as Record<string, unknown> };
   }
   post(url: string, body?: unknown) {
     return this.req('POST', url, body ?? {});

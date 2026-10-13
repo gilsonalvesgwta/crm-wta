@@ -12,6 +12,7 @@ export class Problem extends Error {
     readonly detail?: string,
     readonly errors?: FieldError[],
     readonly headers?: Record<string, string>,
+    readonly extra?: Record<string, unknown>,
   ) {
     super(title);
   }
@@ -67,6 +68,7 @@ export class ProblemFilter implements ExceptionFilter {
     const body: Record<string, unknown> = { type: p.type, title: p.title, status: p.status, request_id: req.id };
     if (p.detail) body.detail = p.detail;
     if (p.errors?.length) body.errors = p.errors;
+    if (p.extra) Object.assign(body, p.extra);
     void reply
       .status(p.status)
       .headers({ 'content-type': 'application/problem+json; charset=utf-8', ...(p.headers ?? {}) })

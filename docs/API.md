@@ -52,7 +52,7 @@ Todo evento sai do outbox transacional. O envelope é o mesmo para webhooks, aut
 
 `POST /hooks/{provedor}/{conta}/{token}`. O token identifica uma conta conectada, e dela sai a empresa. O corpo bruto é gravado antes de qualquer processamento, e evento repetido é ignorado pela chave única.
 
-## Endpoints implementados (Fase 1)
+## Endpoints implementados (Fases 1 e 2)
 
 Toda rota exige sessão, salvo as marcadas como pública. Mutações exigem o cabeçalho `x-crm-request: 1`.
 
@@ -112,3 +112,49 @@ Toda rota exige sessão, salvo as marcadas como pública. Mutações exigem o ca
 | `PATCH /api/v1/platform/tenants/:id` | Superadministrador + 2FA | Suspende, reativa ou arquiva |
 
 Para quem não é superadministrador, as rotas da plataforma respondem 404.
+
+### CRM comercial (Fase 2)
+
+O alcance (próprios, equipe, empresa) vem do perfil. Registro fora do alcance responde 404, como se não existisse. Listas são paginadas com `page` e `pageSize` (até 100) e devolvem `total`.
+
+| Método e caminho | Permissão | Função |
+| --- | --- | --- |
+| `GET, POST /api/v1/contacts` | `contacts:view`, `contacts:edit` | Lista com busca sem acento (nome, e-mail, telefone, documento), filtros e ordenação; criação com vários e-mails e telefones, etiquetas, campos e origem. Duplicado por e-mail ou telefone responde 409 com os candidatos, salvo `allowDuplicate` |
+| `GET, PATCH /api/v1/contacts/:id` | `contacts:view`, `contacts:edit` | Detalhe com origem (primeira e última), consentimentos e contagens; edição registrada na linha do tempo só pelos nomes dos campos |
+| `DELETE /api/v1/contacts/:id` | `contacts:delete` (empresa) | Exclusão auditada |
+| `GET /api/v1/contacts/:id/duplicates` | `contacts:view` | Contatos com o mesmo e-mail ou telefone |
+| `POST /api/v1/contacts/:id/merge` | `contacts:delete` (empresa) | Mescla outro contato neste, preservando negócios, notas, histórico, origem e consentimento; cópia do mesclado guardada |
+| `GET, POST /api/v1/contacts/:id/consents` | `contacts:view`, `contacts:edit` | Histórico e registro de consentimento por canal e finalidade; opt-out alimenta a lista de supressão |
+| `POST /api/v1/contacts/:id/attribution` | `contacts:edit` | Novo ponto de origem (UTMs, identificadores de clique) |
+| `GET /api/v1/contacts/export.csv` | `contacts:import_export` | CSV no alcance de quem exporta, registrado |
+| `GET, POST /api/v1/organizations`, `GET, PATCH, DELETE /api/v1/organizations/:id`, `GET /api/v1/organizations/export.csv` | Como contatos | Organizações |
+| `GET /api/v1/directory` | Qualquer pessoa da empresa | Pessoas ativas e equipes, para escolher responsável |
+| `GET, POST /api/v1/tags`; `PATCH, DELETE /api/v1/tags/:id` | Ver: todos; criar: `contacts:edit`; alterar e excluir: `contacts:delete` | Etiquetas |
+| `GET, POST /api/v1/custom-fields`; `PATCH /api/v1/custom-fields/:id` | Ver: todos; configurar: `pipelines:admin` | Campos personalizados de contato, organização, negócio e lead; tipo e chave não mudam depois de criados |
+| `GET, POST /api/v1/products`; `PATCH /api/v1/products/:id` | Ver: todos; configurar: `products:admin` | Produtos e preços |
+| `GET, POST /api/v1/outcome-reasons`; `PATCH .../:id` | Ver: todos; configurar: `pipelines:admin` | Motivos de ganho e perda |
+| `GET, POST /api/v1/views`; `DELETE /api/v1/views/:id` | Qualquer pessoa | Visões salvas, próprias ou compartilhadas |
+| `GET, POST /api/v1/pipelines`; `GET, PATCH, DELETE /api/v1/pipelines/:id` | Ver: quem tem acesso ao funil; configurar: `pipelines:admin` | Funis, com acesso restrito por pessoa ou equipe |
+| `PUT /api/v1/pipelines/:id/stages` | `pipelines:admin` | Etapas na ordem, com cor, probabilidade, tipo, campos exigidos e prazo de inatividade; etapa com negócios não é removida |
+| `PUT /api/v1/pipelines/:id/transitions` | `pipelines:admin` | Regras de transição entre etapas |
+| `GET /api/v1/deals/board?pipelineId=` | `deals:view` | Quadro: etapas com total, valor ponderado e cartões |
+| `GET, POST /api/v1/deals`; `GET, PATCH, DELETE /api/v1/deals/:id` | `deals:view`, `deals:edit`, `deals:delete` | Negócios; trocar o responsável exige `deals:assign` |
+| `POST /api/v1/deals/:id/move` | `deals:edit` | Muda de etapa ou de funil conferindo regra de transição, campos exigidos e motivo de perda; histórico gravado pelo banco |
+| `PUT /api/v1/deals/:id/items` | `deals:edit` | Itens de produto; o valor do negócio passa a ser a soma |
+| `GET /api/v1/deals/export.csv` | `deals:export` | Só funis acessíveis, mesmo com filtro |
+| `GET, POST /api/v1/leads`; `GET, PATCH /api/v1/leads/:id` | `leads:view`, `leads:work` | Leads; contato existente com o mesmo e-mail ou telefone é reaproveitado; sem responsável informado, o rodízio escolhe |
+| `POST /api/v1/leads/:id/assign` | `deals:assign` | Atribuição auditada, com aviso para quem recebe |
+| `POST /api/v1/leads/:id/qualify`, `/disqualify`, `/reopen` | `leads:work` | Qualificar cria o negócio ligado ao lead e ao contato |
+| `GET, POST /api/v1/assignment-rules`; `PATCH, DELETE .../:id` | `deals:assign` (empresa) | Roteiros de rodízio por origem e equipe |
+| `GET, POST /api/v1/activities`; `GET, PATCH, DELETE /api/v1/activities/:id` | `tasks:manage` | Tarefas e compromissos, com recorrência e lembrete; editar ou excluir "esta e as seguintes" numa série |
+| `POST /api/v1/activities/:id/status` | `tasks:manage` | Concluir, reabrir ou cancelar; concluir marca o último contato dos registros ligados |
+| `GET /api/v1/notifications`; `POST /api/v1/notifications/read` | A própria pessoa | Avisos (lembretes, leads, importações) |
+| `GET, POST /api/v1/records/:tipo/:id/notes`; `PATCH, DELETE /api/v1/notes/:id` | Ver ou editar o registro | Notas de contato, organização, negócio ou lead; só o autor edita o texto |
+| `GET /api/v1/records/:tipo/:id/timeline` | Ver o registro | Linha do tempo, em ordem |
+| `GET, POST /api/v1/records/:tipo/:id/files` | Ver ou editar o registro | Anexos (multipart, campo `file`): tipo conferido pelo conteúdo, até `UPLOAD_MAX_MB` |
+| `GET /api/v1/files/:id/url`; `DELETE /api/v1/files/:id` | Ver ou editar o registro | Endereço assinado válido por 5 minutos; remoção |
+| `GET /api/v1/files/download/:token` | Pública (o endereço assinado é a autorização) | Download sempre como anexo, com `sandbox` |
+| `POST /api/v1/imports/upload?entity=`; `POST, GET /api/v1/imports`; `GET /api/v1/imports/:id`, `/errors`; `POST .../cancel` | `contacts:import_export` | Importação de CSV em lotes, com sugestão de colunas, opção para duplicados e aviso por linha |
+| `GET /api/v1/privacy/contacts/:id/export`; `POST .../anonymize` | `privacy:execute` + 2FA | Direitos do titular, auditados |
+| `GET /api/v1/dashboard?from=&to=&pipelineId=&ownerId=` | Cada bloco com a sua permissão | Indicadores de negócios, leads, agenda e contatos no alcance de quem vê |
+

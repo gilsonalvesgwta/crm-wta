@@ -29,6 +29,16 @@ Camada de aplicação, Fase 1, conferida por `apps/api/test` e `apps/web/e2e`:
 - Registros em JSON em produção, sem senha, token ou corpo de requisição.
 - Imagens rodam como usuário sem privilégios; stack sem portas publicadas; segredos do Docker.
 
+Camada de aplicação, Fase 2, conferida por `apps/api/test/crm.test.ts`, `packages/db/tests/05_crm.sql` e `apps/web/e2e/crm.spec.ts`:
+
+- Alcance conferido na consulta: registro fora do alcance devolve 404, sem revelar que existe. Duplicado fora do alcance aparece sem o nome.
+- Funil restrito fica fora da lista, do quadro, do detalhe, da criação e da exportação.
+- Arquivos: tipo conferido pelos primeiros bytes, não pela extensão; HTML, SVG e executáveis recusados; nome aleatório com a empresa no começo da chave; download só por endereço assinado (HMAC, 5 minutos), sempre como anexo e com `Content-Security-Policy: sandbox`.
+- Linha do tempo guarda nomes de campos e identificadores, nunca o valor de um dado pessoal.
+- Consentimento e histórico de etapas só aceitam inserção; a origem registrada não é sobrescrita.
+- O despachante (`crm_dispatch`) não lê tabela alguma: só escolhe itens por função e o trabalho acontece no contexto da empresa.
+- Exportações e ações de privacidade ficam registradas e auditadas.
+
 ## O que está planejado
 
 | Tema | Controle | Fase |
@@ -36,13 +46,13 @@ Camada de aplicação, Fase 1, conferida por `apps/api/test` e `apps/web/e2e`:
 | XSS | Política de conteúdo (CSP); HTML de e-mail sanitizado e exibido em quadro isolado | 2 e 5 |
 | Limite de taxa geral | Por IP, usuário e chave de API, com Redis | 3 |
 | Credenciais de integrações | AES-256-GCM; chave mestra em segredo do Docker, fora do banco, com identificador para rotação | 3 |
-| Arquivos | Tipo conferido pelo conteúdo, limite de tamanho, nome aleatório, URL assinada de curta duração | 2 |
 | Webhooks | Assinatura HMAC na saída; token e segredo na entrada | 3 e 4 |
 
 ## LGPD
 
 - Consentimento por canal e finalidade, com origem e evidência; lista de supressão; opt-out respeitado antes de qualquer envio.
-- Retenção configurável; exportação e anonimização de um titular como operações próprias e auditadas.
+- Exportação e anonimização de um titular, auditadas, implementadas na Fase 2. A anonimização apaga e-mails, telefones, notas, arquivos, histórico, etiquetas, campos e endereços de página da origem; mantém negócios, leads e o registro de consentimento, sem identificação (ADR 027).
+- Retenção configurável: a definir.
 - A auditoria registra ator, empresa, ação, horário e objeto, sem guardar conteúdo sensível sem necessidade.
 - A WTA passa a ser operadora dos dados de cada empresa cliente. Termos de uso e contrato de tratamento de dados dependem de revisão jurídica, fora do escopo do código.
 

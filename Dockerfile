@@ -38,7 +38,8 @@ COPY --from=build /repo/apps/api/dist ./dist
 COPY packages/db /app/db
 COPY deploy/backup /app/backup
 COPY deploy/stack-migrate.sh /app/db/stack-migrate.sh
-RUN chmod +x /app/db/*.sh /app/backup/*.sh
+RUN chmod +x /app/db/*.sh /app/backup/*.sh \
+    && mkdir -p /data/files && chown node:node /data/files
 USER node
 EXPOSE 3001
 HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \

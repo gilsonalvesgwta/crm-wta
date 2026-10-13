@@ -26,8 +26,10 @@ Nenhuma fase é concluída só porque compilou. Cada item precisa do teste que o
 | `02_autenticacao.sql` | Busca de usuário, empresas do usuário, domínio, ciclo de vida da sessão e as condições que a derrubam |
 | `03_catalogo.sql` | Toda tabela com RLS forçado e política; nenhuma função aberta a todos; `search_path` fixo; lista fechada do que a aplicação executa; partições mensais |
 | `04_senha_convites_2fa.sql` | Troca de senha, contagem de falhas, 2FA e códigos de recuperação, nova senha por link, convites |
+| `00_crm_dados.sql` | Dados do CRM das duas empresas em todas as tabelas da Fase 2, para o isolamento cobrir cada uma |
+| `05_crm.sql` | Relações que não cruzam empresas, etapa do funil certo, status e histórico do negócio, registros só de inserção, lembrete, aniversário, avisos e visões por pessoa, busca sem acento, despachante |
 
-Resultado em 12 de outubro de 2026: 180 verificações aprovadas no PostgreSQL 16 (local e CI) e 18 (CI). O resultado de cada execução fica registrado em [`../PROJECT_STATUS.md`](../PROJECT_STATUS.md).
+Resultado em 13 de outubro de 2026: 330 verificações aprovadas no PostgreSQL 16 (local e CI) e 18 (CI). O resultado de cada execução fica registrado em [`../PROJECT_STATUS.md`](../PROJECT_STATUS.md).
 
 ### Testes de mutação
 
@@ -52,6 +54,15 @@ Para conferir que os testes pegam falhas de verdade, cada alteração abaixo foi
 
 - Tabela nova: RLS ligado e forçado, política e concessões explícitas; se tiver `tenant_id`, chave estrangeira composta para as tabelas da mesma empresa.
 - Função nova em `app`: sem execução para todos; se rodar com os direitos do dono, `search_path` fixo; se a aplicação precisar dela, entra de propósito na lista de `03_catalogo.sql`.
+
+## Testes da Fase 2
+
+- Integração (`apps/api/test/crm.test.ts`): contatos e duplicados, mesclagem, alcance por perfil, funis e regras de etapa, funil restrito, rodízio com 30 entradas simultâneas, recorrência e lembretes, arquivos, importação de 10 mil linhas e retomada, exportação, privacidade e painel conferido contra consulta direta. Domínio (`domain-crm.test.ts`): telefones, campos personalizados, recorrência com horário de verão.
+- Ponta a ponta (`apps/web/e2e/crm.spec.ts`): contatos, negócios no quadro, leads, agenda e painel, importação e configurações, com axe em cada tela.
+
+## Ambiente de desenvolvimento
+
+O ambiente de desenvolvimento não alcança o registro npm. O workflow `deps.yml` instala as dependências como o CI e publica `node_modules` e o Node 24 no ramo `deps-cache`; com isso a checagem de tipos e todos os testes rodam também localmente, antes do envio.
 
 ## Como ler o resultado do CI
 

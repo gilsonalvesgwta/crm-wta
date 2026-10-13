@@ -2,7 +2,8 @@
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Building2, ChevronDown, House, LogOut, Menu, Settings, ShieldCheck, UserRound, X } from 'lucide-react';
+import { Building, Building2, CalendarDays, ChevronDown, Handshake, House, Inbox, LogOut, Menu, Settings, ShieldCheck, UserRound, Users, X } from 'lucide-react';
+import { Notifications } from './notifications';
 import { api } from '@/lib/api';
 import { useSession } from './session';
 
@@ -15,8 +16,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [menu, setMenu] = useState(false);
 
-  const work: Item[] = [{ href: '/inicio', label: 'Início', icon: <House size={18} strokeWidth={1.75} aria-hidden /> }];
-  const admin = ['settings:admin', 'users:admin', 'audit:view'].some(can);
+  const work: Item[] = [
+    { href: '/inicio', label: 'Início', icon: <House size={18} strokeWidth={1.75} aria-hidden /> },
+    { href: '/negocios', label: 'Negócios', icon: <Handshake size={18} strokeWidth={1.75} aria-hidden />, show: can('deals:view') },
+    { href: '/leads', label: 'Leads', icon: <Inbox size={18} strokeWidth={1.75} aria-hidden />, show: can('leads:view') },
+    { href: '/contatos', label: 'Contatos', icon: <Users size={18} strokeWidth={1.75} aria-hidden />, show: can('contacts:view') },
+    { href: '/organizacoes', label: 'Organizações', icon: <Building size={18} strokeWidth={1.75} aria-hidden />, show: can('contacts:view') },
+    { href: '/agenda', label: 'Agenda', icon: <CalendarDays size={18} strokeWidth={1.75} aria-hidden />, show: can('tasks:manage') },
+  ].filter((i) => i.show !== false && !!me.tenantId);
+  const admin = ['settings:admin', 'users:admin', 'audit:view', 'pipelines:admin', 'products:admin', 'contacts:delete'].some(can);
   const tenant = me.tenants.find((t) => t.id === me.tenantId);
   const initials = me.user.name.split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 
@@ -64,6 +72,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Menu size={18} />
           </button>
           <div className="flex-1" />
+          {me.tenantId ? <Notifications /> : null}
           {tenant ? (
             me.tenants.length > 1 ? (
               <Link href={`/entrar/empresa?voltar=${encodeURIComponent(pathname)}`}
