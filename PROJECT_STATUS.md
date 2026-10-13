@@ -1,54 +1,71 @@
 # Situação do projeto
 
-Atualizado em 12 de outubro de 2026.
+Atualizado em 13 de outubro de 2026.
 
 ## Fase atual
 
-**Fase 1: Fundação.** Construída e testada no CI. Falta a instalação numa VPS, que depende do inventário e da sua aprovação, e os itens listados em Pendências.
+**Fase 2: CRM comercial.** Construída e testada no ramo `claude/fase2-crm`. Falta o CI completo nas duas arquiteturas e a sua revisão. A Fase 1 está no `main`.
+
+**Instalação:** a VPS foi inventariada em 12 de outubro. O endereço será `crm.wtatech.com.br`, direto no ambiente definitivo. Nada foi instalado ainda; o plano de instalação aguarda a sua aprovação.
 
 ## Concluído, com teste
 
+### Fase 1: fundação
+
 | Item | Evidência |
 | --- | --- |
-| Banco: papéis, contexto de empresa, 18 tabelas com RLS forçado, funções de autenticação, nomes únicos | Migrações `0001` a `0003`; 180 verificações de banco no PostgreSQL 16 e 18; 12 testes de mutação pegos |
-| Login, sessão no servidor, sair, "manter conectado", cookie `httpOnly`/`Secure`/`SameSite=Lax` | Testes de integração e de ponta a ponta |
-| Bloqueio progressivo de login (por e-mail e por IP), contado no banco | Testes de integração |
-| Proteção contra CSRF (cabeçalho obrigatório em mutações) | Teste de integração |
-| Nova senha por link (1 hora, uso único, encerra as sessões) | Integração e ponta a ponta, com o e-mail lido de verdade |
-| Troca de senha com a atual; regra de senha (10 caracteres, comuns e e-mail recusados) | Integração |
-| Verificação em duas etapas (TOTP) com códigos de recuperação; obrigatória nas áreas administrativas; administrador não desliga | Vetores oficiais das RFC 4226 e 6238; integração; ponta a ponta |
-| Sessões abertas: listar e encerrar as próprias | Integração e ponta a ponta |
-| Convites: enviar, reenviar, cancelar, aceitar (conta nova ou existente) | Integração e ponta a ponta |
-| Várias empresas por pessoa, com escolha da empresa | Integração |
-| Matriz de permissões em código, oito perfis padrão, perfis personalizados com alcance | Testes de domínio e de integração |
-| Usuários: perfis, desativar e reativar; a empresa nunca fica sem administrador | Integração e ponta a ponta |
-| Equipes com líderes | Integração e ponta a ponta |
-| Dados da empresa (nome, fuso, idioma) | Integração |
-| Identidade visual por empresa: cor com contraste calculado, tema claro ou escuro, nome do produto, aplicada no primeiro HTML | Domínio (todas as cores), integração e ponta a ponta |
-| Auditoria só de inserção, com tela paginada e filtro | Integração e ponta a ponta |
-| Plataforma: criar, suspender e reativar empresas, sem acesso aos dados delas | Integração e ponta a ponta |
-| Isolamento entre empresas no banco e na API | Banco: catálogo e acesso cruzado. API: membro, equipe, perfil, convite e tema de outra empresa devolvem 404 ou nada |
-| Interface: login, verificação, escolha de empresa, esqueci a senha, convite, início, conta e segurança, configurações, plataforma | 13 testes de ponta a ponta com verificação de acessibilidade (axe, WCAG 2.2 AA) |
-| Marca WTA vetorizada: logo, ícone e favicon | `packages/ui/brand/wta` |
-| Stack de produção: imagens, Docker Swarm, segredos, Traefik, cópia diária com retenção, restauração | `deploy/teste-stack.sh` no CI: saúde, login pelo Traefik, cookie Secure, nenhuma porta publicada, reimplantação idempotente, cópia e restauração conferidas |
+| Banco: papéis, contexto de empresa, RLS forçado, funções de autenticação | Migrações `0001` a `0003`; testes de banco no PostgreSQL 16 e 18 |
+| Login, sessão no servidor, bloqueio progressivo, CSRF, nova senha, troca de senha | Integração e ponta a ponta |
+| Verificação em duas etapas com códigos de recuperação, obrigatória nas áreas administrativas | Vetores das RFC 4226 e 6238; integração; ponta a ponta |
+| Convites, várias empresas por pessoa, sessões abertas | Integração e ponta a ponta |
+| Matriz de permissões, oito perfis padrão, perfis personalizados com alcance | Domínio e integração |
+| Usuários, equipes, dados da empresa, identidade visual com contraste calculado | Integração e ponta a ponta |
+| Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
+| Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
+
+### Fase 2: CRM comercial
+
+| Item | Evidência |
+| --- | --- |
+| Contatos e organizações: vários e-mails e telefones normalizados (E.164), etiquetas, campos personalizados, responsável e equipe, aniversário com ano opcional | Integração; ponta a ponta |
+| Busca sem acento por nome, e-mail, telefone e documento; filtros, ordenação e paginação | Integração |
+| Duplicados por e-mail e telefone, sem revelar o nome de cadastro fora do alcance; mesclagem que preserva negócios, notas, histórico, origem e consentimento, auditada | Integração; ponta a ponta |
+| Alcance: comercial vê os próprios (e os contatos dos seus negócios e leads), líder vê a equipe, gestor vê a empresa; fora do alcance responde 404 | Integração, por perfil |
+| Funis configuráveis: etapas, ordem, cores, probabilidade, campos exigidos, prazo de inatividade, regras de transição | Integração; ponta a ponta |
+| Negócios em quadro com arrastar (também pelo teclado), totais e valor ponderado por etapa; ganho e perda com motivo; itens de produto | Integração; ponta a ponta |
+| Histórico de etapas gravado pelo banco, com tempo em cada etapa | Banco; integração |
+| Funil restrito: some da lista, da API, do quadro e da exportação para quem não está na lista | Integração |
+| Leads: contato existente reaproveitado, rodízio por origem e equipe (30 entradas simultâneas, 10 para cada um), atribuição auditada com aviso, qualificar em negócio, descartar e reabrir | Integração; ponta a ponta |
+| Tarefas e agenda: tipos, prioridade, recorrência que mantém o horário local, editar ou excluir "esta e as seguintes", lembrete que vira aviso uma única vez, visões de dia, semana, mês e lista | Integração; ponta a ponta |
+| Linha do tempo de cada registro, com nomes dos campos alterados e nunca os valores pessoais | Integração |
+| Origem: primeira e última, UTMs e identificadores de clique; a primeira nunca é sobrescrita; campo ausente fica vazio | Banco; integração |
+| Arquivos: tipo conferido pelo conteúdo (HTML, SVG e executáveis recusados), limite de tamanho, download só por endereço assinado de 5 minutos, 404 fora do alcance | Integração; ponta a ponta |
+| Importação de CSV: 10 mil linhas em lotes, sugestão de colunas, duplicados pulados ou completados, aviso por linha, retomada sem repetir depois de queda | Integração; ponta a ponta |
+| Exportação em CSV para o Excel em português, no alcance de quem exporta, registrada | Integração |
+| Consentimento por canal e finalidade com origem e evidência; opt-out vai para a lista de supressão | Banco; integração |
+| Direitos do titular: exportar tudo e anonimizar, com 2FA e auditoria | Integração |
+| Painel inicial: negócios em aberto, ganhos, taxa de ganho, perdas por motivo, leads por origem, agenda do dia; números conferidos contra consulta direta e no alcance de quem vê | Integração; ponta a ponta |
+| Imagens para amd64 e arm64 (a VPS é ARM), com o teste da stack nas duas | CI |
 
 ## Testes executados
 
-Ramo `claude/fase1-api`, 12 de outubro de 2026.
+13 de outubro de 2026, no ambiente de desenvolvimento, com as dependências exatas do CI.
 
 | Conjunto | Onde | Resultado |
 | --- | --- | --- |
-| Banco | PostgreSQL 16 e 18 | 180 verificações aprovadas em cada |
-| API (domínio e integração) | Node 24, PostgreSQL 18 | 79 de 79 |
-| Ponta a ponta | Chromium, API e interface compiladas | 13 de 13 |
-| Stack | Docker Swarm com Traefik de teste | Todas as conferências aprovadas |
-| Dependências | `pnpm audit --prod` | Nenhuma vulnerabilidade conhecida |
+| Banco | PostgreSQL 16 | 330 verificações aprovadas |
+| API (domínio e integração) | Node 24, PostgreSQL 16 | 137 de 137 |
+| Ponta a ponta | Chromium, API e interface compiladas | 19 de 19, com axe em cada tela |
+| CI completo (PostgreSQL 18, stack amd64 e arm64) | GitHub Actions | Em execução; resultado será registrado aqui |
 
-## Pendências da Fase 1
+## Pendências
 
-- **Limite de requisições geral** por IP e por usuário. O login já tem bloqueio; o restante entra com o Redis, na Fase 3.
-- **Logotipo e favicon por empresa**: dependem do armazenamento de arquivos (Fase 2). Hoje a empresa personaliza nome e cores.
-- **Tela de login com a marca da empresa pelo domínio próprio**: as telas internas já usam o tema; a de login ainda mostra a WTA.
+- **Limite de requisições geral** por IP e por usuário: entra com o Redis, na Fase 3. O login já tem bloqueio.
+- **Logotipo e favicon por empresa**: o armazenamento de arquivos já existe; falta a tela de envio e o uso no tema.
+- **Tela de login com a marca da empresa pelo domínio próprio.**
+- **Visões salvas**: a API existe; falta a tela para salvar e escolher filtros.
+- **Lembretes só dentro do CRM.** Lembrete por e-mail ou WhatsApp entra com os canais (Fases 4 e 5).
+- **Metas comerciais**: Fase 7, junto com os dashboards avançados.
 - **Lint** no CI.
 
 ## Bugs conhecidos
@@ -59,30 +76,32 @@ Nenhum.
 
 | Item | De quem |
 | --- | --- |
-| Saída do inventário da VPS | Responsável pelo produto |
+| Registro DNS `crm` (tipo A) para o IP da VPS, no Cloudflare | Responsável pelo produto |
 | Revisão da matriz de permissões | Responsável pelo produto |
-| Endereço do CRM e caixa de e-mail para os e-mails do sistema | Responsável pelo produto |
+| Caixa de e-mail na Hostinger para os e-mails do sistema | Responsável pelo produto (endereço e senha só na instalação) |
 | Endereço e chave da Evolution API, número de teste | Fase 4 |
 | Aplicativo na Meta e verificação da empresa | Fase 6 |
 
 ## Mudanças de infraestrutura
 
-Nenhuma. Nada foi instalado em servidor algum.
+Nenhuma. O inventário da VPS foi só leitura. Nada foi instalado.
 
 ## Riscos
 
-- **Capacidade da VPS desconhecida** até o inventário. A stack pede até 3 GB de memória nos limites.
 - **Repositório público.** Recomendação: torná-lo privado. Nenhum segredo foi gravado nele.
-- **Cópias só na VPS** até haver destino externo.
-- **Ambiente de desenvolvimento sem o registro npm.** Instalar, compilar e testar a parte em TypeScript depende do GitHub Actions.
+- **Cópias do banco e arquivos só na VPS** até haver destino externo.
+- **VPS sem swap** e com muitos serviços em imagens `latest`, que podem mudar sozinhas numa reinicialização. Não é do CRM, mas afeta a máquina toda.
 
 ## Próximas ações
 
-1. Instalar em homologação, depois do inventário e da sua aprovação (`docs/DEPLOYMENT.md`).
-2. Fase 2: contatos, empresas, leads, funis, negócios, tarefas, arquivos, importação e exportação.
+1. CI completo nas duas arquiteturas; abrir a revisão da Fase 2 para mesclar no `main`.
+2. Instalar em `crm.wtatech.com.br`, depois da sua aprovação do plano.
+3. Fase 3: API pública com chaves, webhooks, eventos, filas com Redis e integração com o n8n.
 
 ## Aprovações pendentes
 
-- Onde instalar e os endereços de produção e homologação.
+- Plano de instalação em `crm.wtatech.com.br`.
+- ADR 021: consultas em SQL, sem ORM.
+- Usar o MinIO da VPS para os arquivos, ou manter o volume da stack (ADR 023).
 - Matriz de permissões.
 - Tornar o repositório privado.

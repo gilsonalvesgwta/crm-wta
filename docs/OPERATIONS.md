@@ -42,6 +42,14 @@ Feita pelo serviço `migrate` quando `BOOTSTRAP_EMAIL` está definido na stack: 
 
 Fora da stack: `ADMIN_DATABASE_URL=... BOOTSTRAP_EMAIL=... BOOTSTRAP_PASSWORD=... node apps/api/dist/cli/bootstrap.js`.
 
+## Trabalho em segundo plano
+
+A API roda um despachante a cada `DISPATCH_INTERVAL_S` segundos (padrão 15; 0 desliga): entrega lembretes vencidos como avisos, processa importações em lotes de 500 linhas e estende as séries recorrentes para um ano à frente. Cada item é reservado no banco; se a API cair no meio de uma importação, a trava vence em 2 minutos e a próxima rodada continua do último lote gravado. Na Fase 3 isto passa para o serviço `worker`.
+
+## Arquivos
+
+Ficam no volume `crmwta_arquivos`, em `/data/files/<empresa>/<ano>/<mês>/<id>`. Limite por arquivo: `UPLOAD_MAX_MB` (padrão 25). O volume não entra na cópia diária do banco; até haver destino externo, a cópia dele é o snapshot da VPS.
+
 ## Saúde
 
 - `GET /api/healthz`: o processo está no ar.

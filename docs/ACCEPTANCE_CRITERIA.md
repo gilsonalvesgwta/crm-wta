@@ -29,21 +29,21 @@ Cada item só fecha com um critério verificável e o teste que o comprova.
 
 ## Fase 2: CRM comercial
 
-| Item | Critério | Comprovação |
-| --- | --- | --- |
-| Contatos e organizações | Vários telefones e e-mails, tags, campos personalizados, responsável; busca e filtros com paginação | Integração e ponta a ponta |
-| Duplicados e mesclagem | Detecção por e-mail e telefone normalizados; mesclagem preserva o histórico e é auditada | Integração |
-| Importação e exportação | CSV de 10 mil linhas com erro por linha; exportação respeita o alcance e fica registrada | Integração |
-| Funis configuráveis | Funil, etapas, ordem, cores, probabilidade e campos obrigatórios sem alterar código | Ponta a ponta |
-| Negócios e Kanban | Arrastar respeita regra de transição, campo obrigatório e permissão; histórico registra | Unidade e ponta a ponta |
-| Acesso por funil | Funil não autorizado some da interface e devolve 404 na API e na exportação | Segurança |
-| Leads e distribuição | Rodízio distribui por igual com entradas simultâneas; atribuição auditada | Integração concorrente |
-| Tarefas e agenda | Recorrência e lembrete; visões de dia, semana e mês | Unidade e ponta a ponta |
-| Linha do tempo | Toda alteração relevante aparece no histórico do contato, em ordem | Integração |
-| Atribuição de origem | Primeira origem nunca sobrescrita; campo ausente fica vazio | Unidade e banco |
-| Arquivos | Tipo e tamanho validados; acesso só por URL assinada; arquivo de outra empresa devolve 404 | Segurança |
-| Consentimento e privacidade | Consentimento por canal com origem e data; exportar e anonimizar titular, auditado | Integração |
-| Dashboards iniciais | Números batem com consulta direta em base conhecida e respeitam o alcance | Integração |
+| Item | Critério | Comprovação | Situação |
+| --- | --- | --- | --- |
+| Contatos e organizações | Vários telefones e e-mails, tags, campos personalizados, responsável; busca e filtros com paginação | Integração e ponta a ponta | Atendido |
+| Duplicados e mesclagem | Detecção por e-mail e telefone normalizados; mesclagem preserva o histórico e é auditada | Integração | Atendido |
+| Importação e exportação | CSV de 10 mil linhas com erro por linha; exportação respeita o alcance e fica registrada | Integração | Atendido (10 mil linhas em lotes, com retomada) |
+| Funis configuráveis | Funil, etapas, ordem, cores, probabilidade e campos obrigatórios sem alterar código | Ponta a ponta | Atendido |
+| Negócios e Kanban | Arrastar respeita regra de transição, campo obrigatório e permissão; histórico registra | Unidade e ponta a ponta | Atendido (arrastar também pelo teclado) |
+| Acesso por funil | Funil não autorizado some da interface e devolve 404 na API e na exportação | Segurança | Atendido |
+| Leads e distribuição | Rodízio distribui por igual com entradas simultâneas; atribuição auditada | Integração concorrente | Atendido (30 simultâneos, 10 para cada) |
+| Tarefas e agenda | Recorrência e lembrete; visões de dia, semana e mês | Unidade e ponta a ponta | Atendido (lembrete dentro do CRM; por e-mail e WhatsApp nas Fases 4 e 5) |
+| Linha do tempo | Toda alteração relevante aparece no histórico do contato, em ordem | Integração | Atendido |
+| Atribuição de origem | Primeira origem nunca sobrescrita; campo ausente fica vazio | Unidade e banco | Atendido |
+| Arquivos | Tipo e tamanho validados; acesso só por URL assinada; arquivo de outra empresa devolve 404 | Segurança | Atendido (volume da stack; provedor S3 a decidir) |
+| Consentimento e privacidade | Consentimento por canal com origem e data; exportar e anonimizar titular, auditado | Integração | Atendido |
+| Dashboards iniciais | Números batem com consulta direta em base conhecida e respeitam o alcance | Integração | Atendido |
 
 ## Fase 3: API, eventos e n8n
 

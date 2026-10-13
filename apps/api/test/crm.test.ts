@@ -215,7 +215,8 @@ describe('contatos', () => {
     const out = await sales1.post(`/api/v1/contacts/${joao}/consents`, { channel: 'email', status: 'revoked', source: 'Pediu por telefone' });
     assert.equal(out.body.consents.find((c: { channel: string }) => c.channel === 'email').status, 'revoked');
     const sup = await f.admin.query("select value from suppression_list where tenant_id = $1 and channel = 'email' order by value", [f.tenantA]);
-    assert.deepEqual(sup.rows.map((x) => x.value), ['joao.pessoal@exemplo.com', 'joao@exemplo.com.br'].filter((e) => out.body.emails.some((x: { email: string }) => x.email === e)));
+    // Ordenado aqui: a ordem do banco depende da collation do servidor.
+    assert.deepEqual(sup.rows.map((x) => x.value).sort(), out.body.emails.map((x: { email: string }) => x.email).sort());
     const hist = await sales1.get(`/api/v1/contacts/${joao}/consents`);
     assert.equal(hist.body.length, 2, 'o histórico guarda as duas mudanças');
   });
