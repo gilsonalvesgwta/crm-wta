@@ -61,7 +61,7 @@ export class FilesService {
   }
 
   /** Grava o arquivo e o registro. Usado por anexos e pela importação. */
-  async storeIn(q: Q, actor: Actor, input: { name: string; data: Buffer; purpose: 'attachment' | 'import' | 'branding'; ref?: RecordRef }): Promise<string> {
+  async storeIn(q: Q, actor: Actor, input: { name: string; data: Buffer; purpose: 'attachment' | 'import' | 'branding' | 'message'; ref?: RecordRef }): Promise<string> {
     const maxBytes = this.cfg.UPLOAD_MAX_MB * 1024 * 1024;
     if (input.data.length === 0) throw Problem.badRequest('Arquivo vazio.', [{ field: 'file', message: 'O arquivo está vazio.' }]);
     if (input.data.length > maxBytes) throw new Problem(413, `O arquivo passa de ${this.cfg.UPLOAD_MAX_MB} MB.`);

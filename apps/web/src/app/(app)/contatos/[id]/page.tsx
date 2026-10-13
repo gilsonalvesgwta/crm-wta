@@ -14,6 +14,7 @@ import { ContactDialog } from '@/components/crm/contact-form';
 import { CustomFieldValues } from '@/components/crm/custom-fields';
 import { ActivitiesPanel, FilesPanel, NotesPanel, TimelinePanel } from '@/components/crm/record-panels';
 import { DealDialog } from '@/components/crm/deal-form';
+import { MessageThread } from '@/components/crm/message-thread';
 import { Panel } from '@/components/ui/panel';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -103,6 +104,13 @@ export default function ContactPage({ params }: { params: Promise<{ id: string }
           {can('privacy:execute') && !c.anonymizedAt ? <PrivacyPanel contact={c} onDone={refresh} /> : null}
         </div>
         <div className="flex flex-col gap-5">
+          <Panel title="Mensagens" description="WhatsApp e e-mail com este contato, enviados e recebidos.">
+            <div className="-mx-5 -my-4 overflow-hidden rounded-b-[10px]">
+              <MessageThread key={`m${version}`} contactId={c.id} canSend={can('conversations:reply') && !c.anonymizedAt} height="h-[420px]"
+                onActivity={() => setTick((t) => t + 1)}
+                target={{ phones: c.phones.map((p) => p.number), emails: c.emails.map((e) => e.email) }} />
+            </div>
+          </Panel>
           <ActivitiesPanel key={`a${version}`} filter={`contactId=${id}`} links={{ contact: { id: c.id, name: c.name }, organization: c.organization }} canEdit={can('tasks:manage') && !c.anonymizedAt} onChange={() => setTick((t) => t + 1)} />
           {deals.data ? (
             <Panel title={`Negócios (${deals.data.total})`}>

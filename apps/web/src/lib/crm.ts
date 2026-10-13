@@ -177,7 +177,7 @@ export const REQUIRED_LABEL: Record<string, string> = {
 export function timelineText(e: TimelineEntry): string {
   const d = e.data as Record<string, string | string[] | null | undefined>;
   switch (e.kind) {
-    case 'contact.created': return d.via === 'import' ? 'Contato criado pela importação' : 'Contato criado';
+    case 'contact.created': return d.via === 'import' ? 'Contato criado pela importação' : d.via === 'whatsapp' ? 'Contato criado por uma mensagem de WhatsApp' : 'Contato criado';
     case 'contact.updated': return d.via === 'import' ? 'Dados completados pela importação' : `Editou ${fieldNames(d.fields)}`;
     case 'contact.owner_changed': return 'Trocou o responsável';
     case 'contact.merged': return 'Mesclou um contato duplicado';
@@ -202,6 +202,9 @@ export function timelineText(e: TimelineEntry): string {
     case 'activity.done': return `Concluiu: ${d.title ?? ''}`;
     case 'consent.recorded': return `${d.status === 'granted' ? 'Consentimento registrado' : 'Consentimento retirado'}: ${CHANNEL_LABEL[String(d.channel)] ?? d.channel}`;
     case 'attribution.recorded': return `Nova origem registrada${d.source ? `: ${d.source}` : ''}`;
+    case 'message.received': return `Mensagem recebida (${CHANNEL_LABEL[String(d.channel)] ?? d.channel})`;
+    case 'message.sent': return `Mensagem enviada (${CHANNEL_LABEL[String(d.channel)] ?? d.channel})`;
+    case 'message.failed': return `Mensagem não enviada (${CHANNEL_LABEL[String(d.channel)] ?? d.channel})`;
     default: return e.kind;
   }
 }

@@ -23,7 +23,7 @@ export class PrivacyService {
                 (select name from organizations o where o.id = contacts.organization_id) as organization
            from contacts where id = $1`, [contactId]);
       if (!c.rows[0]) throw Problem.notFound('Contato não encontrado.');
-      const [emails, phones, notes, activities, deals, leads, consents, touches, files, timelineRows] = await Promise.all([
+      const [emails, phones, notes, activities, deals, leads, consents, touches, files, timelineRows, messages] = await Promise.all([
         q.query('select email, label, created_at as "createdAt" from contact_emails where contact_id = $1', [contactId]),
         q.query('select e164 as number, label, created_at as "createdAt" from contact_phones where contact_id = $1', [contactId]),
         q.query('select body, created_at as "createdAt" from notes where contact_id = $1 order by created_at', [contactId]),
@@ -34,11 +34,14 @@ export class PrivacyService {
         q.query('select occurred_at as "occurredAt", source, medium, campaign, term, content, click_ids as "clickIds", referrer, landing_page as "landingPage" from attribution_touches where contact_id = $1 order by occurred_at', [contactId]),
         q.query('select original_name as "name", content_type as "contentType", size_bytes as "sizeBytes", created_at as "createdAt" from files where contact_id = $1 and deleted_at is null', [contactId]),
         q.query('select kind, occurred_at as "occurredAt" from timeline_entries where contact_id = $1 order by occurred_at', [contactId]),
+        q.query(`select channel, direction, status, remote, subject, body, kind, created_at as "createdAt", sent_at as "sentAt"
+                   from messages where contact_id = $1 order by created_at`, [contactId]),
       ]);
       const out = {
         generatedAt: new Date().toISOString(),
         contact: c.rows[0], emails: emails.rows, phones: phones.rows, notes: notes.rows, activities: activities.rows, deals: deals.rows,
         leads: leads.rows, consents: consents.rows, attribution: touches.rows, files: files.rows, history: timelineRows.rows,
+        messages: messages.rows,
       };
       await q.query(`insert into exports (tenant_id, entity, filters, row_count, created_by) values (app.tenant_id(), 'privacy', $1, 1, $2)`,
         [JSON.stringify({ contactId }), actor.membershipId]);
@@ -50,7 +53,7 @@ export class PrivacyService {
   /**
    * Anonimiza o titular. O registro continua existindo, sem nada que o
    * identifique, para que negócios e números históricos não se percam.
-   * Apaga: e-mails, telefones, notas, arquivos, histórico, etiquetas e campos.
+   * Apaga: e-mails, telefones, notas, arquivos, mensagens, histórico, etiquetas e campos.
    * Mantém: negócios e leads (sem o nome), o registro de consentimento e a
    * origem sem endereço de página.
    */
@@ -65,6 +68,7 @@ export class PrivacyService {
       await q.query('delete from contact_tags where contact_id = $1', [contactId]);
       await q.query('delete from notes where contact_id = $1', [contactId]);
       await q.query('delete from timeline_entries where contact_id = $1', [contactId]);
+      await q.query('delete from messages where contact_id = $1', [contactId]);
       const touches = await q.query<{ id: string }>(
         `insert into attribution_touches (tenant_id, contact_id, lead_id, deal_id, occurred_at, recorded_via, source, medium, campaign)
          select tenant_id, contact_id, lead_id, deal_id, occurred_at, recorded_via, source, medium, campaign

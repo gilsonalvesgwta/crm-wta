@@ -39,6 +39,10 @@ export async function createApp(cfg: Config, opts: { logger?: boolean } = {}): P
     reply.header('referrer-policy', 'same-origin');
     reply.header('x-frame-options', 'DENY');
   });
+  // Avisos da Evolution trazem a mídia em base64: limite do tamanho de arquivo, com folga para a codificação.
+  fastify.addHook('onRoute', (route) => {
+    if (route.url.startsWith('/api/v1/webhooks/evolution/')) route.bodyLimit = Math.ceil(cfg.UPLOAD_MAX_MB * 1.4 + 1) * 1024 * 1024;
+  });
   await app.init();
   await fastify.ready();
   return app;

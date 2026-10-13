@@ -39,6 +39,14 @@ Camada de aplicação, Fase 2, conferida por `apps/api/test/crm.test.ts`, `packa
 - O despachante (`crm_dispatch`) não lê tabela alguma: só escolhe itens por função e o trabalho acontece no contexto da empresa.
 - Exportações e ações de privacidade ficam registradas e auditadas.
 
+Canais, lote 2, conferido por `apps/api/test/canais.test.ts`, `domain-canais.test.ts` e `packages/db/tests/07_canais.sql`:
+
+- Webhook da Evolution: token aleatório de 32 bytes no endereço, só o SHA-256 no banco; token desconhecido ou empresa suspensa responde 404. Aviso com o nome de outra instância é ignorado. Mensagem repetida entra uma vez (índice único por conta e identificador).
+- O cliente da Evolution só chama caminhos de instâncias `crmwta-*`; instâncias e webhooks existentes não são tocados.
+- Senha de SMTP cifrada com a chave mestra (dado adicional: a conta), nunca devolvida pela API. Servidor SMTP só em endereço público e nas portas 25, 465, 587 e 2525; o certificado é conferido contra o nome do servidor.
+- O texto do e-mail é escapado antes de virar HTML.
+- Histórico de mensagens segue o alcance do contato (404 fora dele). Arquivos de mensagens passam pelas mesmas regras dos anexos. Anonimizar o titular apaga as mensagens; exportar inclui.
+
 ## O que está planejado
 
 | Tema | Controle | Fase |

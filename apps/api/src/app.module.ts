@@ -27,6 +27,10 @@ import { OrganizationsService } from './crm/organizations.service.js';
 import { PipelinesService } from './crm/pipelines.service.js';
 import { PrivacyService } from './crm/privacy.service.js';
 import { RecordsService } from './crm/records.service.js';
+import { ChannelsService } from './crm/channels.service.js';
+import { MessagesService } from './crm/messages.service.js';
+import { ChannelsController, EvolutionWebhookController, MessagesController } from './crm/channels.controller.js';
+import { Evolution } from './infra/evolution.js';
 import {
   ActivitiesController, CatalogController, ContactsController, DashboardController, DealsController, ImportsController,
   LeadsController, OrganizationsController, PipelinesController, PrivacyController, RecordsController,
@@ -40,7 +44,7 @@ export class AppModule {
       controllers: [
         HealthController, AuthController, AdminController, PlatformController, WebhooksController, TenantFeaturesController, ContactsController, OrganizationsController,
         CatalogController, PipelinesController, DealsController, LeadsController, ActivitiesController, RecordsController,
-        ImportsController, PrivacyController, DashboardController,
+        ImportsController, PrivacyController, DashboardController, ChannelsController, MessagesController, EvolutionWebhookController,
       ],
       providers: [
         { provide: CONFIG, useValue: cfg },
@@ -64,6 +68,9 @@ export class AppModule {
         PrivacyService,
         DashboardService,
         DispatcherService,
+        Evolution,
+        MessagesService,
+        ChannelsService,
         { provide: APP_GUARD, useClass: SessionGuard },
         { provide: APP_FILTER, useClass: ProblemFilter },
       ],

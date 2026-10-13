@@ -10,6 +10,7 @@ const tabs = [
   { href: '/configuracoes/empresa', label: 'Empresa', perm: 'settings:admin' },
   { href: '/configuracoes/identidade-visual', label: 'Identidade visual', perm: 'settings:admin' },
   { href: '/configuracoes/dominio', label: 'Domínio próprio', perm: 'settings:admin' },
+  { href: '/configuracoes/canais', label: 'Canais', perm: 'channels:admin' },
   { href: '/configuracoes/usuarios', label: 'Usuários', perm: 'users:admin' },
   { href: '/configuracoes/equipes', label: 'Equipes', perm: 'users:admin' },
   { href: '/configuracoes/perfis', label: 'Perfis e permissões', perm: 'users:admin' },
@@ -22,7 +23,7 @@ const tabs = [
   { href: '/configuracoes/auditoria', label: 'Auditoria', perm: 'audit:view' },
 ];
 /** Áreas que pedem a verificação em duas etapas confirmada (iguais às da API). */
-const MFA_PERMS = new Set(['settings:admin', 'users:admin']);
+const MFA_PERMS = new Set(['settings:admin', 'users:admin', 'channels:admin']);
 
 export default function SettingsLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();

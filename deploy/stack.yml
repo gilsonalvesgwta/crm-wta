@@ -45,6 +45,14 @@ x-api-env: &api-env
   GREENN_SECRET: ${SEGREDO_DA_GREENN:-}
   # Para onde o domínio próprio de cada cliente aponta (CNAME). Padrão: o DOMINIO.
   CLIENT_DOMAIN_TARGET: ${DOMINIO_ALVO_CLIENTES:-}
+  # WhatsApp: endereço da Evolution API (sem barra no final) e a chave global
+  # dela (AUTHENTICATION_API_KEY da stack da Evolution). Sem os dois, o WhatsApp
+  # fica indisponível no CRM. O CRM só mexe nas instâncias "crmwta-*".
+  EVOLUTION_URL: ${EVOLUTION_URL:-}
+  EVOLUTION_API_KEY: ${EVOLUTION_CHAVE:-}
+  # Opcional: endereço do CRM que a Evolution usa para avisar mensagens, se o
+  # endereço público não for alcançável de dentro da VPS. Padrão: https://<DOMINIO>.
+  EVOLUTION_WEBHOOK_BASE: ${ENDERECO_DO_CRM_PARA_EVOLUTION:-}
   STORAGE_DIR: /data/files
 
 x-api-labels: &api-labels
