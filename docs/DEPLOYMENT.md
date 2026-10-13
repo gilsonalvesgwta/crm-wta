@@ -105,6 +105,7 @@ Decisão do responsável em 13 de outubro de 2026: cada versão nova entra no ar
 - As variáveis (`DOMINIO`, `SMTP_*`, `EXIGIR_2FA`...) continuam na stack, no Portainer. **Não defina `IMAGEM_API` nem `IMAGEM_WEB`**: elas vêm do ramo. Definidas, fixam a versão.
 - Para segurar uma versão ou voltar a uma anterior: defina `IMAGEM_API` e `IMAGEM_WEB` na stack com a versão desejada (`ghcr.io/gilsonalvesgwta/crm-wta-api:<versão>` e `-web:<versão>`) e atualize a stack. Para voltar ao automático, apague as duas.
 - As migrações só acrescentam; uma versão anterior funciona com o banco de uma versão mais nova.
+- A API nova só fica saudável (e só então recebe tráfego) quando o banco já tem todas as migrações que ela traz: `/api/healthz` responde 503 até lá, e a versão anterior continua atendendo. A imagem dá até 3 minutos para isso.
 
 Atualização manual (stack criada pelo editor web): trocar `IMAGEM_API` e `IMAGEM_WEB` e atualizar a stack.
 

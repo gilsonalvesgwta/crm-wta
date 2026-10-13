@@ -52,6 +52,13 @@ SQL
   applied=$((applied + 1))
 done
 
+# A API confere, na verificação de saúde, se o banco já tem as migrações que
+# ela traz: uma versão nova só recebe tráfego depois de migrado.
+"${PSQL[@]}" <<'SQL'
+grant usage on schema ctl to crm_app;
+grant select on ctl.migrations to crm_app;
+SQL
+
 echo "migrações aplicadas agora: $applied"
 
 # Papel de login da API. Só é criado quando API_DB_PASSWORD é informada. Ele não

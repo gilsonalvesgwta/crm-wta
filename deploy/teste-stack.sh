@@ -45,6 +45,10 @@ BOOTSTRAP_EMAIL=dono@wta.test BOOTSTRAP_NAME='Dono do Teste' \
 
 echo "aguardando os serviços..."
 for i in $(seq 1 90); do
+  docker service logs crmwta_migrate 2>&1 | grep -q "migrate: concluído" && break
+  sleep 3
+done
+for i in $(seq 1 90); do
   if curl -fsSk --resolve "$DOM:443:127.0.0.1" "https://$DOM/api/readyz" >/dev/null 2>&1 \
      && curl -fsSk --resolve "$DOM:443:127.0.0.1" -o /dev/null "https://$DOM/entrar"; then
     break
