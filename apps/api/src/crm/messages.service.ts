@@ -8,11 +8,9 @@ import { Problem } from '../http/problem.js';
 import { Db, pgCode, type Q } from '../infra/db.js';
 import { Evolution, EvolutionError } from '../infra/evolution.js';
 import { sendTenantMail, SmtpError, textToHtml } from '../infra/tenant-mail.js';
-import { contactOwnExtra } from './contacts.service.js';
 import { memberJson } from './fields.js';
 import { FilesService } from './files.service.js';
 import { RecordsService } from './records.service.js';
-import { Params, reachOf, reachSql } from './sql.js';
 
 export type SendInput = { accountId: string; to?: string | null; text?: string | null; subject?: string | null };
 export type Upload = { name: string; data: Buffer };
@@ -90,57 +88,15 @@ export class MessagesService {
     });
   }
 
-  /** Conversas: contatos no alcance, pela mensagem mais recente. */
-  async inbox(actor: Actor, f: { unread?: boolean; q?: string; page: number; pageSize: number }) {
-    return this.db.app(tenantCtx(actor), async (q) => {
-      const p = new Params();
-      const reach = reachSql(p, 'c', reachOf(actor, 'contacts:view'), contactOwnExtra);
-      const conds = [reach, 'c.anonymized_at is null'];
-      if (f.unread) conds.push('coalesce(u.n, 0) > 0');
-      if (f.q) conds.push(`app.norm(c.name) like '%' || app.norm(${p.add(f.q)}) || '%'`);
-      const limit = p.add(f.pageSize);
-      const offset = p.add((f.page - 1) * f.pageSize);
-      const r = await q.query(
-        `with last as (
-           select distinct on (m.contact_id) m.contact_id, m.id, m.channel, m.direction, m.status, m.kind, m.body, m.subject, m.created_at
-             from messages m order by m.contact_id, m.created_at desc
-         ), unseen as (
-           select contact_id, count(*)::int as n from messages where direction = 'in' and seen_at is null group by contact_id
-         )
-         select c.id, c.name,
-                (select p.e164 from contact_phones p where p.contact_id = c.id order by p.is_primary desc, p.created_at limit 1) as phone,
-                (select e.email from contact_emails e where e.contact_id = c.id order by e.is_primary desc, e.created_at limit 1) as email,
-                coalesce(u.n, 0) as unread,
-                json_build_object('id', l.id, 'channel', l.channel, 'direction', l.direction, 'status', l.status, 'kind', l.kind,
-                                  'body', left(l.body, 200), 'subject', l.subject, 'createdAt', l.created_at) as "last",
-                count(*) over ()::int as total
-           from last l join contacts c on c.id = l.contact_id left join unseen u on u.contact_id = c.id
-          where ${conds.join(' and ')}
-          order by l.created_at desc
-          limit ${limit} offset ${offset}`, p.values);
-      return {
-        items: r.rows.map(({ total: _t, ...rest }) => rest),
-        total: (r.rows[0] as { total?: number } | undefined)?.total ?? 0, page: f.page, pageSize: f.pageSize,
-      };
-    });
-  }
-
-  /** Contatos com mensagem recebida ainda não vista, no alcance (para o menu). */
-  async unreadCount(actor: Actor) {
-    return this.db.app(tenantCtx(actor), async (q) => {
-      const p = new Params();
-      const reach = reachSql(p, 'c', reachOf(actor, 'contacts:view'), contactOwnExtra);
-      const r = await q.query<{ n: number }>(
-        `select count(distinct m.contact_id)::int as n from messages m join contacts c on c.id = m.contact_id
-          where m.direction = 'in' and m.seen_at is null and ${reach}`, p.values);
-      return { count: r.rows[0]!.n };
-    });
-  }
-
   // ---- Envio ------------------------------------------------------------------------
 
   send(actor: Actor, contactId: string, input: SendInput, file?: Upload) {
     return this.sendAs({ tenantId: actor.tenantId!, actor, automationRuleId: null }, contactId, input, file);
+  }
+
+  /** Envio dentro de uma conversa cujo acesso já foi conferido, só pelo canal dela. */
+  sendInConversation(actor: Actor, contactId: string, channel: 'whatsapp' | 'email', input: SendInput, file?: Upload) {
+    return this.sendAs({ tenantId: actor.tenantId!, actor, automationRuleId: null, checked: true, channel }, contactId, input, file);
   }
 
   /** Envio de uma automação: sem pessoa, respeitando a lista de supressão. */
@@ -148,7 +104,10 @@ export class MessagesService {
     return this.sendAs({ tenantId, actor: null, automationRuleId: ruleId }, contactId, input);
   }
 
-  private async sendAs(by: { tenantId: string; actor: Actor | null; automationRuleId: string | null }, contactId: string, input: SendInput, file?: Upload) {
+  private async sendAs(
+    by: { tenantId: string; actor: Actor | null; automationRuleId: string | null; checked?: boolean; channel?: 'whatsapp' | 'email' },
+    contactId: string, input: SendInput, file?: Upload,
+  ) {
     const actor = by.actor;
     const ctx = actor ? tenantCtx(actor) : { tenantId: by.tenantId, userId: null };
     const text = input.text?.trim() || null;
@@ -156,11 +115,14 @@ export class MessagesService {
 
     // 1. Registra a mensagem como "na fila", com tudo conferido.
     const prep = await this.db.app(ctx, async (q) => {
-      if (actor) await this.records.assertAccess(q, actor, { kind: 'contact', id: contactId }, false);
+      if (actor && !by.checked) await this.records.assertAccess(q, actor, { kind: 'contact', id: contactId }, false);
       const a = (await q.query<{ id: string; kind: string; status: string; external_id: string | null; config: Record<string, unknown>; secret: Buffer | null; address: string | null; name: string }>(
         'select id, kind, status, external_id, config, secret, address, name from channel_accounts where id = $1', [input.accountId])).rows[0];
       if (!a) throw Problem.badRequest('Conta inválida.', [{ field: 'accountId', message: 'Escolha um WhatsApp ou e-mail da empresa.' }]);
       const channel = a.kind === 'whatsapp_evolution' ? 'whatsapp' : 'email';
+      if (by.channel && by.channel !== channel) {
+        throw Problem.badRequest('Conta de outro canal.', [{ field: 'accountId', message: by.channel === 'email' ? 'Escolha uma conta de e-mail.' : 'Escolha um WhatsApp.' }]);
+      }
       if (channel === 'whatsapp' && a.status !== 'connected') {
         throw Problem.conflict(`O WhatsApp "${a.name}" não está conectado. Peça ao administrador para conectar em Configurações › Canais.`);
       }

@@ -119,7 +119,10 @@ describe('WhatsApp pela Evolution', () => {
     assert.equal(c.rows[0]!.name, 'Maria Cliente');
     const inbox = await admin.get('/api/v1/conversations');
     assert.equal(inbox.status, 200);
-    const item = inbox.body.items.find((i: { id: string }) => i.id === c.rows[0]!.id);
+    const item = inbox.body.items.find((i: { contactId: string }) => i.contactId === c.rows[0]!.id);
+    assert.equal(item.channel, 'whatsapp');
+    assert.equal(item.status, 'open');
+    assert.equal(item.assignee, null);
     assert.equal(item.unread, 1);
     assert.equal(item.last.body, 'Oi, quero um orçamento');
     assert.equal((await admin.get('/api/v1/conversations/unread')).body.count, 1);
@@ -131,9 +134,9 @@ describe('WhatsApp pela Evolution', () => {
     assert.equal(h.body.items[0].account.name, 'Comercial');
     assert.equal((await admin.post(`/api/v1/contacts/${c.rows[0]!.id}/messages/seen`)).body.marked, 1);
     assert.equal((await admin.get('/api/v1/conversations/unread')).body.count, 0);
-    // O comercial (alcance próprio) não vê um contato sem responsável.
+    // O comercial (alcance próprio) não vê o contato sem responsável, mas vê a conversa sem responsável para assumir.
     assert.equal((await sales.get(`/api/v1/contacts/${c.rows[0]!.id}/messages`)).status, 404);
-    assert.equal((await sales.get('/api/v1/conversations')).body.items.length, 0);
+    assert.deepEqual((await sales.get('/api/v1/conversations')).body.items.map((i: { id: string }) => i.id), [item.id]);
     const t = await f.admin.query("select kind from timeline_entries where contact_id = $1 order by occurred_at", [c.rows[0]!.id]);
     assert.deepEqual(t.rows.map((x) => x.kind), ['contact.created', 'message.received']);
   });

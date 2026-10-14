@@ -105,3 +105,62 @@ test('e-mail da empresa: cadastrar, testar e enviar pelo contato', async ({ page
   await expectAccessible(page);
   await shot(page, '44-contato-mensagens');
 });
+
+test('conversas: nova conversa com quem nunca escreveu, resposta pronta pelo atalho, estado e filtros', async ({ page }) => {
+  await loginAdmin(page);
+  // Banco de respostas: uma de WhatsApp para a empresa toda.
+  await page.goto('/conversas');
+  await page.getByRole('link', { name: 'Respostas prontas' }).click();
+  await page.getByRole('button', { name: 'Nova resposta' }).click();
+  const d = page.getByRole('dialog', { name: 'Nova resposta pronta' });
+  await d.getByLabel('Atalho').fill('boasvindas');
+  await d.getByLabel('Título').fill('Boas-vindas');
+  await d.getByLabel('Texto').fill('Olá, {{primeiro_nome}}! Aqui é {{atendente}}. Como posso ajudar?');
+  await expectAccessible(page);
+  await d.getByRole('button', { name: 'Salvar' }).click();
+  await expect(page.getByText('Resposta criada.')).toBeVisible();
+  await expect(page.getByRole('listitem').filter({ hasText: '/boasvindas' })).toContainText('Da empresa');
+  await shot(page, '45-respostas-prontas');
+
+  // Nova conversa com um contato que ainda não existe.
+  await page.getByRole('link', { name: 'Conversas' }).first().click();
+  await page.getByRole('button', { name: 'Nova conversa' }).click();
+  const n = page.getByRole('dialog', { name: 'Nova conversa' });
+  await n.getByRole('button', { name: 'Contato novo' }).click();
+  await n.getByLabel('Nome').fill('Bruno Prospect');
+  await n.getByLabel('WhatsApp (com DDD)').fill('(31) 98888-7766');
+  await expectAccessible(page);
+  await n.getByRole('button', { name: 'Abrir conversa' }).click();
+  await expect(page.getByText('Nenhuma mensagem ainda. Escreva abaixo para começar a conversa por WhatsApp.')).toBeVisible();
+
+  // "/" abre as respostas prontas; Enter escolhe e preenche com as variáveis.
+  const box = page.getByLabel('Mensagem', { exact: true });
+  await box.fill('/boas');
+  await expect(page.getByRole('list', { name: 'Respostas prontas' })).toContainText('/boasvindas');
+  await box.press('Enter');
+  await expect(box).toHaveValue(/^Olá, Bruno! Aqui é .+\. Como posso ajudar\?$/);
+  await expectAccessible(page);
+  await shot(page, '46-conversa-nova-resposta-pronta');
+  await page.getByRole('button', { name: 'Enviar', exact: true }).click();
+  const thread = page.getByRole('list', { name: 'Mensagens' });
+  await expect(thread).toContainText('Olá, Bruno!');
+  const sent = (await fake(page)).sent.at(-1)!;
+  expect(sent.body.number).toBe('5531988887766');
+
+  // Estado: aguardando o cliente; a lista separa por estado e canal.
+  await page.getByRole('combobox', { name: 'Estado', exact: true }).selectOption('waiting');
+  await expect(page.getByRole('main').getByText('Aguardando cliente').first()).toBeVisible();
+  const list = page.getByRole('region', { name: 'Lista de conversas' });
+  await page.getByRole('button', { name: /^Aguardando/ }).click();
+  await expect(list.getByRole('button', { name: /Bruno Prospect/ })).toBeVisible();
+  await page.getByRole('group', { name: 'Canal' }).getByRole('button', { name: 'E-mail' }).click();
+  await expect(list.getByRole('button', { name: /Bruno Prospect/ })).toHaveCount(0);
+  await page.getByRole('group', { name: 'Canal' }).getByRole('button', { name: 'Todos' }).click();
+  await page.getByRole('button', { name: 'Filtros' }).click();
+  await page.getByLabel('Responsável', { exact: true }).first().selectOption('me');
+  await expect(list.getByRole('button', { name: /Bruno Prospect/ })).toBeVisible();
+  await page.getByLabel('Negócio').selectOption('open');
+  await expect(list.getByRole('button', { name: /Bruno Prospect/ })).toHaveCount(0);
+  await expectAccessible(page);
+  await shot(page, '47-conversas-filtros');
+});

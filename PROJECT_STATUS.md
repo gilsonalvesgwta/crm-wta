@@ -23,6 +23,17 @@ Atualizado em 14 de outubro de 2026.
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
 
+### Conversas (bloco 1 dos ajustes de 14 out 2026)
+
+| Item | Evidência |
+| --- | --- |
+| Automações no menu principal, entre Organizações e Agenda | Ponta a ponta |
+| Iniciar conversa de WhatsApp ou e-mail com quem nunca escreveu (contato cadastrado ou novo, pela tela de Conversas ou pelo contato) | Integração; ponta a ponta |
+| Conversas separadas por canal (WhatsApp e e-mail), com estado (aberta, aguardando cliente, encerrada), responsável e equipe; reabre quando o cliente escreve | Banco; integração; ponta a ponta |
+| Filtros por estado, canal, responsável, equipe, etiqueta, negócio (aberto, sem negócio, funil) e não lidas | Integração; ponta a ponta |
+| Assumir conversa sem responsável (`conversations:take`); atribuir e trocar equipe (`conversations:assign`) | Integração |
+| Respostas prontas de WhatsApp e e-mail (da empresa e pessoais), com variáveis e atalho "/" na caixa de mensagem | Banco; integração; ponta a ponta |
+
 ### Lote 3: automações e n8n
 
 | Item | Evidência |

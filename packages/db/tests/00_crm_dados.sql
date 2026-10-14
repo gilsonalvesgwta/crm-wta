@@ -93,6 +93,10 @@ begin
   values (t.id(p_tenant, 20), p_tenant, 'Boas-vindas', '{"type": "contact.created"}', '[{"type": "add_tag", "tagId": "x"}]', p_member);
   insert into automation_runs (tenant_id, rule_id, source_key, contact_id, status)
   values (p_tenant, t.id(p_tenant, 20), 'fixo', t.id(p_tenant, 2), 'done');
+
+  -- Conversas: a mensagem acima já criou a conversa. Uma resposta pronta.
+  insert into quick_replies (tenant_id, channel, shortcut, title, body, created_by)
+  values (p_tenant, 'whatsapp', 'fixo', 'Fixo', 'Olá!', p_member);
 end
 $$;
 
