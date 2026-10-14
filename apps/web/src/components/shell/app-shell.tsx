@@ -2,7 +2,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Building, Building2, CalendarDays, ChevronDown, Handshake, House, Inbox, LogOut, Menu, MessagesSquare, Settings, ShieldCheck, UserRound, Users, X } from 'lucide-react';
+import { Building, Building2, CalendarDays, ChevronDown, Handshake, House, Inbox, LogOut, Menu, MessagesSquare, Settings, ShieldCheck, UserRound, Users, X, Zap } from 'lucide-react';
 import { Notifications } from './notifications';
 import { api } from '@/lib/api';
 import { useSession } from './session';
@@ -36,9 +36,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     { href: '/leads', label: 'Leads', icon: <Inbox size={18} strokeWidth={1.75} aria-hidden />, show: can('leads:view') },
     { href: '/contatos', label: 'Contatos', icon: <Users size={18} strokeWidth={1.75} aria-hidden />, show: can('contacts:view') },
     { href: '/organizacoes', label: 'Organizações', icon: <Building size={18} strokeWidth={1.75} aria-hidden />, show: can('contacts:view') },
+    { href: '/automacoes', label: 'Automações', icon: <Zap size={18} strokeWidth={1.75} aria-hidden />, show: can('automations:view') },
     { href: '/agenda', label: 'Agenda', icon: <CalendarDays size={18} strokeWidth={1.75} aria-hidden />, show: can('tasks:manage') },
   ].filter((i) => i.show !== false && !!me.tenantId);
-  const admin = ['settings:admin', 'users:admin', 'audit:view', 'pipelines:admin', 'products:admin', 'contacts:delete', 'channels:admin', 'automations:view', 'integrations:admin'].some(can);
+  const admin = ['settings:admin', 'users:admin', 'audit:view', 'pipelines:admin', 'products:admin', 'contacts:delete', 'channels:admin', 'integrations:admin'].some(can);
   const tenant = me.tenants.find((t) => t.id === me.tenantId);
   const initials = me.user.name.split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 

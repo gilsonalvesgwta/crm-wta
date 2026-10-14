@@ -11,7 +11,11 @@ async function openSettings(page: Page, tab: string) {
 test('automação: contato novo vira tarefa, com o histórico da execução', async ({ page }) => {
   test.setTimeout(120_000);
   await loginAdmin(page);
-  await openSettings(page, 'Automações');
+  // Automações ficam no menu principal, entre Organizações e Agenda.
+  const nav = page.getByRole('navigation', { name: 'Menu principal' });
+  const labels = await nav.getByRole('link').allInnerTexts();
+  expect(labels.map((l) => l.trim()).filter((l) => ['Organizações', 'Automações', 'Agenda'].includes(l))).toEqual(['Organizações', 'Automações', 'Agenda']);
+  await nav.getByRole('link', { name: 'Automações' }).click();
   await expect(page.getByText('Nenhuma automação ainda.')).toBeVisible();
   await page.getByRole('button', { name: 'Nova automação' }).click();
   const d = page.getByRole('dialog', { name: 'Nova automação' });

@@ -166,8 +166,17 @@ Com chave de API não há cookie, então não há verificação de CSRF; chave i
 | `POST /api/v1/channels/email`, `PATCH /api/v1/channels/email/:id` | `channels:admin` + 2FA | `{name, address, fromName, host, port, secure, user, pass}`; `pass: null` na edição mantém a senha. Limite `max_email_accounts` |
 | `POST /api/v1/channels/:id/test` | `channels:admin` + 2FA | Confere o SMTP e manda um e-mail de teste para quem pediu; grava o estado |
 | `GET /api/v1/channels/available` | `conversations:reply` | Contas que podem enviar agora |
-| `GET /api/v1/conversations` | `conversations:reply` | Contatos no alcance com a última mensagem e as não lidas (`unread=1`, `q`, `page`) |
-| `GET /api/v1/conversations/unread` | `conversations:reply` | Quantos contatos têm mensagem não lida |
+| `GET /api/v1/conversations` | `conversations:reply` | Conversas visíveis (uma por contato e canal), com contato, responsável, equipe, última mensagem, não lidas e `counts` por estado. Filtros: `status` (open, waiting, closed, all), `channel`, `assignee` (me, none ou id), `teamId`, `tagId`, `deal` (open, none ou id do funil), `unread=1`, `q`, `page` |
+| `GET /api/v1/conversations/unread` | `conversations:reply` | Quantas conversas visíveis têm mensagem não lida |
+| `POST /api/v1/conversations` | `conversations:reply`, contato no alcance | `{contactId, channel}`: abre (ou acha) a conversa, mesmo sem mensagem nenhuma. 422 se o contato não tem telefone ou e-mail |
+| `GET /api/v1/conversations/:id` | `conversations:reply` | Uma conversa |
+| `PATCH /api/v1/conversations/:id` | `conversations:reply` | `{status?, assigneeId?, teamId?}`. Atribuir a outra pessoa ou trocar a equipe pede `conversations:assign`; assumir uma sem responsável, `conversations:take` |
+| `GET /api/v1/conversations/:id/messages` | `conversations:reply` | Mensagens só do canal da conversa |
+| `POST /api/v1/conversations/:id/messages` (e `/messages/file`) | `conversations:reply` | Envia pelo canal da conversa (conta de outro canal: 422) |
+| `POST /api/v1/conversations/:id/seen` | `conversations:reply` | Marca as recebidas como vistas |
+| `GET /api/v1/quick-replies` | `conversations:reply` | Respostas prontas da empresa e as suas (`channel`, `q`); `canShare` diz se pode criar para a empresa |
+| `POST /api/v1/quick-replies`, `PATCH /api/v1/quick-replies/:id` | `conversations:reply` | `{channel, shortcut, title, subject?, body, shared}`. `shared` pede `campaigns:edit`; atalho repetido no canal: 422 |
+| `DELETE /api/v1/quick-replies/:id` | `conversations:reply` | As suas; as da empresa, com `campaigns:edit` |
 | `GET /api/v1/contacts/:id/messages` | `contacts:view`, no alcance | Histórico (200 mais recentes; `before` para as anteriores) com conta, quem enviou, estado e arquivo |
 | `POST /api/v1/contacts/:id/messages` | `conversations:reply`, no alcance | `{accountId, to?, text, subject?}` (assunto obrigatório no e-mail). Responde 201 com a mensagem; falha de entrega volta como `status: "failed"` e `error` |
 | `POST /api/v1/contacts/:id/messages/file` | `conversations:reply`, no alcance | Multipart: campos `accountId`, `to`, `text`, `subject` antes do arquivo `file` (até 16 MB) |

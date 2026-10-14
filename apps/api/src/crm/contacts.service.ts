@@ -472,6 +472,18 @@ export class ContactsService {
       for (const table of ['deals', 'leads', 'notes', 'activities', 'files', 'messages']) {
         await q.query(`update ${table} set contact_id = $1 where contact_id = $2`, [keepId, mergedId]);
       }
+      // Conversas: a do contato mantido absorve a do outro no mesmo canal; as demais passam para ele.
+      await q.query(
+        `update conversations k set last_message_at = greatest(k.last_message_at, m.last_message_at),
+                last_in_at = greatest(k.last_in_at, m.last_in_at), last_out_at = greatest(k.last_out_at, m.last_out_at),
+                status = case when 'open' in (k.status, m.status) then 'open' when 'waiting' in (k.status, m.status) then 'waiting' else 'closed' end,
+                assignee_membership_id = coalesce(k.assignee_membership_id, m.assignee_membership_id),
+                team_id = coalesce(k.team_id, m.team_id)
+           from conversations m where k.contact_id = $1 and m.contact_id = $2 and m.channel = k.channel`, [keepId, mergedId]);
+      await q.query(
+        `delete from conversations m where m.contact_id = $2
+            and exists (select 1 from conversations k where k.contact_id = $1 and k.channel = m.channel)`, [keepId, mergedId]);
+      await q.query('update conversations set contact_id = $1 where contact_id = $2', [keepId, mergedId]);
       // Registros só de inserção são copiados para o contato mantido.
       await q.query(
         `insert into timeline_entries (tenant_id, occurred_at, kind, actor_membership_id, contact_id, organization_id, deal_id, lead_id, data)

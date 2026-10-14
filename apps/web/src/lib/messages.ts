@@ -13,10 +13,40 @@ export type Message = {
 
 export type SendAccount = { id: string; kind: 'whatsapp_evolution' | 'email_smtp'; name: string; address: string | null; status: string };
 
+export type Channel = 'whatsapp' | 'email';
+export type ConversationStatus = 'open' | 'waiting' | 'closed';
+
 export type Conversation = {
-  id: string; name: string; phone: string | null; email: string | null; unread: number;
-  last: { id: string; channel: 'whatsapp' | 'email'; direction: 'in' | 'out'; status: string; kind: string; body: string | null; subject: string | null; createdAt: string };
+  id: string; channel: Channel; status: ConversationStatus; contactId: string;
+  openedAt: string; firstResponseAt: string | null; lastMessageAt: string; lastInAt: string | null; lastOutAt: string | null; closedAt: string | null;
+  assignee: { id: string; name: string } | null; team: { id: string; name: string } | null;
+  contact: { id: string; name: string; phone: string | null; email: string | null; tags: { id: string; name: string; color: string }[] };
+  unread: number;
+  last: { id: string; direction: 'in' | 'out'; status: string; kind: string; body: string | null; subject: string | null; createdAt: string } | null;
 };
+
+export const CONVERSATION_STATUS: Record<ConversationStatus, { label: string; tone: 'ok' | 'warn' | 'neutral' | 'info' }> = {
+  open: { label: 'Aberta', tone: 'info' },
+  waiting: { label: 'Aguardando cliente', tone: 'warn' },
+  closed: { label: 'Encerrada', tone: 'neutral' },
+};
+
+export type QuickReply = {
+  id: string; channel: Channel; shortcut: string; title: string; subject: string | null; body: string; shared: boolean;
+  updatedAt: string; createdBy: { id: string; name: string } | null;
+};
+
+/** Troca {{variavel}} pelo valor; variável desconhecida ou vazia some. */
+export function renderTemplate(template: string, vars: Record<string, string | null | undefined>): string {
+  return template.replace(/\{\{\s*([a-z_]+)\s*\}\}/g, (_m, k: string) => vars[k] ?? '');
+}
+
+export const REPLY_VARIABLES: { key: string; label: string }[] = [
+  { key: 'nome', label: 'Nome completo do contato' },
+  { key: 'primeiro_nome', label: 'Primeiro nome do contato' },
+  { key: 'empresa', label: 'Nome da sua empresa' },
+  { key: 'atendente', label: 'Seu nome' },
+];
 
 export type ChannelAccount = {
   id: string; kind: 'whatsapp_evolution' | 'email_smtp'; name: string;

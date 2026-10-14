@@ -23,17 +23,11 @@ const emailAccount = z.object({
   fromName: text(120, 'o nome do remetente'),
   address: emailAddr,
 });
-const sendBody = z.object({
+export const sendBody = z.object({
   accountId: uuid,
   to: optText(254),
   text: z.string().max(65536, { message: 'Mensagem longa demais.' }).nullable().optional(),
   subject: optText(998),
-});
-const inboxQuery = z.object({
-  unread: z.enum(['1', 'true', '0', 'false']).optional().transform((v) => v === '1' || v === 'true'),
-  q: z.string().trim().max(120).optional().transform((v) => v || undefined),
-  page: z.coerce.number().int().min(1).max(10_000).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(30),
 });
 
 @Controller('v1/channels')
@@ -113,7 +107,7 @@ export class ChannelsController {
 }
 
 /** Lê um envio multipart com campos antes do arquivo (campo "file"). */
-async function readMessageUpload(req: FastifyRequest, maxMb: number) {
+export async function readMessageUpload(req: FastifyRequest, maxMb: number) {
   const r = req as FastifyRequest & {
     isMultipart?: () => boolean;
     file?: (o?: unknown) => Promise<{ filename: string; fieldname: string; toBuffer(): Promise<Buffer>; fields: Record<string, unknown> } | undefined>;
@@ -142,18 +136,6 @@ async function readMessageUpload(req: FastifyRequest, maxMb: number) {
 @Controller('v1')
 export class MessagesController {
   constructor(@Inject(MessagesService) private readonly svc: MessagesService) {}
-
-  @Require('conversations:reply')
-  @Get('conversations')
-  inbox(@CurrentActor() a: Actor, @Query() q: unknown) {
-    return this.svc.inbox(a, parse(inboxQuery, q));
-  }
-
-  @Require('conversations:reply')
-  @Get('conversations/unread')
-  unread(@CurrentActor() a: Actor) {
-    return this.svc.unreadCount(a);
-  }
 
   @Require('contacts:view')
   @Get('contacts/:id/messages')

@@ -2,7 +2,7 @@
 import { use, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Download, Merge, Pencil, Plus, ShieldOff, Trash2 } from 'lucide-react';
+import { Download, Mail, Merge, MessageCircle, Pencil, Plus, ShieldOff, Trash2 } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { useLoad } from '@/lib/use-load';
 import {
@@ -15,6 +15,7 @@ import { CustomFieldValues } from '@/components/crm/custom-fields';
 import { ActivitiesPanel, FilesPanel, NotesPanel, TimelinePanel } from '@/components/crm/record-panels';
 import { DealDialog } from '@/components/crm/deal-form';
 import { MessageThread } from '@/components/crm/message-thread';
+import { startConversation } from '@/components/crm/new-conversation';
 import { Panel } from '@/components/ui/panel';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -64,12 +65,29 @@ export default function ContactPage({ params }: { params: Promise<{ id: string }
     }
   }
 
+  // Abre a conversa do canal (mesmo sem mensagem nenhuma ainda) na tela de Conversas.
+  async function openChat(channel: 'whatsapp' | 'email') {
+    setErr(null);
+    try {
+      const conv = await startConversation(id, channel);
+      router.push(`/conversas?c=${conv.id}&st=all`);
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.fieldError('channel') ?? e.title : 'Não foi possível abrir a conversa.');
+    }
+  }
+
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-5">
       <PageHeader back={{ href: '/contatos', label: 'Contatos' }}
         title={<span className="flex items-center gap-3"><Avatar name={c.name} size={40} />{c.name}</span>}
         subtitle={[c.jobTitle, c.organization?.name].filter(Boolean).join(' · ') || undefined}
         actions={<>
+          {can('conversations:reply') && !c.anonymizedAt && c.phones.length ? (
+            <Button variant="secondary" onClick={() => void openChat('whatsapp')}><MessageCircle size={16} aria-hidden />WhatsApp</Button>
+          ) : null}
+          {can('conversations:reply') && !c.anonymizedAt && c.emails.length ? (
+            <Button variant="secondary" onClick={() => void openChat('email')}><Mail size={16} aria-hidden />E-mail</Button>
+          ) : null}
           {canEdit ? <Button variant="secondary" onClick={() => setEditing(true)}><Pencil size={16} aria-hidden />Editar</Button> : null}
           {can('deals:edit') && !c.anonymizedAt ? <Button onClick={() => setNewDeal(true)}><Plus size={16} aria-hidden />Novo negócio</Button> : null}
           {can('contacts:delete') ? <Button variant="danger" onClick={() => setDel(true)}><Trash2 size={16} aria-hidden />Excluir</Button> : null}
@@ -106,7 +124,7 @@ export default function ContactPage({ params }: { params: Promise<{ id: string }
         <div className="flex flex-col gap-5">
           <Panel title="Mensagens" description="WhatsApp e e-mail com este contato, enviados e recebidos.">
             <div className="-mx-5 -my-4 overflow-hidden rounded-b-[10px]">
-              <MessageThread key={`m${version}`} contactId={c.id} canSend={can('conversations:reply') && !c.anonymizedAt} height="h-[420px]"
+              <MessageThread key={`m${version}`} contactId={c.id} contactName={c.name} canSend={can('conversations:reply') && !c.anonymizedAt} height="h-[420px]"
                 onActivity={() => setTick((t) => t + 1)}
                 target={{ phones: c.phones.map((p) => p.number), emails: c.emails.map((e) => e.email) }} />
             </div>

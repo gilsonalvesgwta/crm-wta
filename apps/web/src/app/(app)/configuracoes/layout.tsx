@@ -11,7 +11,6 @@ const tabs = [
   { href: '/configuracoes/identidade-visual', label: 'Identidade visual', perm: 'settings:admin' },
   { href: '/configuracoes/dominio', label: 'Domínio próprio', perm: 'settings:admin' },
   { href: '/configuracoes/canais', label: 'Canais', perm: 'channels:admin' },
-  { href: '/configuracoes/automacoes', label: 'Automações', perm: 'automations:view' },
   { href: '/configuracoes/integracoes', label: 'API e n8n', perm: 'integrations:admin' },
   { href: '/configuracoes/usuarios', label: 'Usuários', perm: 'users:admin' },
   { href: '/configuracoes/equipes', label: 'Equipes', perm: 'users:admin' },
