@@ -133,6 +133,39 @@ describe('agente de cópias', () => {
     assert.equal(own[0]!.o, 'crm_owner');
   });
 
+  test('cópia de uma empresa: só os dados dela, sem senhas, e restaura por cima', async () => {
+    const m = await agent.backupTenant(B);
+    assert.equal(m.kind, 'empresa');
+    assert.equal(m.tenantId, B);
+    assert.deepEqual(m.tables!.find((x) => x.t === 'users')!.cols, ['id', 'email', 'name'], 'pessoas sem senha');
+    const listing = execFileSync('tar', ['-tf', path.join(dir, 'empresas', B, m.name)], { encoding: 'utf8' });
+    assert.match(listing, /dados\/contacts\.tsv/);
+    assert.match(listing, /arquivos\.tar\.gz/);
+    const contacts = execFileSync('tar', ['-xOf', path.join(dir, 'empresas', B, m.name), 'dados/contacts.tsv'], { encoding: 'utf8' });
+    assert.doesNotMatch(contacts, /Maria|João/, 'nada da outra empresa');
+    assert.match(contacts, /Pedro/);
+
+    await q(`insert into contacts (tenant_id, first_name) values ($1, 'Depois da cópia')`, [B]);
+    await q(`delete from contacts where tenant_id = $1 and first_name = 'Pedro'`, [B]);
+    execFileSync('rm', ['-rf', path.join(files, B)]);
+    const msg = await agent.restoreTenantBackup(B, m.name);
+    assert.match(msg, /Restaurado de/);
+    const names = (await q<{ name: string }>('select name from contacts where tenant_id = $1 order by name', [B])).map((r) => r.name);
+    assert.deepEqual(names, ['Pedro Padeiro']);
+    assert.equal(readFileSync(path.join(files, B, 'cardapio.pdf'), 'utf8'), 'conteúdo da Padaria');
+    assert.equal((await q('select 1 from contacts where tenant_id = $1', [A])).length, 2, 'a outra empresa não muda');
+    await assert.rejects(agent.restoreTenantBackup(A, m.name), /não encontrada|não é desta empresa/);
+  });
+
+  test('cópias das empresas somem depois do prazo', async () => {
+    const d = path.join(dir, 'empresas', B);
+    const old = (await import('node:fs')).readdirSync(d).filter((f) => f.endsWith('.tar'));
+    for (const f of old) execFileSync('touch', ['-d', '10 days ago', path.join(d, f)]);
+    const n = await agent.expireTenantBackups(7);
+    assert.equal(n, old.length);
+    assert.equal((await import('node:fs')).readdirSync(d).filter((f) => f.endsWith('.tar')).length, 0);
+  });
+
   test('fila: pedido da plataforma é executado e registrado', async () => {
     const job = agent.newJob('backup', { requestedBy: 'teste' });
     writeFileSync(path.join(dir, '.trabalhos', `${job.id}.json`), JSON.stringify(job));

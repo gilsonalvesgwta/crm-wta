@@ -3,7 +3,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Readable } from 'node:stream';
 import { z } from 'zod';
 import type { Actor } from '../access/actor.js';
-import { CurrentActor, PlatformAdmin } from '../access/decorators.js';
+import { CurrentActor, PlatformAdmin, Require } from '../access/decorators.js';
 import { CONFIG, type Config } from '../config.js';
 import { Problem } from '../http/problem.js';
 import { parse } from '../http/validate.js';
@@ -73,5 +73,54 @@ export class BackupsController {
   @HttpCode(204)
   async remove(@CurrentActor() a: Actor, @Param('name') name: string) {
     await this.svc.remove(a, name);
+  }
+}
+
+/** Cópias da própria empresa, para o administrador dela. Só os dados desta empresa. */
+@Controller('v1/backups')
+export class TenantBackupsController {
+  constructor(@Inject(BackupsService) private readonly svc: BackupsService) {}
+
+  @Require('settings:admin', 'tenant')
+  @Get()
+  list(@CurrentActor() a: Actor) {
+    return this.svc.tenantOverview(a);
+  }
+
+  @Require('settings:admin', 'tenant')
+  @Post()
+  create(@CurrentActor() a: Actor) {
+    return this.svc.tenantBackupNow(a);
+  }
+
+  @Require('settings:admin', 'tenant')
+  @Get('jobs/:id')
+  job(@CurrentActor() a: Actor, @Param('id') id: string) {
+    return this.svc.tenantJob(a, id);
+  }
+
+  @Require('settings:admin', 'tenant')
+  @Get(':name/download')
+  async download(@CurrentActor() a: Actor, @Param('name') name: string, @Res() res: FastifyReply) {
+    const f = await this.svc.tenantOpen(a, name);
+    void res
+      .header('content-type', 'application/octet-stream')
+      .header('content-length', String(f.size))
+      .header('content-disposition', `attachment; filename="${name}"`)
+      .send(f.stream);
+  }
+
+  @Require('settings:admin', 'tenant')
+  @Post(':name/restore')
+  restore(@CurrentActor() a: Actor, @Param('name') name: string, @Body() b: unknown) {
+    parse(z.object({ confirm: z.literal('RESTAURAR', { message: 'Digite RESTAURAR para confirmar.' }) }), b);
+    return this.svc.tenantRestore(a, name);
+  }
+
+  @Require('settings:admin', 'tenant')
+  @Delete(':name')
+  @HttpCode(204)
+  async remove(@CurrentActor() a: Actor, @Param('name') name: string) {
+    await this.svc.tenantRemove(a, name);
   }
 }

@@ -50,6 +50,8 @@ const schema = z.object({
   EVOLUTION_WEBHOOK_BASE: z.string().optional().transform((v) => (v && /^https?:\/\/[^\s]+$/.test(v.trim()) ? v.trim().replace(/\/+$/, '') : undefined)),
   /** Pasta das cópias de segurança (volume crmwta_backup, compartilhado com o serviço "backup"). */
   BACKUP_DIR: z.string().min(1).default('/backups'),
+  /** Dias que as cópias feitas pelas próprias empresas ficam guardadas. */
+  TENANT_BACKUP_DAYS: z.coerce.number().int().min(1).max(365).default(7),
   /** Tamanho máximo de uma cópia enviada pela Plataforma, em MB. */
   BACKUP_UPLOAD_MAX_MB: z.coerce.number().int().min(10).max(50_000).default(8192),
   /** Só desenvolvimento e testes: permite servidor SMTP de empresa em endereço interno. */

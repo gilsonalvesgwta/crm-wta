@@ -19,6 +19,8 @@ export type AgentOptions = {
   migrateScript: string;
   /** Dono dos arquivos (usuário "node" da imagem), para a API ler e escrever na pasta. */
   ownerUid?: number;
+  /** Dias que as cópias feitas pelas empresas ficam guardadas. */
+  tenantBackupDays?: number;
   log?: (msg: string) => void;
 };
 
@@ -330,7 +332,115 @@ export class BackupAgent {
     for (const d of olds.slice(1)) await rm(path.join(this.o.filesDir, d), { recursive: true, force: true });
   }
 
-  /** Restaura uma empresa: apaga a atual (se existir) e traz de volta tudo dela da cópia. */
+  /** Tabelas da empresa num banco, com as colunas que dá para inserir (sem as geradas). */
+  private async tenantTables(database: string): Promise<{ t: string; cols: string[] }[]> {
+    return this.withDb(database, async (c) => (await c.query<{ t: string; cols: string[] }>(
+      `select c.relname as t,
+              array_agg(a.attname::text order by a.attnum) filter (where a.attgenerated = '') as cols
+         from pg_class c
+         join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
+         join pg_attribute a on a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
+        where c.relkind in ('r', 'p') and not c.relispartition
+          and (exists (select from pg_attribute x where x.attrelid = c.oid and x.attname = 'tenant_id' and not x.attisdropped)
+               or c.relname in ('tenants', 'users'))
+        group by c.relname order by c.relname`)).rows.filter((r) => !SKIP_TABLES.has(r.t)));
+  }
+
+  /** Grava em TSV (um por tabela) as linhas da empresa num banco. */
+  private async exportTenantRows(database: string, tenantId: string, dir: string, tables: { t: string; cols: string[] }[]): Promise<void> {
+    const where = (t: string) => t === 'tenants' ? `id = ${lit(tenantId)}`
+      : t === 'users' ? `id in (select user_id from public.memberships where tenant_id = ${lit(tenantId)})`
+        : `tenant_id = ${lit(tenantId)}`;
+    for (const { t, cols } of tables) {
+      await run('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
+        `\\copy (select ${cols.map(ident).join(', ')} from public.${ident(t)} where ${where(t)}) to ${lit(path.join(dir, `${t}.tsv`))}`],
+      { env: { PGDATABASE: database } });
+    }
+  }
+
+  /**
+   * Grava a empresa no banco em uso, numa transação: a atual (se existir) é
+   * excluída em cascata e os dados dos TSV entram sem disparar gatilhos. Só as
+   * colunas que existem nos dois lados entram (cópias de versões anteriores).
+   */
+  private async loadTenantRows(tenantId: string, dir: string, from: { t: string; cols: string[] }[]): Promise<void> {
+    const live = new Map((await this.tenantTables(this.o.database)).map((x) => [x.t, new Set(x.cols)]));
+    const tables = from
+      .filter((x) => live.has(x.t) && existsSync(path.join(dir, `${x.t}.tsv`)))
+      .map((x) => ({ t: x.t, all: x.cols, cols: x.cols.filter((c) => live.get(x.t)!.has(c)) }));
+    const users = tables.find((x) => x.t === 'users');
+    const order = ['tenants', ...tables.map((x) => x.t).filter((t) => t !== 'tenants' && t !== 'users')]
+      .filter((t) => tables.some((x) => x.t === t));
+    const copyInto = (temp: string, file: string, all: string[]) => [
+      // A tabela temporária recebe as colunas do arquivo; só as comuns seguem adiante.
+      `create temp table ${ident(temp)} (${all.map((c) => `${ident(c)} text`).join(', ')}) on commit drop;`,
+      `\\copy ${ident(temp)} (${all.map(ident).join(', ')}) from ${lit(file)}`,
+    ];
+    // Tipo de cada coluna no banco em uso, para converter o texto do arquivo.
+    const types = await this.withDb(this.o.database, async (c) => new Map((await c.query<{ k: string; ty: string }>(
+      `select c.relname || '.' || a.attname as k, format_type(a.atttypid, a.atttypmod) as ty
+         from pg_attribute a join pg_class c on c.oid = a.attrelid join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
+        where a.attnum > 0 and not a.attisdropped`)).rows.map((r) => [r.k, r.ty])));
+    const sel = (t: string, cols: string[]) => cols.map((c) => `r.${ident(c)}::${types.get(`${t}.${c}`) ?? 'text'}`).join(', ');
+    const script = [
+      '\\set ON_ERROR_STOP 1',
+      'begin;',
+      // Sessões abertas na empresa continuam valendo (quem restaura não é derrubado).
+      `create temp table r_keep_sessions on commit drop as select * from public.sessions where tenant_id = ${lit(tenantId)};`,
+      `delete from public.tenants where id = ${lit(tenantId)};`,
+      'set local session_replication_role = replica;',
+      ...(users ? [
+        ...copyInto('r_users', path.join(dir, 'users.tsv'), users.all),
+        `insert into public.users (${users.cols.map(ident).join(', ')}) select ${sel('users', users.cols)} from r_users r
+           where not exists (select from public.users u where u.id = r.id::uuid or u.email = r.email);`,
+      ] : []),
+      ...order.flatMap((t) => {
+        const x = tables.find((y) => y.t === t)!;
+        return [
+          ...copyInto(`r_${t}`, path.join(dir, `${t}.tsv`), x.all),
+          `insert into public.${ident(t)} (${x.cols.map(ident).join(', ')}) overriding system value select ${sel(t, x.cols)} from ${ident(`r_${t}`)} r on conflict do nothing;`,
+        ];
+      }),
+      `insert into public.sessions select * from r_keep_sessions on conflict do nothing;`,
+      ...(users ? [
+        // Pessoa que hoje tem outro cadastro com o mesmo e-mail: o vínculo vai para o cadastro atual.
+        `update public.memberships m set user_id = u.id from r_users r join public.users u on u.email = r.email
+           where m.tenant_id = ${lit(tenantId)} and m.user_id = r.id::uuid and u.id <> r.id::uuid;`,
+      ] : []),
+      // Referências a planos ou pessoas que não existem mais ficam vazias.
+      `do $$
+       declare f record;
+       begin
+         for f in
+           select cl.relname as tbl, a.attname as col, rc.relname as ref
+             from pg_constraint k
+             join pg_class cl on cl.oid = k.conrelid
+             join pg_namespace n on n.oid = cl.relnamespace and n.nspname = 'public'
+             join pg_class rc on rc.oid = k.confrelid
+             join pg_attribute a on a.attrelid = k.conrelid and a.attnum = k.conkey[1]
+            where k.contype = 'f' and rc.relname in ('users', 'plans') and array_length(k.conkey, 1) = 1 and not a.attnotnull
+              and exists (select from pg_attribute x where x.attrelid = cl.oid and x.attname = 'tenant_id')
+         loop
+           execute format('update public.%I t set %I = null where t.tenant_id = %L and t.%I is not null and not exists (select from public.%I r where r.id = t.%I)',
+                          f.tbl, f.col, ${lit(tenantId)}, f.col, f.ref, f.col);
+         end loop;
+       end $$;`,
+      'commit;',
+    ].join('\n');
+    await run('psql', ['-X', '-q', '-f', '-'], { env: { PGDATABASE: this.o.database }, input: script });
+  }
+
+  private async restoreTenantFiles(archive: string, tenantId: string): Promise<void> {
+    const target = path.join(this.o.filesDir, tenantId);
+    await rm(target, { recursive: true, force: true });
+    await mkdir(this.o.filesDir, { recursive: true });
+    await run('tar', ['-xzf', archive, '-C', this.o.filesDir, `./${tenantId}`]).catch((e: Error) => {
+      if (!/Not found in archive|não encontrado/i.test(e.message)) throw e;
+    });
+    await run('chown', ['-R', `${this.o.ownerUid ?? 1000}:${this.o.ownerUid ?? 1000}`, this.o.filesDir]).catch(() => undefined);
+  }
+
+  /** Restaura uma empresa a partir de uma cópia completa: apaga a atual (se existir) e traz de volta tudo dela. */
   async restoreTenant(name: string, tenantId: string, step: (m: string) => void = this.log): Promise<string> {
     if (!/^[0-9a-f-]{36}$/.test(tenantId)) throw new Error('empresa inválida');
     const file = path.join(this.o.backupDir, name);
@@ -344,90 +454,16 @@ export class BackupAgent {
       const found = await this.withDb(TMP_DB, (c) => c.query<{ name: string }>('select name from tenants where id = $1', [tenantId]));
       if (!found.rows[0]) throw new Error('esta empresa não existe na cópia escolhida');
       const tenantName = found.rows[0].name;
-
-      // Tabelas da empresa e colunas que dá para inserir (sem as geradas).
-      const tables = await this.withDb(this.o.database, async (c) => (await c.query<{ t: string; cols: string[] }>(
-        `select c.relname as t,
-                array_agg(a.attname::text order by a.attnum) filter (where a.attgenerated = '') as cols
-           from pg_class c
-           join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
-           join pg_attribute a on a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
-          where c.relkind in ('r', 'p') and not c.relispartition
-            and (exists (select from pg_attribute x where x.attrelid = c.oid and x.attname = 'tenant_id' and not x.attisdropped)
-                 or c.relname in ('tenants', 'users'))
-          group by c.relname order by c.relname`)).rows.filter((r) => !SKIP_TABLES.has(r.t)));
-
       step('separando os dados da empresa');
       const dir = path.join(work, 'dados');
       await mkdir(dir);
-      const where = (t: string) => t === 'tenants' ? `id = ${lit(tenantId)}`
-        : t === 'users' ? `id in (select user_id from public.memberships where tenant_id = ${lit(tenantId)})`
-          : `tenant_id = ${lit(tenantId)}`;
-      for (const { t, cols } of tables) {
-        const list = cols.map(ident).join(', ');
-        await run('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c',
-          `\\copy (select ${list} from public.${ident(t)} where ${where(t)}) to ${lit(path.join(dir, `${t}.tsv`))}`], { env: { PGDATABASE: TMP_DB } });
-      }
-
+      const tables = await this.tenantTables(TMP_DB);
+      await this.exportTenantRows(TMP_DB, tenantId, dir, tables);
       step('gravando a empresa no banco em uso');
-      const order = ['tenants', ...tables.map((x) => x.t).filter((t) => t !== 'tenants' && t !== 'users')];
-      const byName = new Map(tables.map((x) => [x.t, x.cols]));
-      const users = byName.get('users')!;
-      const script = [
-        '\\set ON_ERROR_STOP 1',
-        'begin;',
-        // Sessões abertas na empresa continuam valendo (quem restaura não é derrubado).
-        `create temp table r_keep_sessions on commit drop as select * from public.sessions where tenant_id = ${lit(tenantId)};`,
-        // A exclusão em cascata (e os gatilhos) valem aqui; a cópia vem depois, sem gatilhos.
-        `delete from public.tenants where id = ${lit(tenantId)};`,
-        'set local session_replication_role = replica;',
-        `create temp table r_users (like public.users) on commit drop;`,
-        `\\copy r_users (${users.map(ident).join(', ')}) from ${lit(path.join(dir, 'users.tsv'))}`,
-        `insert into public.users (${users.map(ident).join(', ')}) select ${users.map((c) => `r.${ident(c)}`).join(', ')} from r_users r
-           where not exists (select from public.users u where u.id = r.id or u.email = r.email);`,
-        ...order.flatMap((t) => {
-          const cols = byName.get(t)!.map(ident).join(', ');
-          return [
-            `create temp table ${ident(`r_${t}`)} (like public.${ident(t)}) on commit drop;`,
-            `\\copy ${ident(`r_${t}`)} (${cols}) from ${lit(path.join(dir, `${t}.tsv`))}`,
-            `insert into public.${ident(t)} (${cols}) overriding system value select ${cols} from ${ident(`r_${t}`)} on conflict do nothing;`,
-          ];
-        }),
-        `insert into public.sessions select * from r_keep_sessions on conflict do nothing;`,
-        // Pessoa que hoje tem outro cadastro com o mesmo e-mail: o vínculo vai para o cadastro atual.
-        `update public.memberships m set user_id = u.id from r_users r join public.users u on u.email = r.email
-           where m.tenant_id = ${lit(tenantId)} and m.user_id = r.id and u.id <> r.id;`,
-        // Referências a planos ou pessoas que não existem mais ficam vazias.
-        `do $$
-         declare f record;
-         begin
-           for f in
-             select cl.relname as tbl, a.attname as col, rc.relname as ref
-               from pg_constraint k
-               join pg_class cl on cl.oid = k.conrelid
-               join pg_namespace n on n.oid = cl.relnamespace and n.nspname = 'public'
-               join pg_class rc on rc.oid = k.confrelid
-               join pg_attribute a on a.attrelid = k.conrelid and a.attnum = k.conkey[1]
-              where k.contype = 'f' and rc.relname in ('users', 'plans') and array_length(k.conkey, 1) = 1 and not a.attnotnull
-                and exists (select from pg_attribute x where x.attrelid = cl.oid and x.attname = 'tenant_id')
-           loop
-             execute format('update public.%I t set %I = null where t.tenant_id = %L and t.%I is not null and not exists (select from public.%I r where r.id = t.%I)',
-                            f.tbl, f.col, ${lit(tenantId)}, f.col, f.ref, f.col);
-           end loop;
-         end $$;`,
-        'commit;',
-      ].filter(Boolean).join('\n');
-      await run('psql', ['-X', '-q', '-f', '-'], { env: { PGDATABASE: this.o.database }, input: script });
-
+      await this.loadTenantRows(tenantId, dir, tables);
       if (files) {
         step('restaurando os arquivos da empresa');
-        const target = path.join(this.o.filesDir, tenantId);
-        await rm(target, { recursive: true, force: true });
-        await mkdir(this.o.filesDir, { recursive: true });
-        await run('tar', ['-xzf', files, '-C', this.o.filesDir, `./${tenantId}`]).catch((e: Error) => {
-          if (!/Not found in archive|não encontrado/i.test(e.message)) throw e;
-        });
-        await run('chown', ['-R', `${this.o.ownerUid ?? 1000}:${this.o.ownerUid ?? 1000}`, this.o.filesDir]).catch(() => undefined);
+        await this.restoreTenantFiles(files, tenantId);
       }
       step(`empresa "${tenantName}" restaurada`);
       return `Empresa "${tenantName}" restaurada de ${name}. Cópia do estado anterior: ${safety.name}.`;
@@ -435,6 +471,115 @@ export class BackupAgent {
       await rm(work, { recursive: true, force: true });
       await this.withDb('postgres', (c) => c.query(`drop database if exists ${TMP_DB} with (force)`)).catch(() => undefined);
     }
+  }
+
+  // ---- Cópia de uma empresa (feita pela própria empresa) ------------------------------------
+
+  /** Pasta das cópias de uma empresa. */
+  tenantDir(tenantId: string): string {
+    return path.join(this.o.backupDir, 'empresas', tenantId);
+  }
+
+  /**
+   * Cópia só com os dados de uma empresa: as linhas dela (pessoas só com
+   * identificador, e-mail e nome, sem senha), os arquivos dela e o manifesto.
+   */
+  async backupTenant(tenantId: string, step: (m: string) => void = this.log): Promise<Manifest> {
+    if (!/^[0-9a-f-]{36}$/.test(tenantId)) throw new Error('empresa inválida');
+    const dir = this.tenantDir(tenantId);
+    await mkdir(dir, { recursive: true });
+    await this.own(path.dirname(dir));
+    await this.own(dir);
+    // Duas cópias no mesmo segundo (a de segurança antes de restaurar, por exemplo) não se sobrepõem.
+    let when = new Date();
+    while (existsSync(path.join(dir, `crm-${stamp(when)}-empresa.tar`))) when = new Date(when.getTime() + 1000);
+    const name = `crm-${stamp(when)}-empresa.tar`;
+    const work = await mkdtemp(path.join(tmpdir(), 'crm-emp-'));
+    try {
+      const tenant = await this.withDb(this.o.database, (c) => c.query<{ name: string; slug: string; status: string }>(
+        'select name, slug, status from tenants where id = $1', [tenantId]));
+      if (!tenant.rows[0]) throw new Error('empresa não encontrada');
+      step('copiando os dados da empresa');
+      const data = path.join(work, 'dados');
+      await mkdir(data);
+      const tables = (await this.tenantTables(this.o.database)).map((x) => (x.t === 'users' ? { t: 'users', cols: ['id', 'email', 'name'] } : x));
+      await this.exportTenantRows(this.o.database, tenantId, data, tables);
+      const filesDir = path.join(this.o.filesDir, tenantId);
+      const includesFiles = existsSync(filesDir);
+      if (includesFiles) {
+        step('copiando os arquivos');
+        await run('tar', ['-czf', path.join(work, 'arquivos.tar.gz'), '-C', this.o.filesDir, `./${tenantId}`]);
+      }
+      const migrations = await this.withDb(this.o.database, async (c) => (await c.query<{ name: string }>('select name from ctl.migrations order by name')).rows.map((r) => r.name));
+      const manifest: Manifest = {
+        name, createdAt: new Date().toISOString(), kind: 'empresa', format: 'tar', includesFiles, sizeBytes: 0, migrations,
+        tenants: [{ id: tenantId, ...tenant.rows[0] }], tenantId, tables,
+      };
+      await writeFile(path.join(work, 'manifest.json'), JSON.stringify(manifest, null, 2));
+      const tmp = path.join(dir, `.${name}.parcial`);
+      await run('tar', ['-cf', tmp, '-C', work, 'manifest.json', 'dados', ...(includesFiles ? ['arquivos.tar.gz'] : [])]);
+      const final = path.join(dir, name);
+      await rename(tmp, final);
+      await chmod(final, 0o640);
+      await this.own(final);
+      manifest.sizeBytes = (await stat(final)).size;
+      const mf = manifestFile(dir, name);
+      await writeFile(mf, JSON.stringify(manifest, null, 2));
+      await chmod(mf, 0o640);
+      await this.own(mf);
+      step(`cópia pronta: ${name}`);
+      return manifest;
+    } finally {
+      await rm(work, { recursive: true, force: true });
+    }
+  }
+
+  /** Restaura uma empresa a partir de uma cópia dela mesma (feita na tela da empresa). */
+  async restoreTenantBackup(tenantId: string, name: string, step: (m: string) => void = this.log): Promise<string> {
+    if (!/^[0-9a-f-]{36}$/.test(tenantId) || !BACKUP_NAME.test(name)) throw new Error('cópia inválida');
+    const file = path.join(this.tenantDir(tenantId), name);
+    if (!existsSync(file)) throw new Error('cópia não encontrada');
+    const work = await mkdtemp(path.join(tmpdir(), 'crm-emp-rest-'));
+    try {
+      await run('tar', ['-xf', file, '-C', work]);
+      const m = JSON.parse(await readFile(path.join(work, 'manifest.json'), 'utf8')) as Manifest;
+      if (m.kind !== 'empresa' || m.tenantId !== tenantId || !m.tables) throw new Error('esta cópia não é desta empresa');
+      step('fazendo uma cópia do estado atual antes de restaurar');
+      const safety = await this.backupTenant(tenantId, () => undefined);
+      step(`cópia de segurança: ${safety.name}`);
+      step('gravando os dados da cópia');
+      await this.loadTenantRows(tenantId, path.join(work, 'dados'), m.tables);
+      if (m.includesFiles && existsSync(path.join(work, 'arquivos.tar.gz'))) {
+        step('restaurando os arquivos');
+        await this.restoreTenantFiles(path.join(work, 'arquivos.tar.gz'), tenantId);
+      }
+      step('empresa restaurada');
+      return `Restaurado de ${name}. Cópia do estado anterior: ${safety.name}.`;
+    } finally {
+      await rm(work, { recursive: true, force: true });
+    }
+  }
+
+  /** Cópias das empresas mais antigas que o prazo são apagadas. */
+  async expireTenantBackups(days: number): Promise<number> {
+    const root = path.join(this.o.backupDir, 'empresas');
+    if (!existsSync(root)) return 0;
+    const limit = Date.now() - days * 86_400_000;
+    let n = 0;
+    for (const t of await readdir(root)) {
+      const dir = path.join(root, t);
+      for (const f of await readdir(dir).catch(() => [] as string[])) {
+        if (!BACKUP_NAME.test(f)) continue;
+        const s = await stat(path.join(dir, f)).catch(() => null);
+        if (s && s.mtimeMs < limit) {
+          await rm(path.join(dir, f), { force: true });
+          await rm(manifestFile(dir, f), { force: true });
+          n++;
+        }
+      }
+    }
+    if (n) this.log(`${n} cópia(s) de empresa com mais de ${days} dias apagada(s)`);
+    return n;
   }
 
   // ---- Fila e laço ---------------------------------------------------------------------
@@ -470,6 +615,8 @@ export class BackupAgent {
       else if (job.type === 'inspect') job.result = (await this.inspect(job.file!, 'enviada')).name;
       else if (job.type === 'restore_full') job.result = await this.restoreFull(job.file!, step);
       else if (job.type === 'restore_tenant') job.result = await this.restoreTenant(job.file!, job.tenantId!, step);
+      else if (job.type === 'backup_tenant') job.result = (await this.backupTenant(job.tenantId!, step)).name;
+      else if (job.type === 'restore_tenant_backup') job.result = await this.restoreTenantBackup(job.tenantId!, job.file!, step);
       job.status = 'done';
     } catch (err) {
       job.status = 'failed';
@@ -490,6 +637,7 @@ export class BackupAgent {
   async tick(nextDaily: Date | null): Promise<void> {
     await this.prepareDirs();
     await this.beat(nextDaily);
+    await this.expireTenantBackups(this.o.tenantBackupDays ?? 7);
     for (const f of await readdir(this.o.backupDir)) {
       if (BACKUP_NAME.test(f) && !existsSync(manifestFile(this.o.backupDir, f))) {
         await this.inspect(f, f.endsWith('.dump') ? 'antiga' : 'manual').catch((e) => this.log(`cópia ilegível ${f}: ${(e as Error).message}`));

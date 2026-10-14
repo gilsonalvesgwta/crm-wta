@@ -160,4 +160,69 @@ export class BackupsService {
     }
     return this.enqueue(actor, 'inspect', { file: name });
   }
+
+  // ---- Cópias de uma empresa (administrador da empresa) --------------------------------
+
+  private tenantDir(tenantId: string): string {
+    return path.join(this.dir, 'empresas', tenantId);
+  }
+
+  private tenantFile(tenantId: string, name: string): string {
+    if (!BACKUP_NAME.test(name) || !name.endsWith('-empresa.tar')) throw Problem.notFound('Cópia não encontrada.');
+    const f = path.join(this.tenantDir(tenantId), name);
+    if (!existsSync(f)) throw Problem.notFound('Cópia não encontrada.');
+    return f;
+  }
+
+  async tenantOverview(actor: Actor) {
+    const tenantId = actor.tenantId!;
+    if (!this.available) return { available: false, retentionDays: this.cfg.TENANT_BACKUP_DAYS, agentAlive: false, items: [], jobs: [] };
+    const beat = await this.readJson<AgentBeat>(beatFile(this.dir));
+    const items: Manifest[] = [];
+    for (const f of (await readdir(this.tenantDir(tenantId)).catch(() => [] as string[])).filter((n) => BACKUP_NAME.test(n))) {
+      const m = await this.readJson<Manifest>(manifestFile(this.tenantDir(tenantId), f));
+      if (m) items.push({ ...m, tables: undefined, migrations: [] });
+    }
+    items.sort((a, b) => b.name.localeCompare(a.name));
+    const jobs = (await this.jobs(200)).filter((j) => j.tenantId === tenantId && (j.type === 'backup_tenant' || j.type === 'restore_tenant_backup')).slice(0, 10);
+    return {
+      available: true, retentionDays: this.cfg.TENANT_BACKUP_DAYS,
+      agentAlive: !!beat && Date.now() - Date.parse(beat.at) < AGENT_STALE_MS,
+      items: items.map((m) => ({ ...m, expiresAt: new Date(Date.parse(m.createdAt) + this.cfg.TENANT_BACKUP_DAYS * 86_400_000).toISOString() })),
+      jobs: jobs.map((j) => ({ ...j, requestedBy: j.requestedBy })),
+    };
+  }
+
+  async tenantBackupNow(actor: Actor): Promise<Job> {
+    const n = (await readdir(this.tenantDir(actor.tenantId!)).catch(() => [] as string[])).filter((f) => BACKUP_NAME.test(f)).length;
+    if (n >= 20) throw Problem.conflict('A empresa já tem 20 cópias guardadas. Exclua alguma antes de fazer outra.');
+    return this.enqueue(actor, 'backup_tenant', { tenantId: actor.tenantId! });
+  }
+
+  async tenantOpen(actor: Actor, name: string): Promise<{ stream: Readable; size: number }> {
+    this.assertAvailable();
+    const f = this.tenantFile(actor.tenantId!, name);
+    const s = await stat(f);
+    this.log.log(`${actor.email} baixou a cópia da empresa ${actor.tenantId}: ${name}`);
+    return { stream: createReadStream(f), size: s.size };
+  }
+
+  async tenantRestore(actor: Actor, name: string): Promise<Job> {
+    this.assertAvailable();
+    this.tenantFile(actor.tenantId!, name);
+    return this.enqueue(actor, 'restore_tenant_backup', { tenantId: actor.tenantId!, file: name });
+  }
+
+  async tenantRemove(actor: Actor, name: string): Promise<void> {
+    this.assertAvailable();
+    const f = this.tenantFile(actor.tenantId!, name);
+    await rm(f, { force: true });
+    await rm(manifestFile(this.tenantDir(actor.tenantId!), name), { force: true });
+  }
+
+  async tenantJob(actor: Actor, id: string): Promise<Job> {
+    const j = await this.job(id);
+    if (j.tenantId !== actor.tenantId || (j.type !== 'backup_tenant' && j.type !== 'restore_tenant_backup')) throw Problem.notFound();
+    return j;
+  }
 }

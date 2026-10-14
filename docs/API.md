@@ -147,6 +147,12 @@ Com chave de API não há cookie, então não há verificação de CSRF; chave i
 | `POST /api/v1/platform/backups/:nome/restore` | Superadministrador + 2FA | `{scope: "tenant" \| "full", tenantId?, confirm: "RESTAURAR"}` |
 | `GET /api/v1/platform/backups/jobs/:id` | Superadministrador + 2FA | Andamento de um trabalho |
 | `DELETE /api/v1/platform/backups/:nome` | Superadministrador + 2FA | Exclui uma cópia (não a que está em uso por um trabalho) |
+| `GET /api/v1/backups` | `settings:admin` | Cópias da própria empresa (com `expiresAt`), prazo em dias e os últimos trabalhos dela |
+| `POST /api/v1/backups` | `settings:admin` | Pede uma cópia da empresa (até 20 guardadas; um trabalho por vez, 409) |
+| `GET /api/v1/backups/:nome/download` | `settings:admin` | Baixa a cópia da empresa |
+| `POST /api/v1/backups/:nome/restore` | `settings:admin` | `{confirm: "RESTAURAR"}`; restaura só esta empresa |
+| `GET /api/v1/backups/jobs/:id` | `settings:admin` | Andamento de um trabalho da empresa (de outra empresa: 404) |
+| `DELETE /api/v1/backups/:nome` | `settings:admin` | Exclui uma cópia da empresa |
 
 ### Canais e mensagens (lote 2)
 

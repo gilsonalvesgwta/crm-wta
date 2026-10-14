@@ -232,3 +232,40 @@ test('backups: fazer cópia agora, baixar e restaurar uma empresa', async ({ pag
   await page.goto('/inicio');
   await expect(page.getByRole('heading', { name: /^Olá,/ })).toBeVisible();
 });
+
+test('cópias dentro da empresa: o administrador faz, baixa e restaura só a própria empresa', async ({ page }) => {
+  test.setTimeout(120_000);
+  const tenant = sql("select id from tenants where slug = 'wta'").trim();
+  sql(`insert into contacts (tenant_id, first_name, last_name) values ('${tenant}', 'Cópia', 'de Teste')`);
+  await loginAdmin(page);
+  await openSettings(page, 'Cópias de segurança');
+  await expect(page.getByText('Cada cópia fica guardada por 7 dias e depois é apagada sozinha.')).toBeVisible();
+  await page.getByRole('button', { name: 'Fazer cópia agora' }).click();
+  await expect(page.getByText('Cópia pedida.')).toBeVisible();
+  const row = page.getByRole('region', { name: 'Cópias disponíveis' }).getByRole('row').nth(1);
+  await expect(row).toBeVisible({ timeout: 60_000 });
+  const expires = new Date(Date.now() + 7 * 86_400_000).toLocaleDateString('pt-BR');
+  await expect(row).toContainText(expires);
+  const href = await row.getByRole('link', { name: /Baixar/ }).getAttribute('href');
+  const dl = await page.request.get(href!);
+  expect(dl.status()).toBe(200);
+  await expectAccessible(page);
+  await shot(page, '38-copias-da-empresa');
+
+  sql(`delete from contacts where tenant_id = '${tenant}' and first_name = 'Cópia' and last_name = 'de Teste'`);
+  await row.getByRole('button', { name: /Restaurar/ }).click();
+  const d = page.getByRole('dialog', { name: 'Restaurar cópia' });
+  const go = d.getByRole('button', { name: 'Restaurar a empresa' });
+  await expect(go).toBeDisabled();
+  await d.getByLabel('Digite RESTAURAR para confirmar').fill('RESTAURAR');
+  await expectAccessible(page);
+  await go.click();
+  await expect(page.getByText('Restauração pedida.')).toBeVisible();
+  const job = page.getByRole('listitem').filter({ hasText: 'Restauração da empresa' }).first();
+  await expect(job).toContainText('Concluído', { timeout: 90_000 });
+  expect(sql(`select count(*) from contacts where tenant_id = '${tenant}' and first_name = 'Cópia' and last_name = 'de Teste'`).trim()).toBe('1');
+  // Ficou a cópia de segurança feita antes de restaurar; o administrador continua dentro.
+  await expect(page.getByRole('region', { name: 'Cópias disponíveis' }).getByRole('row')).toHaveCount(3);
+  await page.goto('/inicio');
+  await expect(page.getByRole('heading', { name: /^Olá,/ })).toBeVisible();
+});

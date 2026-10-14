@@ -12,6 +12,7 @@ const agent = new BackupAgent({
   database: process.env.PGDATABASE ?? 'crm',
   migrateScript: process.env.MIGRATE_SCRIPT ?? '/app/db/migrate.sh',
   ownerUid: Number(process.env.OWNER_UID ?? 1000),
+  tenantBackupDays: Number(process.env.DIAS_COPIAS_EMPRESA ?? 7),
 });
 
 function nextDaily(from = new Date()): Date {

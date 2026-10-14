@@ -132,3 +132,89 @@ describe('cópias na plataforma', () => {
     assert.equal((await owner.get('/api/v1/platform/backups')).body.items.some((i: { name: string }) => i.name === copy), false);
   });
 });
+
+describe('cópias dentro da empresa', () => {
+  let adminB: Browser;
+  let seller: Browser;
+  let mine: string;
+
+  before(async () => {
+    await createUser(f, 'admin@b.test', [{ tenant: f.tenantB, role: 'admin' }]);
+    await createUser(f, 'vendas@a.test', [{ tenant: f.tenantA, role: 'sales' }]);
+    adminB = await login('admin@b.test', true);
+    seller = await login('vendas@a.test', true);
+    await f.admin.query(`insert into contacts (tenant_id, first_name) values ($1, 'Contato da A')`, [f.tenantA]);
+  });
+
+  test('o administrador da empresa faz a cópia só da própria empresa', async () => {
+    const empty = await admin.get('/api/v1/backups');
+    assert.equal(empty.status, 200, JSON.stringify(empty.body));
+    assert.equal(empty.body.available, true);
+    assert.equal(empty.body.retentionDays, 7);
+    assert.deepEqual(empty.body.items, []);
+
+    const r = await admin.post('/api/v1/backups');
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    assert.equal(r.body.type, 'backup_tenant');
+    await agent.tick(null);
+    const j = await admin.get(`/api/v1/backups/jobs/${r.body.id}`);
+    assert.equal(j.body.status, 'done', JSON.stringify(j.body));
+
+    const o = await admin.get('/api/v1/backups');
+    assert.equal(o.body.items.length, 1);
+    mine = o.body.items[0].name;
+    assert.match(mine, /-empresa\.tar$/);
+    assert.equal(Date.parse(o.body.items[0].expiresAt) - Date.parse(o.body.items[0].createdAt), 7 * 86_400_000);
+    assert.equal(o.body.jobs[0].id, r.body.id);
+    assert.equal(o.body.items[0].tables, undefined, 'não expõe detalhes internos');
+
+    const d = await admin.raw(`/api/v1/backups/${mine}/download`);
+    assert.equal(d.status, 200);
+    assert.deepEqual(d.body, readFileSync(path.join(dir, 'empresas', f.tenantA, mine)));
+  });
+
+  test('outra empresa não vê, não baixa e não restaura a cópia', async () => {
+    const o = await adminB.get('/api/v1/backups');
+    assert.equal(o.status, 200);
+    assert.deepEqual(o.body.items, []);
+    assert.deepEqual(o.body.jobs, []);
+    assert.equal((await adminB.raw(`/api/v1/backups/${mine}/download`)).status, 404);
+    assert.equal((await adminB.post(`/api/v1/backups/${mine}/restore`, { confirm: 'RESTAURAR' })).status, 404);
+    assert.equal((await adminB.del(`/api/v1/backups/${mine}`)).status, 404);
+    const jobs = (await owner.get('/api/v1/platform/backups')).body.jobs;
+    assert.equal((await adminB.get(`/api/v1/backups/jobs/${jobs[0].id}`)).status, 404);
+    assert.equal((await admin.get('/api/v1/platform/backups')).status, 404, 'a empresa não vê as cópias da plataforma');
+  });
+
+  test('quem não administra a empresa não usa as cópias', async () => {
+    assert.equal((await seller.get('/api/v1/backups')).status, 403);
+    assert.equal((await seller.post('/api/v1/backups')).status, 403);
+    assert.equal((await seller.raw(`/api/v1/backups/${mine}/download`)).status, 403);
+  });
+
+  test('restaurar a cópia da empresa, com confirmação', async () => {
+    await f.admin.query(`delete from contacts where tenant_id = $1`, [f.tenantA]);
+    const url = `/api/v1/backups/${mine}/restore`;
+    assert.equal((await admin.post(url, {})).status, 422, 'sem digitar RESTAURAR');
+    const r = await admin.post(url, { confirm: 'RESTAURAR' });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    await agent.tick(null);
+    const j = await admin.get(`/api/v1/backups/jobs/${r.body.id}`);
+    assert.equal(j.body.status, 'done', JSON.stringify(j.body));
+    const n = await f.admin.query(`select count(*)::int as n from contacts where tenant_id = $1 and first_name = 'Contato da A'`, [f.tenantA]);
+    assert.equal(n.rows[0].n, 1);
+    const b = await f.admin.query(`select count(*)::int as n from contacts where tenant_id = $1`, [f.tenantB]);
+    assert.equal(b.rows[0].n, 1, 'a outra empresa não muda');
+    // O administrador continua conectado e vê a cópia de segurança feita antes.
+    const o = await admin.get('/api/v1/backups');
+    assert.equal(o.status, 200);
+    assert.equal(o.body.items.length, 2);
+  });
+
+  test('excluir uma cópia da empresa', async () => {
+    assert.equal((await admin.del(`/api/v1/backups/${mine}`)).status, 204);
+    const o = await admin.get('/api/v1/backups');
+    assert.equal(o.body.items.some((i: { name: string }) => i.name === mine), false);
+    assert.equal((await admin.del(`/api/v1/backups/${mine}`)).status, 404);
+  });
+});

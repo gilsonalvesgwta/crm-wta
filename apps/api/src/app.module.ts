@@ -32,7 +32,7 @@ import { MessagesService } from './crm/messages.service.js';
 import { ChannelsController, EvolutionWebhookController, MessagesController } from './crm/channels.controller.js';
 import { Evolution } from './infra/evolution.js';
 import { BackupsService } from './backup/backups.service.js';
-import { BackupsController } from './backup/backups.controller.js';
+import { BackupsController, TenantBackupsController } from './backup/backups.controller.js';
 import { AutomationsService } from './automations/automations.service.js';
 import { AutomationsController } from './automations/automations.controller.js';
 import { ApiKeysService } from './integrations/api-keys.service.js';
@@ -51,7 +51,7 @@ export class AppModule {
       controllers: [
         HealthController, AuthController, AdminController, PlatformController, WebhooksController, TenantFeaturesController, ContactsController, OrganizationsController,
         CatalogController, PipelinesController, DealsController, LeadsController, ActivitiesController, RecordsController,
-        ImportsController, PrivacyController, DashboardController, ChannelsController, MessagesController, EvolutionWebhookController, BackupsController, AutomationsController, IntegrationsController,
+        ImportsController, PrivacyController, DashboardController, ChannelsController, MessagesController, EvolutionWebhookController, BackupsController, TenantBackupsController, AutomationsController, IntegrationsController,
       ],
       providers: [
         { provide: CONFIG, useValue: cfg },
