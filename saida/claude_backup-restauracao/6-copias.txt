@@ -1,9 +1,9 @@
 backup: cópia diária às 03:30 (UTC); próxima em Wed Oct 14 2026 03:30:00 GMT+0000 (Coordinated Universal Time)
 backup: copiando o banco
 backup: copiando os arquivos
-backup: cópia pronta: crm-20261014-003755-manual.tar
+backup: cópia pronta: crm-20261014-004824-manual.tar
 backup: fazendo uma cópia do estado atual antes de restaurar
-backup: cópia de segurança: crm-20261014-003758-antes-de-restaurar.tar
+backup: cópia de segurança: crm-20261014-004831-antes-de-restaurar.tar
 backup: restaurando a cópia num banco temporário
 backup: conferindo donos e permissões
 backup: aplicando as migrações desta versão
