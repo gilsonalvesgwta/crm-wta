@@ -154,6 +154,15 @@ Com chave de API não há cookie, então não há verificação de CSRF; chave i
 | `GET /api/v1/backups/jobs/:id` | `settings:admin` | Andamento de um trabalho da empresa (de outra empresa: 404) |
 | `DELETE /api/v1/backups/:nome` | `settings:admin` | Exclui uma cópia da empresa |
 
+### Operação e ações agendadas (bloco 3 dos ajustes)
+
+| Endpoint | Permissão | O que faz |
+| --- | --- | --- |
+| `GET /api/v1/dashboard/operation` | `reports:view` | `from`, `to` (até 1 ano), `channel?`, `assigneeId?`, `teamId?`. Mensagens recebidas e enviadas, tempo médio de resposta (da primeira mensagem da vez do cliente até a primeira resposta de uma pessoa), fila agora (ativas, sem responsável, esperando resposta), encerradas, follow-ups, séries por dia, mapa de calor (dia × hora no fuso da empresa), canais, atendentes e funil das conversas. Alcance: o das conversas; sem permissão de conversa, só com relatórios da empresa toda |
+| `GET /api/v1/scheduled` | qualquer pessoa da empresa (cada tipo pede a sua permissão) | Ações agendadas juntas: mensagens agendadas (`scheduled:manage`), próximos passos de automações (`automations:view`), campanhas (`campaigns:view`) e tarefas (`tasks:manage`). Filtros `kind`, `status` (pending, done, all), `from`, `to`, `ownerId`, `contactId`, `q`; `counts` por tipo |
+| `POST /api/v1/scheduled-messages` | `scheduled:manage`, contato no alcance | `{contactId, accountId, to?, subject?, text, sendAt}`. Sai no horário em nome de quem agendou (não passa pela lista de supressão, como uma mensagem escrita na hora) |
+| `GET`, `PATCH /api/v1/scheduled-messages/:id`, `POST …/:id/cancel` | `scheduled:manage` (alcance) | Ver, mudar texto, conta ou horário, e cancelar enquanto não saiu. Se falhar ao sair, quem agendou recebe um aviso |
+
 ### Campanhas (bloco 2 dos ajustes)
 
 | Endpoint | Permissão | O que faz |

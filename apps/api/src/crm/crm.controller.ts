@@ -9,6 +9,7 @@ import { parse } from '../http/validate.js';
 import { ActivitiesService } from './activities.service.js';
 import { CatalogService } from './catalog.service.js';
 import { ContactsService } from './contacts.service.js';
+import { OperationService } from './operation.service.js';
 import { DashboardService } from './dashboard.service.js';
 import { DealsService } from './deals.service.js';
 import { FilesService } from './files.service.js';
@@ -685,7 +686,23 @@ export class PrivacyController {
 
 @Controller('v1')
 export class DashboardController {
-  constructor(@Inject(DashboardService) private readonly dashboard: DashboardService) {}
+  constructor(
+    @Inject(DashboardService) private readonly dashboard: DashboardService,
+    @Inject(OperationService) private readonly operation: OperationService,
+  ) {}
+
+  @Require('reports:view')
+  @Get('dashboard/operation')
+  operationSummary(@CurrentActor() a: Actor, @Query() q: unknown) {
+    const f = parse(z.object({
+      from: z.string().datetime({ offset: true }), to: z.string().datetime({ offset: true }),
+      channel: z.preprocess((v) => (v === '' ? undefined : v), z.enum(['whatsapp', 'email']).optional()),
+      assigneeId: z.preprocess((v) => (v === '' ? undefined : v), S.uuid.optional()),
+      teamId: z.preprocess((v) => (v === '' ? undefined : v), S.uuid.optional()),
+    }).refine((v) => Date.parse(v.to) > Date.parse(v.from) && Date.parse(v.to) - Date.parse(v.from) <= 366 * 86_400_000,
+      { message: 'Período de até um ano.', path: ['to'] }), q);
+    return this.operation.summary(a, f);
+  }
 
   @Get('dashboard')
   summary(@CurrentActor() a: Actor, @Query() q: unknown) {

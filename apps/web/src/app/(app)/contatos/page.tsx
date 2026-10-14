@@ -12,6 +12,7 @@ import { useDirectory, useTags } from '@/components/crm/data';
 import { ContactDialog } from '@/components/crm/contact-form';
 import { Button } from '@/components/ui/button';
 import { Empty, LoadError, Loading } from '@/components/ui/states';
+import { ContactsTabs } from '@/components/crm/contacts-tabs';
 import { Avatar, PageHeader, Pagination, SearchBox, TagChip } from '@/components/ui/misc';
 
 const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
@@ -51,6 +52,7 @@ function Contacts() {
           </> : null}
           {can('contacts:edit') ? <Button onClick={() => setCreating(true)}><Plus size={16} aria-hidden />Novo contato</Button> : null}
         </>} />
+      <ContactsTabs />
 
       <div className="flex flex-wrap items-end gap-2">
         <SearchBox className="w-full sm:w-80" value={q} onChange={setQ} label="Buscar contatos" placeholder="Nome, e-mail, telefone ou CPF" />
