@@ -18,11 +18,12 @@ function Chooser() {
       .then((m) => {
         if (m.mfa.pending) router.replace('/entrar/verificacao');
         // Administrador geral sem empresa ativa vai para a Plataforma (onde cria ou reativa empresas).
+        else if (m.tenants.length === 0 && safeBack(back)?.startsWith('/convite')) router.replace(back!);
         else if (m.tenants.length === 0 && m.user.isPlatformAdmin) router.replace('/plataforma');
         else setMe(m);
       })
       .catch(() => router.replace('/entrar?motivo=sessao'));
-  }, [router]);
+  }, [router, back]);
 
   async function choose(id: string) {
     setBusy(id);
@@ -38,7 +39,18 @@ function Chooser() {
 
   if (!me) return <Spinner label="Carregando" />;
   if (me.tenants.length === 0) {
-    return <Alert tone="warning">Sua conta não está ativa em nenhuma empresa. Fale com o administrador.</Alert>;
+    return (
+      <div className="flex flex-col gap-4">
+        <Alert tone="warning">
+          Sua conta ({me.user.email}) não está ativa em nenhuma empresa no momento. Se você recebeu um convite, abra o link do e-mail
+          para aceitar; senão, peça ao administrador da empresa para convidar você de novo.
+        </Alert>
+        <button type="button" onClick={() => void api('POST', '/api/v1/auth/logout').finally(() => router.replace('/entrar'))}
+          className="inline-flex h-[46px] items-center justify-center rounded-[6px] border border-line bg-surface font-medium hover:bg-surface-2">
+          Sair e entrar com outra conta
+        </button>
+      </div>
+    );
   }
   return (
     <div className="flex flex-col gap-3">
@@ -60,7 +72,7 @@ function Chooser() {
 
 export default function TenantPage() {
   return (
-    <AuthShell title="Escolha a empresa" subtitle="Sua conta tem acesso a mais de uma empresa.">
+    <AuthShell title="Escolha a empresa" subtitle="Em qual empresa você vai trabalhar agora?">
       <Suspense><Chooser /></Suspense>
     </AuthShell>
   );

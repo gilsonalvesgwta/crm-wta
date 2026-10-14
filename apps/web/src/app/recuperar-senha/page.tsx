@@ -1,5 +1,5 @@
 'use client';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { ApiError, api } from '@/lib/api';
 import { AuthShell } from '@/components/auth/auth-shell';
@@ -12,6 +12,12 @@ export default function ForgotPage() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
+
+  // Vindo do convite, o e-mail já chega preenchido.
+  useEffect(() => {
+    const e = new URLSearchParams(window.location.search).get('email');
+    if (e) setEmail(e);
+  }, []);
 
   async function submit(e: FormEvent) {
     e.preventDefault();

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { expectAccessible, lastMailTo, loginAdmin, shot, sql } from './util';
+import { expectAccessible, lastMailTo, linkFrom, login, loginAdmin, shot, sql } from './util';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -81,6 +81,57 @@ test('plataforma: plano com limites, edição da empresa, assinatura e exclusão
   await expect(page.getByText('Ótica Horizonte foi excluída.')).toBeVisible();
   await expect(page.getByRole('listitem').filter({ hasText: 'Ótica Horizonte' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Excluir WTA' })).toHaveCount(0);
+});
+
+test('conta que perdeu a empresa entra e aceita o convite de uma empresa nova', async ({ page, browser }) => {
+  const EMAIL = 'padeiro@sol.test';
+  const PASS = 'forno quente de pao 2026';
+  async function create(name: string) {
+    await openPlatform(page, 'Empresas');
+    await page.getByLabel('Nome da empresa').fill(name);
+    await page.getByLabel('E-mail do administrador').fill(EMAIL);
+    await page.getByRole('button', { name: 'Criar empresa' }).click();
+    await expect(page.getByText('Empresa criada.')).toBeVisible();
+  }
+  await loginAdmin(page);
+  await create('Padaria Sol');
+
+  // A pessoa cria a conta pelo convite.
+  const ctx = await browser.newContext();
+  const p2 = await ctx.newPage();
+  await p2.goto(linkFrom(lastMailTo(EMAIL).text));
+  await p2.getByLabel('Seu nome').fill('Pedro Padeiro');
+  await p2.getByLabel('Crie uma senha').fill(PASS);
+  await p2.getByLabel('Confirme a senha').fill(PASS);
+  await p2.getByRole('button', { name: 'Criar conta e entrar' }).click();
+  await expect(p2.getByRole('heading', { name: 'Olá, Pedro' })).toBeVisible();
+
+  // A empresa é excluída: a conta continua, sem empresa.
+  await openPlatform(page, 'Empresas');
+  await page.getByRole('listitem').filter({ hasText: 'Padaria Sol' }).getByRole('button', { name: 'Excluir Padaria Sol' }).click();
+  await page.getByRole('dialog').getByLabel('Digite padaria-sol para confirmar').fill('padaria-sol');
+  await page.getByRole('dialog').getByRole('button', { name: 'Excluir definitivamente' }).click();
+  await expect(page.getByText('Padaria Sol foi excluída.')).toBeVisible();
+  await p2.context().clearCookies();
+  await login(p2, EMAIL, PASS);
+  await expect(p2).toHaveURL(/\/entrar\/empresa/);
+  await expect(p2.getByText(/não está ativa em nenhuma empresa/)).toBeVisible();
+  await expectAccessible(p2);
+
+  // Empresa nova com o mesmo e-mail: o convite pede só a senha e entra.
+  await create('Padaria Sol Nova');
+  await p2.context().clearCookies();
+  await p2.goto(linkFrom(lastMailTo(EMAIL).text));
+  await expect(p2.getByText(/já tem conta no CRM/)).toBeVisible();
+  await expectAccessible(p2);
+  await shot(p2, '35-convite-conta-existente');
+  await p2.getByLabel('Senha', { exact: true }).fill('senha errada demais');
+  await p2.getByRole('button', { name: 'Entrar e aceitar o convite' }).click();
+  await expect(p2.getByText('E-mail ou senha incorretos.')).toBeVisible();
+  await p2.getByLabel('Senha', { exact: true }).fill(PASS);
+  await p2.getByRole('button', { name: 'Entrar e aceitar o convite' }).click();
+  await expect(p2.getByRole('heading', { name: 'Olá, Pedro' })).toBeVisible();
+  await ctx.close();
 });
 
 test('identidade visual: modelo de cores, menu e logotipo', async ({ page }) => {
