@@ -31,6 +31,8 @@ import { ChannelsService } from './crm/channels.service.js';
 import { MessagesService } from './crm/messages.service.js';
 import { ChannelsController, EvolutionWebhookController, MessagesController } from './crm/channels.controller.js';
 import { Evolution } from './infra/evolution.js';
+import { BackupsService } from './backup/backups.service.js';
+import { BackupsController } from './backup/backups.controller.js';
 import {
   ActivitiesController, CatalogController, ContactsController, DashboardController, DealsController, ImportsController,
   LeadsController, OrganizationsController, PipelinesController, PrivacyController, RecordsController,
@@ -44,7 +46,7 @@ export class AppModule {
       controllers: [
         HealthController, AuthController, AdminController, PlatformController, WebhooksController, TenantFeaturesController, ContactsController, OrganizationsController,
         CatalogController, PipelinesController, DealsController, LeadsController, ActivitiesController, RecordsController,
-        ImportsController, PrivacyController, DashboardController, ChannelsController, MessagesController, EvolutionWebhookController,
+        ImportsController, PrivacyController, DashboardController, ChannelsController, MessagesController, EvolutionWebhookController, BackupsController,
       ],
       providers: [
         { provide: CONFIG, useValue: cfg },
@@ -71,6 +73,7 @@ export class AppModule {
         Evolution,
         MessagesService,
         ChannelsService,
+        BackupsService,
         { provide: APP_GUARD, useClass: SessionGuard },
         { provide: APP_FILTER, useClass: ProblemFilter },
       ],

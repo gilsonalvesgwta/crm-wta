@@ -138,6 +138,9 @@ services:
     secrets: [crmwta_api_db_password, crmwta_master_keys, crmwta_smtp_pass]
     volumes:
       - crmwta_arquivos:/data/files
+      # Pasta das cópias: a API lista, baixa e recebe cópias e escreve pedidos;
+      # quem copia e restaura é o serviço "backup".
+      - crmwta_backup:/backups
     networks: [interna, traefik]
     labels: *api-labels
     deploy:
@@ -175,11 +178,13 @@ services:
         limits: { memory: 512M, cpus: "1.0" }
       labels: *web-labels
 
-  # Cópia diária do banco, com retenção de 7 diárias, 4 semanais e 6 mensais.
+  # Cópias de segurança: banco e arquivos, uma vez por dia (BACKUP_HORA), com
+  # retenção de 7 diárias, 4 semanais e 6 mensais; executa também os pedidos da
+  # Plataforma (cópia agora, restaurar uma empresa ou o banco inteiro).
   backup:
     image: ${IMAGEM_API}
     user: root
-    command: ["sh", "/app/backup/backup-loop.sh"]
+    command: ["node", "/app/dist/cli/backup-agent.js"]
     healthcheck:
       disable: true
     environment:
@@ -192,12 +197,13 @@ services:
     secrets: [crmwta_db_password]
     volumes:
       - crmwta_backup:/backups
+      - crmwta_arquivos:/data/files
     networks: [interna]
     deploy:
       placement:
         constraints: [node.role == manager]
       resources:
-        limits: { memory: 256M }
+        limits: { memory: 512M }
 
 secrets:
   crmwta_db_password: { external: true }

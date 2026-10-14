@@ -122,6 +122,18 @@ Toda rota exige sessão, salvo as marcadas como pública. Mutações exigem o ca
 
 Para quem não é superadministrador, as rotas da plataforma respondem 404.
 
+### Cópias de segurança (Plataforma)
+
+| Método e caminho | Acesso | Função |
+| --- | --- | --- |
+| `GET /api/v1/platform/backups` | Superadministrador + 2FA | Se a pasta está ligada, sinal do agente, cópias (com empresas e migrações) e os 20 últimos trabalhos |
+| `POST /api/v1/platform/backups` | Superadministrador + 2FA | Pede uma cópia agora. Um trabalho por vez (409) |
+| `GET /api/v1/platform/backups/:nome/download` | Superadministrador + 2FA | Baixa o arquivo da cópia |
+| `POST /api/v1/platform/backups/upload` | Superadministrador + 2FA | Multipart `file` (.tar ou .dump, até `BACKUP_UPLOAD_MAX_MB`); o agente confere |
+| `POST /api/v1/platform/backups/:nome/restore` | Superadministrador + 2FA | `{scope: "tenant" \| "full", tenantId?, confirm: "RESTAURAR"}` |
+| `GET /api/v1/platform/backups/jobs/:id` | Superadministrador + 2FA | Andamento de um trabalho |
+| `DELETE /api/v1/platform/backups/:nome` | Superadministrador + 2FA | Exclui uma cópia (não a que está em uso por um trabalho) |
+
 ### Canais e mensagens (lote 2)
 
 | Método e caminho | Acesso | Função |

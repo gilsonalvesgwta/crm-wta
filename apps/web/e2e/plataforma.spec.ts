@@ -6,7 +6,7 @@ test.describe.configure({ mode: 'serial' });
 // PNG 1×1, suficiente para o envio de logotipo (o tipo é conferido pelo conteúdo).
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
 
-async function openPlatform(page: Page, tab: 'Empresas' | 'Planos' | 'Greenn') {
+async function openPlatform(page: Page, tab: 'Empresas' | 'Planos' | 'Greenn' | 'Backups') {
   await page.getByRole('navigation', { name: 'Menu principal' }).getByRole('link', { name: 'Plataforma' }).click();
   await page.getByRole('tab', { name: tab }).click();
 }
@@ -196,4 +196,39 @@ test('domínio próprio: instruções, cadastro e login com a marca da empresa',
   await page.getByRole('button', { name: 'Restaurar padrão' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Restaurar' }).click();
   await expect(page.getByText('Tema padrão restaurado.')).toBeVisible();
+});
+
+test('backups: fazer cópia agora, baixar e restaurar uma empresa', async ({ page }) => {
+  test.setTimeout(120_000);
+  await loginAdmin(page);
+  await openPlatform(page, 'Backups');
+  await expect(page.getByText('Serviço de cópias funcionando')).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'Fazer cópia agora' }).click();
+  await expect(page.getByText('Cópia pedida.')).toBeVisible();
+  const row = page.getByRole('row').filter({ hasText: 'Manual' });
+  await expect(row).toBeVisible({ timeout: 60_000 });
+  await expect(row).toContainText('Incluídos');
+  const href = await row.getByRole('link', { name: /Baixar/ }).getAttribute('href');
+  const dl = await page.request.get(href!);
+  expect(dl.status()).toBe(200);
+  expect((await dl.body()).length).toBeGreaterThan(1000);
+  await expectAccessible(page);
+  await shot(page, '36-backups');
+
+  await row.getByRole('button', { name: /Restaurar/ }).click();
+  const d = page.getByRole('dialog', { name: 'Restaurar cópia' });
+  await d.getByLabel('Empresa', { exact: true }).selectOption({ index: 0 });
+  const go = d.getByRole('button', { name: /^Restaurar / });
+  await expect(go).toBeDisabled();
+  await d.getByLabel('Digite RESTAURAR para confirmar').fill('RESTAURAR');
+  await expectAccessible(page);
+  await shot(page, '37-backups-restaurar');
+  await go.click();
+  await expect(page.getByText(/Restauração de .* pedida/)).toBeVisible();
+  const job = page.getByRole('listitem').filter({ hasText: 'Restaurar uma empresa' }).first();
+  await expect(job).toContainText('Concluído', { timeout: 90_000 });
+  await expect(page.getByRole('row').filter({ hasText: 'Antes de restaurar' })).toBeVisible();
+  // O CRM continua funcionando para quem está dentro.
+  await page.goto('/inicio');
+  await expect(page.getByRole('heading', { name: /^Olá,/ })).toBeVisible();
 });

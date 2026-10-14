@@ -117,6 +117,31 @@ n=$(docker exec "$db" psql -U postgres -d crm_restaurado -At -c "select count(*)
 docker exec "$bk" sh -c "export PGPASSWORD=\$(cat /run/secrets/crmwta_db_password); PGHOST=db PGUSER=postgres /app/backup/restore.sh $arquivo crm_restaurado" >/dev/null 2>&1 \
   && erro "restaurar por cima de banco com dados deveria ser recusado" || ok "restauração recusa banco com dados"
 
+# Agente de cópias: pedidos pela pasta compartilhada, como a Plataforma faz.
+api=$(docker ps -q -f name=crmwta_api | head -n1)
+pedido() {
+  id=$(cat /proc/sys/kernel/random/uuid)
+  extra="$2"
+  docker exec "$api" sh -c "printf '%s' '{\"id\":\"$id\",\"type\":\"$1\",\"requestedBy\":\"teste\",\"requestedAt\":\"$(date -u +%FT%TZ)\",\"status\":\"pending\",\"log\":[]$extra}' > /backups/.trabalhos/$id.json"
+  for i in $(seq 1 90); do
+    st=$(docker exec "$api" sh -c "cat /backups/.trabalhos/$id.json" | grep -o '"status": *"[a-z]*"' | head -n1 | sed -E 's/.*"([a-z]+)"$/\1/')
+    [ "$st" = done ] || [ "$st" = failed ] && break
+    sleep 2
+  done
+  [ "$st" = done ] || docker exec "$api" sh -c "cat /backups/.trabalhos/$id.json" >&2
+  echo "$st"
+}
+for i in $(seq 1 30); do docker exec "$api" test -f /backups/.trabalhos/agente.json && break; sleep 2; done
+docker exec "$api" test -f /backups/.trabalhos/agente.json && ok "agente de cópias ativo, visto pela API" || erro "agente de cópias sem sinal"
+[ "$(pedido backup '')" = done ] && ok "cópia pedida pela API (banco e arquivos)" || erro "cópia pedida pela API"
+copia=$(docker exec "$api" sh -c 'ls -1 /backups/crm-*-manual.tar | tail -n1 | xargs basename')
+tenant=$(docker exec "$db" psql -U postgres -d crm -At -c "select id from tenants limit 1")
+[ "$(pedido restore_tenant ",\"file\":\"$copia\",\"tenantId\":\"$tenant\"")" = done ] && ok "restauração de uma empresa" || erro "restauração de uma empresa"
+[ "$(pedido restore_full ",\"file\":\"$copia\"")" = done ] && ok "restauração do banco inteiro" || erro "restauração do banco inteiro"
+for i in $(seq 1 30); do curl -fsS -o /dev/null "https://$DOM/api/readyz" --resolve "$DOM:443:127.0.0.1" -k 2>/dev/null && break; sleep 2; done
+n=$(docker exec "$db" psql -U postgres -d crm -At -c "select count(*) from users where email = 'dono@wta.test'")
+[ "$n" = 1 ] && ok "a API segue no ar e os dados conferem depois das restaurações" || erro "dados depois das restaurações ($n)"
+
 docker service ls --format '{{.Name}} {{.Replicas}}' | sort
 for s in db api web backup; do
   r=$(docker service ls --filter name=crmwta_$s --format '{{.Replicas}}')

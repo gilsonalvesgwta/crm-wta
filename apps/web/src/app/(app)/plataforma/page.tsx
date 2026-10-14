@@ -6,11 +6,13 @@ import { LoadError } from '@/components/ui/states';
 import { TenantsTab } from './_parts/tenants';
 import { PlansTab } from './_parts/plans';
 import { GreennTab } from './_parts/greenn';
+import { BackupsTab } from './_parts/backups';
 
 const TABS = [
   { key: 'empresas', label: 'Empresas' },
   { key: 'planos', label: 'Planos' },
   { key: 'greenn', label: 'Greenn' },
+  { key: 'copias', label: 'Backups' },
 ] as const;
 type Tab = (typeof TABS)[number]['key'];
 
@@ -22,7 +24,7 @@ export default function PlatformPage() {
     <div className="mx-auto flex max-w-6xl flex-col gap-5">
       <div>
         <h1 className="text-2xl font-semibold tracking-[-0.02em]">Plataforma</h1>
-        <p className="text-muted">Empresas clientes, planos e cobrança. Daqui não se veem os dados das empresas.</p>
+        <p className="text-muted">Empresas clientes, planos, cobrança e cópias de segurança. Daqui não se veem os dados das empresas.</p>
       </div>
       <div role="tablist" aria-label="Seções da plataforma" className="flex gap-1 border-b border-line">
         {TABS.map((t) => (
@@ -33,7 +35,7 @@ export default function PlatformPage() {
         ))}
       </div>
       <div role="tabpanel">
-        {tab === 'empresas' ? <TenantsTab /> : tab === 'planos' ? <PlansTab /> : <GreennTab />}
+        {tab === 'empresas' ? <TenantsTab /> : tab === 'planos' ? <PlansTab /> : tab === 'greenn' ? <GreennTab /> : <BackupsTab />}
       </div>
     </div>
   );

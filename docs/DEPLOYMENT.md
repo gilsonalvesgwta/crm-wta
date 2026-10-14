@@ -117,6 +117,7 @@ Decisão do responsável em 13 de outubro de 2026: a stack é a do editor web do
 | `SEGREDO_DA_GREENN` | Para a Greenn | Final do endereço do webhook |
 | `DOMINIO_ALVO_CLIENTES` | Não (padrão: `DOMINIO`) | Para onde o CNAME dos domínios próprios aponta |
 | `REGRA_DOMINIOS_CLIENTES` | Para domínios próprios | Regra do Traefik que aceita os domínios das empresas (ver abaixo) |
+| `BACKUP_HORA` | Não (padrão `03:30`) | Horário da cópia automática |
 | `EVOLUTION_URL` | Para o WhatsApp | Endereço da Evolution API, sem barra no final |
 | `EVOLUTION_CHAVE` | Para o WhatsApp | Chave global da Evolution (`AUTHENTICATION_API_KEY` da stack dela) |
 | `ENDERECO_DO_CRM_PARA_EVOLUTION` | Não | Só se a Evolution não alcançar `https://<DOMINIO>`; por exemplo `http://crmwta_api:3001`, quando as duas estão na mesma rede |

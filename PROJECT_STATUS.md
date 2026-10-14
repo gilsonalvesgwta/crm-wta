@@ -23,6 +23,16 @@ Atualizado em 13 de outubro de 2026.
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
 
+### Backup e restauração pela Plataforma
+
+| Item | Evidência |
+| --- | --- |
+| Cópia com banco, arquivos e manifesto (empresas e migrações); automática diária com retenção; "Fazer cópia agora" | Agente com PostgreSQL real; integração; ponta a ponta; stack amd64 e arm64 |
+| Baixar a cópia (cópia externa manual) e enviar uma cópia guardada fora, conferida antes de aparecer | Integração |
+| Restaurar uma empresa (volta a existir se foi excluída; as outras não mudam; arquivos voltam) | Agente; integração; ponta a ponta; stack |
+| Restaurar o banco inteiro, com o anterior guardado e cópia de segurança automática antes | Agente; stack |
+| Cópias antigas (.dump sem donos) restauram com os donos certos | Agente |
+
 ### Lote 2: canais e mensagens
 
 | Item | Evidência |
@@ -137,7 +147,7 @@ Nenhum aberto. Corrigidos em 13 out 2026 (acesso):
 
 ## Próximas ações
 
-1. Colar a stack nova no editor web do Portainer, com `EVOLUTION_URL` e `EVOLUTION_CHAVE`; atualizar com "Re-pull image and redeploy".
+1. Colar a stack nova (backup ligado à API) no editor web do Portainer e atualizar com "Re-pull image and redeploy"; conferir a aba Backups e baixar uma cópia.
 2. Conectar um número de teste e cadastrar uma caixa de e-mail; conferir receber, responder e enviar arquivo.
 3. Cadastrar o endereço do webhook na Greenn e ligar os produtos aos planos.
 4. Lote 3: automações e entrada pelo n8n.

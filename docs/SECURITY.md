@@ -47,6 +47,13 @@ Canais, lote 2, conferido por `apps/api/test/canais.test.ts`, `domain-canais.tes
 - O texto do e-mail é escapado antes de virar HTML.
 - Histórico de mensagens segue o alcance do contato (404 fora dele). Arquivos de mensagens passam pelas mesmas regras dos anexos. Anonimizar o titular apaga as mensagens; exportar inclui.
 
+Cópias de segurança, conferido por `backup-agent.test.ts`, `backups.test.ts` e pelo teste da stack:
+
+- A API nunca tem a senha de superusuário do banco: ela escreve pedidos numa pasta; o agente do serviço `backup` executa.
+- Só o administrador geral (com 2FA, se exigida) vê, baixa, envia e restaura. Restaurar exige digitar RESTAURAR e faz antes uma cópia do estado atual.
+- Nome de cópia validado por expressão (sem caminho); arquivo enviado é conferido pelo agente e apagado se não for cópia do CRM.
+- O arquivo baixado contém os dados de todas as empresas (senhas em hash, segredos cifrados com a chave mestra). Downloads e pedidos ficam registrados no log da API e nos arquivos de trabalho.
+
 ## O que está planejado
 
 | Tema | Controle | Fase |
