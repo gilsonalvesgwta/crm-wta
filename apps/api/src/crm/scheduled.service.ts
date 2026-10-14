@@ -5,7 +5,7 @@ import { Problem } from '../http/problem.js';
 import { Db, type Q } from '../infra/db.js';
 import { contactOwnExtra } from './contacts.service.js';
 import { memberJson } from './fields.js';
-import { MessagesService } from './messages.service.js';
+import { channelOf, MessagesService } from './messages.service.js';
 import { RecordsService } from './records.service.js';
 import { Params, reachOf, reachSql, tryReach } from './sql.js';
 
@@ -46,13 +46,13 @@ export class ScheduledService {
       `select ${MSG} from scheduled_messages s join contacts c on c.id = s.contact_id
         where s.id = ${p.add(id)} and ${reachSql(p, 's', reachOf(actor, 'scheduled:manage'))}`, p.values);
     if (!r.rows[0]) throw Problem.notFound('Agendamento não encontrado.');
-    return r.rows[0] as { id: string; status: string; channel: 'whatsapp' | 'email'; accountId: string | null; sendAt: string; subject: string | null };
+    return r.rows[0] as { id: string; status: string; channel: 'whatsapp' | 'email' | 'instagram'; accountId: string | null; sendAt: string; subject: string | null };
   }
 
-  private async validate(q: Q, channel: 'whatsapp' | 'email' | null, accountId: string, b: { subject?: string | null; sendAt: string }) {
+  private async validate(q: Q, channel: 'whatsapp' | 'email' | 'instagram' | null, accountId: string, b: { subject?: string | null; sendAt: string }) {
     const a = (await q.query<{ kind: string; name: string }>('select kind, name from channel_accounts where id = $1', [accountId])).rows[0];
     if (!a) throw Problem.badRequest('Conta inválida.', [{ field: 'accountId', message: 'Escolha um WhatsApp ou e-mail da empresa.' }]);
-    const ch = a.kind === 'email_smtp' ? 'email' : 'whatsapp';
+    const ch = channelOf(a.kind);
     if (channel && ch !== channel) throw Problem.badRequest('Conta de outro canal.', [{ field: 'accountId', message: 'Escolha uma conta do mesmo canal.' }]);
     if (ch === 'email' && !b.subject?.trim()) throw Problem.badRequest('Falta o assunto.', [{ field: 'subject', message: 'Escreva o assunto do e-mail.' }]);
     if (Date.parse(b.sendAt) < Date.now() - 60_000) throw Problem.badRequest('Data no passado.', [{ field: 'sendAt', message: 'Escolha uma data e hora futuras.' }]);
@@ -66,7 +66,9 @@ export class ScheduledService {
       const channel = await this.validate(q, null, b.accountId, b);
       const has = channel === 'whatsapp'
         ? await q.query('select 1 from contact_phones where contact_id = $1', [b.contactId])
-        : await q.query('select 1 from contact_emails where contact_id = $1', [b.contactId]);
+        : channel === 'instagram'
+          ? await q.query("select 1 from contact_handles where contact_id = $1 and kind = 'instagram'", [b.contactId])
+          : await q.query('select 1 from contact_emails where contact_id = $1', [b.contactId]);
       if (!has.rowCount) throw Problem.badRequest(channel === 'whatsapp' ? 'O contato não tem telefone.' : 'O contato não tem e-mail.', [{ field: 'accountId', message: 'O contato não tem endereço neste canal.' }]);
       const r = await q.query<{ id: string }>(
         `insert into scheduled_messages (tenant_id, contact_id, channel_account_id, channel, remote, subject, body, send_at, owner_membership_id, team_id)

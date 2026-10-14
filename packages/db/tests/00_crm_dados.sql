@@ -107,6 +107,15 @@ begin
   -- Mensagem agendada.
   insert into scheduled_messages (id, tenant_id, contact_id, channel_account_id, channel, body, send_at, owner_membership_id)
   values (t.id(p_tenant, 24), p_tenant, t.id(p_tenant, 2), t.id(p_tenant, 18), 'whatsapp', 'Lembrete', now() + interval '1 day', p_member);
+
+  -- Meta: WhatsApp oficial com um modelo e o Instagram do contato.
+  insert into channel_accounts (id, tenant_id, kind, name, status, external_id, created_by)
+  values (t.id(p_tenant, 25), p_tenant, 'whatsapp_cloud', 'Oficial', 'connected',
+          case when p_tenant = t.a() then '100000000001' else '100000000002' end, p_member);
+  insert into whatsapp_templates (tenant_id, channel_account_id, name, language, category, body)
+  values (p_tenant, t.id(p_tenant, 25), 'boas_vindas', 'pt_BR', 'UTILITY', 'Olá {{1}}!');
+  insert into contact_handles (tenant_id, contact_id, kind, value, username)
+  values (p_tenant, t.id(p_tenant, 2), 'instagram', case when p_tenant = t.a() then '17841400000001' else '17841400000002' end, 'jose.silva');
 end
 $$;
 

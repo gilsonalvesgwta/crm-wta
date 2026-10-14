@@ -23,6 +23,16 @@ Atualizado em 14 de outubro de 2026.
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
 
+### Instagram e WhatsApp oficial (bloco 4 dos ajustes de 14 out 2026)
+
+| Item | Evidência |
+| --- | --- |
+| WhatsApp pela API oficial da Meta (Cloud API): cadastrar com token permanente e chave do app, conferir na Meta, avisos assinados num endereço próprio, receber texto e mídia, responder, status de entrega e leitura | Integração e ponta a ponta contra uma Graph API falsa |
+| Regra das 24 h: fora da janela, só modelo aprovado (a tela abre os modelos) | Integração; ponta a ponta |
+| Modelos: criar (título, variáveis com exemplos, rodapé, botões), aprovação pelo aviso ou sincronizando, excluir; usar na conversa e nas campanhas | Banco; integração; ponta a ponta |
+| Instagram: cadastrar, receber mensagens diretas (contato com o @), responder em até 24 h | Integração; ponta a ponta |
+| Teste com a Meta de verdade | **Pendente** (precisa do app e do número da empresa) |
+
 ### Operação e ações agendadas (bloco 3 dos ajustes de 14 out 2026)
 
 | Item | Evidência |

@@ -12,13 +12,14 @@ import { Evolution, EvolutionError } from '../infra/evolution.js';
 import { sendTenantMail, SmtpError, textToHtml, verifyTenantSmtp } from '../infra/tenant-mail.js';
 import { assertWithin, tenantLimits } from './limits.js';
 import { MessagesService } from './messages.service.js';
+import { metaWebhook } from './meta.service.js';
 
 export type EmailAccountInput = {
   name: string; host: string; port: number; secure: boolean; user: string; pass?: string | null; fromName: string; address: string;
 };
 
 type AccountRow = {
-  id: string; kind: 'whatsapp_evolution' | 'email_smtp'; name: string; status: string; external_id: string | null;
+  id: string; kind: 'whatsapp_evolution' | 'whatsapp_cloud' | 'email_smtp' | 'instagram'; name: string; status: string; external_id: string | null;
   address: string | null; config: Record<string, unknown>; secret: Buffer | null; last_error: string | null;
   connected_at: Date | null; created_at: Date;
 };
@@ -39,6 +40,12 @@ function view(a: AccountRow) {
     createdAt: a.created_at,
     ...(a.kind === 'email_smtp'
       ? { smtp: { host: c.host ?? '', port: c.port ?? 587, secure: !!c.secure, user: c.user ?? '', fromName: c.fromName ?? '', hasPassword: !!a.secret } }
+      : {}),
+    ...(a.kind === 'whatsapp_cloud'
+      ? { cloud: { phoneNumberId: a.external_id, wabaId: (a.config.wabaId as string) ?? '', verifiedName: (a.config.verifiedName as string) ?? null, quality: (a.config.quality as string) ?? null, hasToken: !!a.secret } }
+      : {}),
+    ...(a.kind === 'instagram'
+      ? { instagram: { igUserId: a.external_id, host: (a.config.host as string) ?? 'instagram', hasToken: !!a.secret } }
       : {}),
   };
 }
@@ -80,9 +87,9 @@ export class ChannelsService {
       const limits = await tenantLimits(q);
       return {
         evolutionConfigured: this.evo.configured,
-        accounts: r.rows.map(view),
+        accounts: r.rows.map((a) => ({ ...view(a), ...(a.kind === 'whatsapp_cloud' || a.kind === 'instagram' ? { webhook: metaWebhook(this.cfg, a.id) } : {}) })),
         limits: {
-          whatsapp: { used: r.rows.filter((a) => a.kind === 'whatsapp_evolution').length, max: limits?.max_whatsapp ?? null },
+          whatsapp: { used: r.rows.filter((a) => a.kind === 'whatsapp_evolution' || a.kind === 'whatsapp_cloud').length, max: limits?.max_whatsapp ?? null },
           email: { used: r.rows.filter((a) => a.kind === 'email_smtp').length, max: limits?.max_email_accounts ?? null },
         },
       };
@@ -94,7 +101,7 @@ export class ChannelsService {
     return this.db.app(tenantCtx(actor), async (q) => {
       const r = await q.query(
         `select id, kind, name, address, status from channel_accounts
-          where (kind = 'whatsapp_evolution' and status = 'connected') or (kind = 'email_smtp' and status <> 'error')
+          where (kind in ('whatsapp_evolution', 'whatsapp_cloud', 'instagram') and status = 'connected') or (kind = 'email_smtp' and status <> 'error')
           order by kind desc, created_at`);
       return { items: r.rows };
     });
@@ -106,7 +113,7 @@ export class ChannelsService {
     this.evo.assertConfigured();
     const token = newToken();
     const created = await this.db.app(tenantCtx(actor), async (q) => {
-      await assertWithin(q, 'max_whatsapp', (await this.count(q, 'whatsapp_evolution')) + 1);
+      await assertWithin(q, 'max_whatsapp', (await this.count(q, 'whatsapp_evolution')) + (await this.count(q, 'whatsapp_cloud')) + 1);
       const slug = (await q.query<{ slug: string }>('select slug from tenants where id = app.tenant_id()')).rows[0]!.slug
         .replace(/[^a-z0-9-]/g, '').slice(0, 30) || 'empresa';
       const instance = `crmwta-${slug}-${randomBytes(4).toString('hex')}`;

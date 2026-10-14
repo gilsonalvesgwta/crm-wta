@@ -10,7 +10,7 @@ import { QuickRepliesService } from './quick-replies.service.js';
 import { optText, text, uuid } from './schemas.js';
 
 const id = (v: string) => parse(uuid, v);
-const channel = z.enum(['whatsapp', 'email'], { message: 'Escolha WhatsApp ou e-mail.' });
+const channel = z.enum(['whatsapp', 'email', 'instagram'], { message: 'Escolha WhatsApp, e-mail ou Instagram.' });
 const flag = z.enum(['1', 'true', '0', 'false']).optional().transform((v) => v === '1' || v === 'true');
 const opt = <T extends z.ZodTypeAny>(t: T) => z.preprocess((v) => (v === '' ? undefined : v), t.optional());
 

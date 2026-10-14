@@ -6,7 +6,7 @@ import { Db, pgCode, type Q } from '../infra/db.js';
 import { memberJson } from './fields.js';
 
 export type QuickReplyInput = {
-  channel: 'whatsapp' | 'email'; shortcut: string; title: string; subject?: string | null; body: string; shared: boolean;
+  channel: 'whatsapp' | 'email' | 'instagram'; shortcut: string; title: string; subject?: string | null; body: string; shared: boolean;
 };
 
 const COLUMNS = `r.id, r.channel, r.shortcut, r.title, r.subject, r.body, r.owner_membership_id is null as shared,
@@ -24,7 +24,7 @@ export class QuickRepliesService {
     return actor.permissions.has('campaigns:edit');
   }
 
-  async list(actor: Actor, f: { channel?: 'whatsapp' | 'email'; q?: string }) {
+  async list(actor: Actor, f: { channel?: 'whatsapp' | 'email' | 'instagram'; q?: string }) {
     return this.db.app(tenantCtx(actor), async (q) => {
       const r = await q.query(
         `select ${COLUMNS} from quick_replies r

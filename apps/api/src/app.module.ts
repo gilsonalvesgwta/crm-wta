@@ -39,6 +39,9 @@ import { CampaignsController, UnsubscribeController } from './crm/campaigns.cont
 import { CampaignsService } from './crm/campaigns.service.js';
 import { QuickRepliesService } from './crm/quick-replies.service.js';
 import { Evolution } from './infra/evolution.js';
+import { Meta } from './infra/meta.js';
+import { MetaController, MetaWebhookController } from './crm/meta.controller.js';
+import { MetaService } from './crm/meta.service.js';
 import { BackupsService } from './backup/backups.service.js';
 import { BackupsController, TenantBackupsController } from './backup/backups.controller.js';
 import { AutomationsService } from './automations/automations.service.js';
@@ -59,7 +62,7 @@ export class AppModule {
       controllers: [
         HealthController, AuthController, AdminController, PlatformController, WebhooksController, TenantFeaturesController, ContactsController, OrganizationsController,
         CatalogController, PipelinesController, DealsController, LeadsController, ActivitiesController, RecordsController,
-        ImportsController, PrivacyController, DashboardController, ChannelsController, MessagesController, ConversationsController, QuickRepliesController, CampaignsController, UnsubscribeController, ScheduledController, EvolutionWebhookController, BackupsController, TenantBackupsController, AutomationsController, IntegrationsController,
+        ImportsController, PrivacyController, DashboardController, ChannelsController, MessagesController, ConversationsController, QuickRepliesController, CampaignsController, UnsubscribeController, ScheduledController, EvolutionWebhookController, MetaController, MetaWebhookController, BackupsController, TenantBackupsController, AutomationsController, IntegrationsController,
       ],
       providers: [
         { provide: CONFIG, useValue: cfg },
@@ -83,7 +86,7 @@ export class AppModule {
         PrivacyService,
         DashboardService,
         DispatcherService,
-        Evolution,
+        Evolution, Meta, MetaService,
         MessagesService, OperationService, ScheduledService, ConversationsService, QuickRepliesService, CampaignsService,
         ChannelsService,
         BackupsService,

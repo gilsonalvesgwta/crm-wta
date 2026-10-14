@@ -1,26 +1,51 @@
 // Canais e mensagens: tipos e rótulos da interface.
 
 export type Message = {
-  id: string; channel: 'whatsapp' | 'email'; direction: 'in' | 'out';
+  id: string; channel: 'whatsapp' | 'email' | 'instagram'; direction: 'in' | 'out';
   status: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | 'received';
   kind: string; remote: string; subject: string | null; body: string | null; error: string | null; contactId: string;
   createdAt: string; sentAt: string | null; deliveredAt: string | null; readAt: string | null; seenAt: string | null;
   account: { id: string; name: string; kind: string; address: string | null } | null;
   sentBy: { id: string; name: string } | null;
   automation?: { id: string; name: string } | null;
+  campaign?: { id: string; name: string } | null;
   file: { id: string; name: string; contentType: string; sizeBytes: number } | null;
 };
 
-export type SendAccount = { id: string; kind: 'whatsapp_evolution' | 'email_smtp'; name: string; address: string | null; status: string };
+export type AccountKind = 'whatsapp_evolution' | 'whatsapp_cloud' | 'email_smtp' | 'instagram';
+export type SendAccount = { id: string; kind: AccountKind; name: string; address: string | null; status: string };
 
-export type Channel = 'whatsapp' | 'email';
+/** Canal de cada tipo de conta. */
+export const channelOfKind = (k: AccountKind): Channel => (k === 'email_smtp' ? 'email' : k === 'instagram' ? 'instagram' : 'whatsapp');
+export const KIND_NAME: Record<AccountKind, string> = {
+  whatsapp_evolution: 'WhatsApp', whatsapp_cloud: 'WhatsApp oficial', email_smtp: 'E-mail', instagram: 'Instagram',
+};
+export const CHANNEL_NAME: Record<Channel, string> = { whatsapp: 'WhatsApp', email: 'E-mail', instagram: 'Instagram' };
+
+export type WaTemplate = {
+  id: string; accountId: string; accountName: string; metaId: string | null; name: string; language: string;
+  category: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION'; header: string | null; body: string; footer: string | null;
+  buttons: { type: string; text: string }[]; examples: string[]; status: string; reason: string | null; updatedAt: string;
+};
+export const TEMPLATE_STATUS: Record<string, { label: string; tone: 'ok' | 'warn' | 'bad' | 'neutral' | 'info' }> = {
+  APPROVED: { label: 'Aprovado', tone: 'ok' }, PENDING: { label: 'Em análise na Meta', tone: 'info' }, REJECTED: { label: 'Recusado', tone: 'bad' },
+  PAUSED: { label: 'Pausado', tone: 'warn' }, DISABLED: { label: 'Desativado', tone: 'bad' }, IN_APPEAL: { label: 'Em recurso', tone: 'info' },
+  LIMIT_EXCEEDED: { label: 'Limite excedido', tone: 'warn' },
+};
+export const templateVariables = (text: string): number => {
+  const nums = [...text.matchAll(/\{\{\s*(\d+)\s*\}\}/g)].map((m) => Number(m[1]));
+  return nums.length ? Math.max(...nums) : 0;
+};
+export const fillTemplate = (text: string, params: string[]) => text.replace(/\{\{\s*(\d+)\s*\}\}/g, (_m, n: string) => params[Number(n) - 1] || `{{${n}}}`);
+
+export type Channel = 'whatsapp' | 'email' | 'instagram';
 export type ConversationStatus = 'open' | 'waiting' | 'closed';
 
 export type Conversation = {
   id: string; channel: Channel; status: ConversationStatus; contactId: string;
   openedAt: string; firstResponseAt: string | null; lastMessageAt: string; lastInAt: string | null; lastOutAt: string | null; closedAt: string | null;
   assignee: { id: string; name: string } | null; team: { id: string; name: string } | null;
-  contact: { id: string; name: string; phone: string | null; email: string | null; tags: { id: string; name: string; color: string }[] };
+  contact: { id: string; name: string; phone: string | null; email: string | null; instagram?: string | null; tags: { id: string; name: string; color: string }[] };
   unread: number;
   last: { id: string; direction: 'in' | 'out'; status: string; kind: string; body: string | null; subject: string | null; createdAt: string } | null;
 };
@@ -49,10 +74,13 @@ export const REPLY_VARIABLES: { key: string; label: string }[] = [
 ];
 
 export type ChannelAccount = {
-  id: string; kind: 'whatsapp_evolution' | 'email_smtp'; name: string;
+  id: string; kind: AccountKind; name: string;
   status: 'pending' | 'connecting' | 'connected' | 'disconnected' | 'error';
   address: string | null; instance: string | null; lastError: string | null; connectedAt: string | null; createdAt: string;
   smtp?: { host: string; port: number; secure: boolean; user: string; fromName: string; hasPassword: boolean };
+  cloud?: { phoneNumberId: string; wabaId: string; verifiedName: string | null; quality: string | null; hasToken: boolean };
+  instagram?: { igUserId: string; host: 'instagram' | 'facebook'; hasToken: boolean };
+  webhook?: { url: string; verifyToken: string } | null;
 };
 
 export const STATUS_LABEL: Record<Message['status'], string> = {

@@ -143,7 +143,7 @@ function Automations() {
 
   if (loading && !data) return <Loading />;
   if (error) return <LoadError error={error} retry={reload} />;
-  const wa = accounts.find((a) => a.kind === 'whatsapp_evolution')?.id;
+  const wa = (accounts.find((a) => a.kind === 'whatsapp_evolution') ?? accounts.find((a) => a.kind === 'whatsapp_cloud'))?.id;
   const mail = accounts.find((a) => a.kind === 'email_smtp')?.id;
 
   async function toggle(r: Rule) {
@@ -385,7 +385,7 @@ function ActionFields({ a, onChange, accounts, tags, stages }: {
   switch (a.type) {
     case 'send_whatsapp':
     case 'send_email': {
-      const list = accounts.filter((x) => x.kind === (a.type === 'send_whatsapp' ? 'whatsapp_evolution' : 'email_smtp'));
+      const list = accounts.filter((x) => (a.type === 'send_whatsapp' ? x.kind === 'whatsapp_evolution' || x.kind === 'whatsapp_cloud' : x.kind === 'email_smtp'));
       return (
         <div className="flex flex-col gap-3">
           <Select label={a.type === 'send_whatsapp' ? 'Número' : 'Caixa de e-mail'} value={a.accountId} onChange={(e) => onChange({ ...a, accountId: e.target.value })}>

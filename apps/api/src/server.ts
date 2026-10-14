@@ -25,6 +25,8 @@ export async function createApp(cfg: Config, opts: { logger?: boolean } = {}): P
         ? new ConsoleLogger({ json: true, logLevels: ['error', 'warn', 'log'] })
         : ['error', 'warn', 'log'],
     bufferLogs: false,
+    // Corpo original guardado (req.rawBody): os avisos da Meta são conferidos pela assinatura.
+    rawBody: true,
   });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await app.register(fastifyCookie as any);

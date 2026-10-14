@@ -2,7 +2,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError, api } from '@/lib/api';
 import { phone, type Ref } from '@/lib/crm';
-import type { SendAccount } from '@/lib/messages';
+import { KIND_NAME, channelOfKind, type SendAccount } from '@/lib/messages';
 import { Dialog } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/field';
 import { Select } from '@/components/ui/select';
@@ -17,7 +17,7 @@ function localInput(d: Date): string {
 }
 
 export type ScheduledMessage = {
-  id: string; channel: 'whatsapp' | 'email'; subject: string | null; body: string; sendAt: string; status: string; accountId: string | null;
+  id: string; channel: 'whatsapp' | 'email' | 'instagram'; subject: string | null; body: string; sendAt: string; status: string; accountId: string | null;
   contact: { id: string; name: string };
 };
 
@@ -42,7 +42,7 @@ export function ScheduleDialog({ open, contact, initial, defaults, onClose, onSa
   useEffect(() => {
     if (!open) return;
     api<{ items: SendAccount[] }>('GET', '/api/v1/channels/available').then((r) => {
-      const usable = initial ? r.items.filter((a) => (a.kind === 'email_smtp') === (initial.channel === 'email')) : r.items;
+      const usable = initial ? r.items.filter((a) => channelOfKind(a.kind) === initial.channel) : r.items;
       setAccounts(usable);
       setAccountId((cur) => cur || usable[0]?.id || '');
     }).catch(() => setAccounts([]));
@@ -75,7 +75,7 @@ export function ScheduleDialog({ open, contact, initial, defaults, onClose, onSa
           : <EntityPicker kind="contact" label="Contato" value={who} onChange={setWho} placeholder="Digite o nome, e-mail ou telefone" />}
         <Select label="Enviar por" value={accountId} onChange={(e) => setAccountId(e.target.value)} error={err?.fieldError('accountId')}>
           {accounts.length === 0 ? <option value="">Nenhuma conta conectada</option> : null}
-          {accounts.map((a) => <option key={a.id} value={a.id}>{a.kind === 'whatsapp_evolution' ? 'WhatsApp' : 'E-mail'} · {a.name}{a.address ? ` · ${a.kind === 'whatsapp_evolution' ? phone(a.address) : a.address}` : ''}</option>)}
+          {accounts.map((a) => <option key={a.id} value={a.id}>{KIND_NAME[a.kind]} · {a.name}{a.address ? ` · ${a.address.startsWith('+') ? phone(a.address) : a.address}` : ''}</option>)}
         </Select>
         {isEmail ? <Field label="Assunto" value={subject} onChange={(e) => setSubject(e.target.value)} error={err?.fieldError('subject')} /> : null}
         <Textarea label="Mensagem" value={text} onChange={(e) => setText(e.target.value)} rows={5} error={err?.fieldError('text')} />

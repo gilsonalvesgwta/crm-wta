@@ -8,12 +8,25 @@ import { SecretBox } from '../domain/secrets.js';
 import { Problem } from '../http/problem.js';
 import { Db, pgCode, type Q } from '../infra/db.js';
 import { Evolution, EvolutionError } from '../infra/evolution.js';
+import { Meta, MetaError, type MetaHost } from '../infra/meta.js';
+import { renderTemplate, templateVariables, type IgMessage } from '../domain/meta.js';
 import { sendTenantMail, SmtpError, textToHtml } from '../infra/tenant-mail.js';
 import { memberJson } from './fields.js';
 import { FilesService } from './files.service.js';
 import { RecordsService } from './records.service.js';
 
-export type SendInput = { accountId: string; to?: string | null; text?: string | null; subject?: string | null };
+export type SendInput = {
+  accountId: string; to?: string | null; text?: string | null; subject?: string | null;
+  /** WhatsApp oficial: modelo aprovado e os valores de {{1}}, {{2}}… */
+  templateId?: string | null; templateParams?: string[] | null;
+};
+
+/** Canal de cada tipo de conta. */
+export function channelOf(kind: string): 'whatsapp' | 'email' | 'instagram' {
+  return kind === 'email_smtp' ? 'email' : kind === 'instagram' ? 'instagram' : 'whatsapp';
+}
+
+const WINDOW_MS = 24 * 3600_000;
 export type Upload = { name: string; data: Buffer };
 
 /** Colunas de uma mensagem para a interface e a API. */
@@ -25,6 +38,7 @@ export const MESSAGE_COLUMNS = `
      from channel_accounts a where a.id = m.channel_account_id) as account,
   ${memberJson('m.sent_by')} as "sentBy",
   (select json_build_object('id', r.id, 'name', r.name) from automation_rules r where r.id = m.automation_rule_id) as automation,
+  (select json_build_object('id', k.id, 'name', k.name) from campaigns k where k.id = m.campaign_id) as campaign,
   (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type, 'sizeBytes', f.size_bytes)
      from files f where f.id = m.file_id and f.deleted_at is null) as file`;
 
@@ -52,10 +66,17 @@ export class MessagesService {
     @Inject(Db) private readonly db: Db,
     @Inject(CONFIG) private readonly cfg: Config,
     @Inject(Evolution) private readonly evo: Evolution,
+    @Inject(Meta) private readonly meta: Meta,
     @Inject(FilesService) private readonly files: FilesService,
     @Inject(RecordsService) private readonly records: RecordsService,
   ) {
     this.box = new SecretBox(cfg.masterKeys, cfg.currentKey);
+  }
+
+  /** Token e segredo do app de uma conta da Meta (guardados cifrados juntos). */
+  metaCreds(accountId: string, sealed: Buffer | null): { token: string; appSecret: string } {
+    if (!sealed) throw new MetaError('A conta está sem o token de acesso.');
+    return JSON.parse(this.openSecret(accountId, sealed)) as { token: string; appSecret: string };
   }
 
   sealSecret(accountId: string, secret: string): Buffer {
@@ -139,7 +160,7 @@ export class MessagesService {
   }
 
   /** Envio dentro de uma conversa cujo acesso já foi conferido, só pelo canal dela. */
-  sendInConversation(actor: Actor, contactId: string, channel: 'whatsapp' | 'email', input: SendInput, file?: Upload) {
+  sendInConversation(actor: Actor, contactId: string, channel: 'whatsapp' | 'email' | 'instagram', input: SendInput, file?: Upload) {
     return this.sendAs({ tenantId: actor.tenantId!, actor, automationRuleId: null, checked: true, channel }, contactId, input, file);
   }
 
@@ -150,7 +171,7 @@ export class MessagesService {
 
   private async sendAs(
     by: {
-      tenantId: string; actor: Actor | null; automationRuleId: string | null; checked?: boolean; channel?: 'whatsapp' | 'email';
+      tenantId: string; actor: Actor | null; automationRuleId: string | null; checked?: boolean; channel?: 'whatsapp' | 'email' | 'instagram';
       campaignId?: string;
       /** Mensagem agendada por uma pessoa: sai em nome dela, sem a lista de supressão. */
       sentBy?: string | null;
@@ -159,8 +180,8 @@ export class MessagesService {
   ) {
     const actor = by.actor;
     const ctx = actor ? tenantCtx(actor) : { tenantId: by.tenantId, userId: null };
-    const text = input.text?.trim() || null;
-    if (!text && !file) throw Problem.badRequest('Mensagem vazia.', [{ field: 'text', message: 'Escreva a mensagem ou anexe um arquivo.' }]);
+    let text = input.text?.trim() || null;
+    if (!text && !file && !input.templateId) throw Problem.badRequest('Mensagem vazia.', [{ field: 'text', message: 'Escreva a mensagem ou anexe um arquivo.' }]);
 
     // 1. Registra a mensagem como "na fila", com tudo conferido.
     const prep = await this.db.app(ctx, async (q) => {
@@ -168,25 +189,27 @@ export class MessagesService {
       const a = (await q.query<{ id: string; kind: string; status: string; external_id: string | null; config: Record<string, unknown>; secret: Buffer | null; address: string | null; name: string }>(
         'select id, kind, status, external_id, config, secret, address, name from channel_accounts where id = $1', [input.accountId])).rows[0];
       if (!a) throw Problem.badRequest('Conta inválida.', [{ field: 'accountId', message: 'Escolha um WhatsApp ou e-mail da empresa.' }]);
-      const channel = a.kind === 'whatsapp_evolution' ? 'whatsapp' : 'email';
+      const channel = channelOf(a.kind);
       if (by.channel && by.channel !== channel) {
-        throw Problem.badRequest('Conta de outro canal.', [{ field: 'accountId', message: by.channel === 'email' ? 'Escolha uma conta de e-mail.' : 'Escolha um WhatsApp.' }]);
+        throw Problem.badRequest('Conta de outro canal.', [{ field: 'accountId', message: by.channel === 'email' ? 'Escolha uma conta de e-mail.' : by.channel === 'instagram' ? 'Escolha o Instagram.' : 'Escolha um WhatsApp.' }]);
       }
       if (by.campaignId && channel === 'email' && a.status === 'error') {
         throw Problem.conflict(`A conta de e-mail "${a.name}" está com erro. Confira em Configurações › Canais.`);
       }
-      if (channel === 'whatsapp' && a.status !== 'connected') {
-        throw Problem.conflict(`O WhatsApp "${a.name}" não está conectado. Peça ao administrador para conectar em Configurações › Canais.`);
+      if (channel !== 'email' && a.status !== 'connected') {
+        throw Problem.conflict(`${channel === 'instagram' ? 'O Instagram' : 'O WhatsApp'} "${a.name}" não está conectado. Peça ao administrador para conectar em Configurações › Canais.`);
       }
       if (channel === 'email' && !input.subject?.trim()) {
         throw Problem.badRequest('Falta o assunto.', [{ field: 'subject', message: 'Escreva o assunto do e-mail.' }]);
       }
       const options = channel === 'whatsapp'
         ? (await q.query<{ v: string }>('select e164 as v from contact_phones where contact_id = $1 order by is_primary desc, created_at', [contactId])).rows.map((r) => r.v)
-        : (await q.query<{ v: string }>('select email as v from contact_emails where contact_id = $1 order by is_primary desc, created_at', [contactId])).rows.map((r) => r.v);
+        : channel === 'instagram'
+          ? (await q.query<{ v: string }>("select value as v from contact_handles where contact_id = $1 and kind = 'instagram' order by created_at", [contactId])).rows.map((r) => r.v)
+          : (await q.query<{ v: string }>('select email as v from contact_emails where contact_id = $1 order by is_primary desc, created_at', [contactId])).rows.map((r) => r.v);
       if (!options.length) {
-        throw Problem.badRequest(channel === 'whatsapp' ? 'O contato não tem telefone.' : 'O contato não tem e-mail.',
-          [{ field: 'to', message: channel === 'whatsapp' ? 'Cadastre um telefone no contato.' : 'Cadastre um e-mail no contato.' }]);
+        throw Problem.badRequest(channel === 'whatsapp' ? 'O contato não tem telefone.' : channel === 'instagram' ? 'O contato não tem Instagram.' : 'O contato não tem e-mail.',
+          [{ field: 'to', message: channel === 'whatsapp' ? 'Cadastre um telefone no contato.' : channel === 'instagram' ? 'O Instagram aparece quando a pessoa manda mensagem.' : 'Cadastre um e-mail no contato.' }]);
       }
       const to = input.to ? options.find((o) => o === input.to!.trim().toLowerCase() || o === input.to!.trim()) : options[0];
       if (!to) throw Problem.badRequest('Destino inválido.', [{ field: 'to', message: 'Escolha um telefone ou e-mail do contato.' }]);
@@ -194,6 +217,32 @@ export class MessagesService {
       if (!actor && !by.sentBy) {
         const suppressed = await q.query('select 1 from suppression_list where channel = $1 and value = $2', [channel, to]);
         if (suppressed.rowCount) throw Problem.conflict('O contato pediu para não receber mensagens automáticas por este canal.');
+      }
+
+      // Canais da Meta: resposta livre só até 24 h depois da última mensagem do cliente; fora disso, modelo aprovado.
+      let template: { name: string; language: string; body: string; header: string | null } | null = null;
+      if (a.kind === 'whatsapp_cloud' || a.kind === 'instagram') {
+        const last = (await q.query<{ at: Date | null }>(
+          `select max(created_at) as at from messages where contact_id = $1 and channel_account_id = $2 and direction = 'in'`, [contactId, a.id])).rows[0]!.at;
+        const open = !!last && Date.now() - last.getTime() < WINDOW_MS;
+        if (a.kind === 'whatsapp_cloud' && input.templateId) {
+          template = (await q.query<{ name: string; language: string; body: string; header: string | null }>(
+            `select name, language, body, header from whatsapp_templates where id = $1 and channel_account_id = $2 and status = 'APPROVED'`,
+            [input.templateId, a.id])).rows[0] ?? null;
+          if (!template) throw Problem.badRequest('Modelo inválido.', [{ field: 'templateId', message: 'Escolha um modelo aprovado deste número.' }]);
+          const need = templateVariables(template.body);
+          const params = (input.templateParams ?? []).map((v) => v.trim());
+          if (params.length < need || params.slice(0, need).some((v) => !v)) {
+            throw Problem.badRequest('Faltam valores do modelo.', [{ field: 'templateParams', message: `Preencha as ${need} variável(is) do modelo.` }]);
+          }
+          text = [template.header, renderTemplate(template.body, params)].filter(Boolean).join('\n\n');
+        } else if (!open) {
+          throw new Problem(409, a.kind === 'instagram'
+            ? 'O Instagram só deixa responder até 24 horas depois da última mensagem do cliente.'
+            : 'Passaram 24 horas da última mensagem do cliente (ou ele nunca escreveu): no WhatsApp oficial, comece com um modelo aprovado.',
+          'outside-window');
+        }
+        if (a.kind === 'instagram' && file) throw Problem.badRequest('Arquivo não suportado.', [{ field: 'file', message: 'Envio de arquivo pelo Instagram ainda não é suportado.' }]);
       }
 
       let fileId: string | null = null;
@@ -207,14 +256,35 @@ export class MessagesService {
         `insert into messages (tenant_id, channel_account_id, channel, direction, status, contact_id, remote, subject, body, kind, file_id, sent_by, automation_rule_id, campaign_id)
          values (app.tenant_id(), $1, $2, 'out', 'queued', $3, $4, $5, $6, $7, $8, $9, $10, $11) returning id`,
         [a.id, channel, contactId, to, channel === 'email' ? input.subject!.trim() : null, text, kind, fileId, actor?.membershipId ?? by.sentBy ?? null, by.automationRuleId, by.campaignId ?? null]);
-      return { id: m.rows[0]!.id, account: a, channel, to, kind, contentType };
+      return { id: m.rows[0]!.id, account: a, channel, to, kind, contentType, template };
     });
 
     // 2. Entrega pelo canal, fora da transação.
     let externalId: string | null = null;
     let error: string | null = null;
     try {
-      if (prep.channel === 'whatsapp') {
+      if (prep.account.kind === 'whatsapp_cloud') {
+        const c = this.metaCreds(prep.account.id, prep.account.secret);
+        const to = prep.to.replace(/\D/g, '');
+        const phoneId = prep.account.external_id!;
+        if (prep.template) {
+          const params = (input.templateParams ?? []).slice(0, templateVariables(prep.template.body));
+          externalId = await this.meta.sendWhatsapp(phoneId, c.token, { to, type: 'template', template: {
+            name: prep.template.name, language: { code: prep.template.language },
+            components: params.length ? [{ type: 'body', parameters: params.map((v) => ({ type: 'text', text: v })) }] : [],
+          } });
+        } else if (file) {
+          const mediaId = await this.meta.uploadMedia(phoneId, c.token, { data: file.data, type: prep.contentType!, name: file.name });
+          const t = prep.kind === 'image' || prep.kind === 'video' || prep.kind === 'audio' ? prep.kind : 'document';
+          externalId = await this.meta.sendWhatsapp(phoneId, c.token, { to, type: t, [t]: {
+            id: mediaId, ...(t !== 'audio' && text ? { caption: text } : {}), ...(t === 'document' ? { filename: file.name } : {}) } });
+        } else {
+          externalId = await this.meta.sendWhatsapp(phoneId, c.token, { to, type: 'text', text: { body: text!, preview_url: true } });
+        }
+      } else if (prep.account.kind === 'instagram') {
+        const c = this.metaCreds(prep.account.id, prep.account.secret);
+        externalId = await this.meta.igSend(prep.account.external_id!, c.token, (prep.account.config.host as MetaHost) ?? 'instagram', prep.to, text!);
+      } else if (prep.channel === 'whatsapp') {
         const number = toEvolutionNumber(prep.to);
         if (file) {
           externalId = await this.evo.sendMedia(prep.account.external_id!, number, {
@@ -235,7 +305,7 @@ export class MessagesService {
         }, this.cfg.CHANNEL_ALLOW_PRIVATE_HOSTS);
       }
     } catch (err) {
-      if (err instanceof EvolutionError || err instanceof SmtpError) error = err.message;
+      if (err instanceof EvolutionError || err instanceof SmtpError || err instanceof MetaError) error = err.message;
       else {
         this.log.error(`envio falhou: ${String(err)}`);
         error = 'Falha inesperada no envio.';
@@ -362,7 +432,74 @@ export class MessagesService {
     });
   }
 
-  async updateStatus(tenantId: string, accountId: string, ev: EvoStatus): Promise<boolean> {
+  /** Mensagem do Instagram (recebida ou eco do que a empresa mandou pelo app). Contato pelo IGSID. */
+  async receiveInstagram(tenantId: string, accountId: string, ev: IgMessage, extra: {
+    profile: { name?: string; username?: string } | null; media: { data: Buffer; mimetype: string | null } | null;
+  }): Promise<'stored' | 'duplicate' | 'claimed'> {
+    const igsid = ev.fromMe ? ev.recipient : ev.sender;
+    return this.db.app({ tenantId, userId: null }, async (q) => {
+      const known = await q.query('select 1 from messages where channel_account_id = $1 and external_id = $2', [accountId, ev.id]);
+      if (known.rowCount) return 'duplicate';
+      if (ev.fromMe) {
+        const claimed = await q.query(
+          `update messages set external_id = $1, status = 'sent', sent_at = coalesce(sent_at, now())
+            where id = (select id from messages where channel_account_id = $2 and direction = 'out' and status in ('queued', 'sent') and external_id is null
+                         and remote = $3 and created_at > now() - interval '5 minutes' order by created_at limit 1 for update skip locked)
+          returning id`, [ev.id, accountId, igsid]);
+        if (claimed.rowCount) return 'claimed';
+      }
+      let contactId = (await q.query<{ contact_id: string }>(
+        `select h.contact_id from contact_handles h join contacts c on c.id = h.contact_id
+          where h.kind = 'instagram' and h.value = $1 and c.anonymized_at is null`, [igsid])).rows[0]?.contact_id ?? null;
+      let created = false;
+      const username = extra.profile?.username && /^[A-Za-z0-9._]{1,60}$/.test(extra.profile.username) ? extra.profile.username : null;
+      if (!contactId) {
+        const name = (extra.profile?.name || (username ? `@${username}` : `Instagram ${igsid.slice(-6)}`)).slice(0, 120);
+        contactId = (await q.query<{ id: string }>('insert into contacts (tenant_id, first_name) values (app.tenant_id(), $1) returning id', [name])).rows[0]!.id;
+        await q.query(
+          `insert into contact_handles (tenant_id, contact_id, kind, value, username) values (app.tenant_id(), $1, 'instagram', $2, $3)
+           on conflict (tenant_id, kind, value) do nothing`, [contactId, igsid, username]);
+        await q.query(
+          `insert into attribution_touches (tenant_id, contact_id, recorded_via, source, medium) values (app.tenant_id(), $1, 'channel', 'instagram', 'direct')`, [contactId]);
+        await q.query(`insert into timeline_entries (tenant_id, kind, contact_id, data) values (app.tenant_id(), 'contact.created', $1, $2)`,
+          [contactId, JSON.stringify({ via: 'instagram' })]);
+        created = true;
+      } else if (username) {
+        await q.query(`update contact_handles set username = $2 where kind = 'instagram' and value = $1 and username is distinct from $2`, [igsid, username]);
+      }
+      const ins = await q.query<{ id: string }>(
+        `insert into messages (tenant_id, channel_account_id, channel, direction, status, contact_id, external_id, remote, body, kind, created_at, sent_at)
+         values (app.tenant_id(), $1, 'instagram', $2, $3, $4, $5, $6, $7, $8, $9, case when $2 = 'out' then $9::timestamptz end)
+         on conflict (channel_account_id, external_id) where external_id is not null and channel_account_id is not null do nothing
+         returning id`,
+        [accountId, ev.fromMe ? 'out' : 'in', ev.fromMe ? 'sent' : 'received', contactId, ev.id, igsid, ev.text, ev.kind, ev.at]);
+      const messageId = ins.rows[0]?.id;
+      if (!messageId) return 'duplicate';
+      if (extra.media) await this.attachMedia(q, tenantId, contactId, messageId, extra.media.data, extra.media.mimetype, null, `instagram-${ev.kind}`);
+      await q.query(`insert into timeline_entries (tenant_id, kind, contact_id, data) values (app.tenant_id(), $1, $2, $3)`,
+        [ev.fromMe ? 'message.sent' : 'message.received', contactId, JSON.stringify({ messageId, channel: 'instagram', newContact: created })]);
+      await q.query('update contacts set last_activity_at = now() where id = $1', [contactId]);
+      return 'stored';
+    });
+  }
+
+  /** Guarda a mídia de uma mensagem recebida; tipo não aceito fica sem o arquivo. */
+  private async attachMedia(q: Q, tenantId: string, contactId: string, messageId: string, data: Buffer, mimetype: string | null, fileName: string | null, prefix: string) {
+    if (!data.length || data.length > this.cfg.UPLOAD_MAX_MB * 1024 * 1024) return;
+    const ext = (mimetype && EXT[mimetype.split(';')[0]!.trim()]) ?? 'bin';
+    try {
+      await q.query('savepoint midia');
+      const fileId = await this.files.storeIn(q, { tenantId, membershipId: null } as unknown as Actor,
+        { name: fileName ?? `${prefix}.${ext}`, data, purpose: 'message', ref: { kind: 'contact', id: contactId } });
+      await q.query('update messages set file_id = $1 where id = $2', [fileId, messageId]);
+      await q.query('release savepoint midia');
+    } catch (err) {
+      await q.query('rollback to savepoint midia');
+      this.log.warn(`mídia não guardada: ${(err as Error).message}`);
+    }
+  }
+
+  async updateStatus(tenantId: string, accountId: string, ev: EvoStatus, detail: string | null = null): Promise<boolean> {
     return this.db.app({ tenantId, userId: null }, async (q) => {
       const r = await q.query<{ id: string; status: string }>(
         "select id, status from messages where channel_account_id = $1 and external_id = $2 and direction = 'out' for update", [accountId, ev.id]);
@@ -372,8 +509,8 @@ export class MessagesService {
         `update messages set status = $2,
                 delivered_at = case when $2 in ('delivered', 'read') then coalesce(delivered_at, now()) else delivered_at end,
                 read_at = case when $2 = 'read' then coalesce(read_at, now()) else read_at end,
-                error = case when $2 = 'failed' then 'O WhatsApp não entregou a mensagem.' else error end
-          where id = $1`, [m.id, ev.status]);
+                error = case when $2 = 'failed' then coalesce($3, 'O WhatsApp não entregou a mensagem.') else error end
+          where id = $1`, [m.id, ev.status, detail ? `O WhatsApp não entregou: ${detail}`.slice(0, 1000) : null]);
       return true;
     });
   }
