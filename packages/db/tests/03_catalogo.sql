@@ -52,7 +52,7 @@ select t.ok(
    where p.pronamespace = 'app'::regnamespace
      and has_function_privilege('crm_app', p.oid, 'EXECUTE'))
   = array[
-    'auth_failure_counts', 'auth_find_user', 'auth_invitation_accept', 'auth_invitation_info',
+    'api_key_lookup', 'api_key_touch', 'auth_failure_counts', 'auth_find_user', 'auth_invitation_accept', 'auth_invitation_info',
     'auth_password_hash', 'auth_password_reset_consume', 'auth_password_reset_create',
     'auth_record_event', 'auth_recovery_codes_left', 'auth_resolve_domain', 'auth_set_password',
     'auth_totp_begin', 'auth_totp_disable', 'auth_totp_enable', 'auth_totp_secret',

@@ -100,6 +100,7 @@ Fase 2, ramo `claude/fase2-crm`, 13 de outubro de 2026, no GitHub Actions (os me
 ## Pendências
 
 - **Limite de requisições geral** por IP e por usuário: entra com o Redis, na Fase 3. O login já tem bloqueio.
+- **Backup dentro de cada empresa** (pedido em 14 out 2026): em Configurações, o administrador da empresa faz, baixa e restaura cópias só da própria empresa; essas cópias são apagadas sozinhas depois de 7 dias. Na Plataforma, o administrador geral continua com todas as empresas ou uma específica.
 - **Modelo de planilha CSV para importar contatos** (pedido em 13 out 2026): botão para baixar um exemplo e imagem ilustrativa de como preencher, na tela de importação.
 - **Certificado dos domínios próprios**: decidir entre Cloudflare for SaaS e a lista no Traefik (DEPLOYMENT.md).
 - **Greenn**: teste com uma compra real.

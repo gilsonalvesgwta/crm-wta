@@ -25,6 +25,7 @@ export const MESSAGE_COLUMNS = `
   (select json_build_object('id', a.id, 'name', a.name, 'kind', a.kind, 'address', a.address)
      from channel_accounts a where a.id = m.channel_account_id) as account,
   ${memberJson('m.sent_by')} as "sentBy",
+  (select json_build_object('id', r.id, 'name', r.name) from automation_rules r where r.id = m.automation_rule_id) as automation,
   (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type, 'sizeBytes', f.size_bytes)
      from files f where f.id = m.file_id and f.deleted_at is null) as file`;
 
@@ -138,13 +139,24 @@ export class MessagesService {
 
   // ---- Envio ------------------------------------------------------------------------
 
-  async send(actor: Actor, contactId: string, input: SendInput, file?: Upload) {
+  send(actor: Actor, contactId: string, input: SendInput, file?: Upload) {
+    return this.sendAs({ tenantId: actor.tenantId!, actor, automationRuleId: null }, contactId, input, file);
+  }
+
+  /** Envio de uma automação: sem pessoa, respeitando a lista de supressão. */
+  sendByAutomation(tenantId: string, ruleId: string, contactId: string, input: SendInput) {
+    return this.sendAs({ tenantId, actor: null, automationRuleId: ruleId }, contactId, input);
+  }
+
+  private async sendAs(by: { tenantId: string; actor: Actor | null; automationRuleId: string | null }, contactId: string, input: SendInput, file?: Upload) {
+    const actor = by.actor;
+    const ctx = actor ? tenantCtx(actor) : { tenantId: by.tenantId, userId: null };
     const text = input.text?.trim() || null;
     if (!text && !file) throw Problem.badRequest('Mensagem vazia.', [{ field: 'text', message: 'Escreva a mensagem ou anexe um arquivo.' }]);
 
     // 1. Registra a mensagem como "na fila", com tudo conferido.
-    const prep = await this.db.app(tenantCtx(actor), async (q) => {
-      await this.records.assertAccess(q, actor, { kind: 'contact', id: contactId }, false);
+    const prep = await this.db.app(ctx, async (q) => {
+      if (actor) await this.records.assertAccess(q, actor, { kind: 'contact', id: contactId }, false);
       const a = (await q.query<{ id: string; kind: string; status: string; external_id: string | null; config: Record<string, unknown>; secret: Buffer | null; address: string | null; name: string }>(
         'select id, kind, status, external_id, config, secret, address, name from channel_accounts where id = $1', [input.accountId])).rows[0];
       if (!a) throw Problem.badRequest('Conta inválida.', [{ field: 'accountId', message: 'Escolha um WhatsApp ou e-mail da empresa.' }]);
@@ -165,18 +177,22 @@ export class MessagesService {
       const to = input.to ? options.find((o) => o === input.to!.trim().toLowerCase() || o === input.to!.trim()) : options[0];
       if (!to) throw Problem.badRequest('Destino inválido.', [{ field: 'to', message: 'Escolha um telefone ou e-mail do contato.' }]);
       // Conversa individual, escrita por alguém da empresa: a lista de supressão vale para campanhas e automações.
+      if (!actor) {
+        const suppressed = await q.query('select 1 from suppression_list where channel = $1 and value = $2', [channel, to]);
+        if (suppressed.rowCount) throw Problem.conflict('O contato pediu para não receber mensagens automáticas por este canal.');
+      }
 
       let fileId: string | null = null;
       let contentType: string | null = null;
       if (file) {
-        fileId = await this.files.storeIn(q, actor, { name: file.name, data: file.data, purpose: 'message', ref: { kind: 'contact', id: contactId } });
+        fileId = await this.files.storeIn(q, actor!, { name: file.name, data: file.data, purpose: 'message', ref: { kind: 'contact', id: contactId } });
         contentType = (await q.query<{ content_type: string }>('select content_type from files where id = $1', [fileId])).rows[0]!.content_type;
       }
       const kind = contentType ? kindOf(contentType) : 'text';
       const m = await q.query<{ id: string }>(
-        `insert into messages (tenant_id, channel_account_id, channel, direction, status, contact_id, remote, subject, body, kind, file_id, sent_by)
-         values (app.tenant_id(), $1, $2, 'out', 'queued', $3, $4, $5, $6, $7, $8, $9) returning id`,
-        [a.id, channel, contactId, to, channel === 'email' ? input.subject!.trim() : null, text, kind, fileId, actor.membershipId]);
+        `insert into messages (tenant_id, channel_account_id, channel, direction, status, contact_id, remote, subject, body, kind, file_id, sent_by, automation_rule_id)
+         values (app.tenant_id(), $1, $2, 'out', 'queued', $3, $4, $5, $6, $7, $8, $9, $10) returning id`,
+        [a.id, channel, contactId, to, channel === 'email' ? input.subject!.trim() : null, text, kind, fileId, actor?.membershipId ?? null, by.automationRuleId]);
       return { id: m.rows[0]!.id, account: a, channel, to, kind, contentType };
     });
 
@@ -213,7 +229,7 @@ export class MessagesService {
     }
 
     // 3. Resultado no histórico.
-    return this.db.app(tenantCtx(actor), async (q) => {
+    return this.db.app(ctx, async (q) => {
       const params = [prep.id, error ? 'failed' : 'sent', error, externalId];
       try {
         await q.query(
@@ -229,7 +245,8 @@ export class MessagesService {
       }
       await q.query(
         `insert into timeline_entries (tenant_id, kind, actor_membership_id, contact_id, data) values (app.tenant_id(), $1, $2, $3, $4)`,
-        [error ? 'message.failed' : 'message.sent', actor.membershipId, contactId, JSON.stringify({ messageId: prep.id, channel: prep.channel })]);
+        [error ? 'message.failed' : 'message.sent', actor?.membershipId ?? null, contactId,
+          JSON.stringify({ messageId: prep.id, channel: prep.channel, ...(by.automationRuleId ? { automation: by.automationRuleId } : {}) })]);
       if (!error) await q.query('update contacts set last_activity_at = now() where id = $1', [contactId]);
       return this.row(q, prep.id);
     });
