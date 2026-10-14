@@ -16,6 +16,7 @@ import { Field } from '@/components/ui/field';
 import { Select } from '@/components/ui/select';
 import { Empty, LoadError, Loading } from '@/components/ui/states';
 import { PageHeader } from '@/components/ui/misc';
+import { ImportTemplate } from '@/components/crm/import-template';
 
 type Upload = { fileId: string; headers: string[]; totalRows: number; sample: string[][]; suggestedMapping: Record<string, string>; targets: string[] };
 type ImportJob = {
@@ -102,6 +103,7 @@ function UploadStep({ entity, setEntity, onUploaded }: { entity: 'contacts' | 'o
           <Button loading={busy} onClick={() => input.current?.click()}>Escolher arquivo</Button>
         </div>
         {err ? <Alert tone="error">{err}</Alert> : null}
+        <ImportTemplate entity={entity} />
       </div>
     </Panel>
   );

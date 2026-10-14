@@ -111,7 +111,6 @@ Fase 2, ramo `claude/fase2-crm`, 13 de outubro de 2026, no GitHub Actions (os me
 
 - **Limite de requisições geral** por IP e por usuário: entra com o Redis, na Fase 3. O login já tem bloqueio.
 - **Backup dentro de cada empresa** (pedido em 14 out 2026): em Configurações, o administrador da empresa faz, baixa e restaura cópias só da própria empresa; essas cópias são apagadas sozinhas depois de 7 dias. Na Plataforma, o administrador geral continua com todas as empresas ou uma específica.
-- **Modelo de planilha CSV para importar contatos** (pedido em 13 out 2026): botão para baixar um exemplo e imagem ilustrativa de como preencher, na tela de importação.
 - **Certificado dos domínios próprios**: decidir entre Cloudflare for SaaS e a lista no Traefik (DEPLOYMENT.md).
 - **Greenn**: teste com uma compra real.
 - **WhatsApp e e-mail com servidores reais**: conectar um número de teste na Evolution da VPS e cadastrar uma caixa da Hostinger.
@@ -162,7 +161,7 @@ Nenhum aberto. Corrigidos em 13 out 2026 (acesso):
 2. Conectar um número de teste e cadastrar uma caixa de e-mail; conferir receber, responder e enviar arquivo.
 3. Cadastrar o endereço do webhook na Greenn e ligar os produtos aos planos.
 4. Backup dentro de cada empresa (administrador da empresa), com exclusão das cópias depois de 7 dias.
-5. Modelo de planilha CSV para importar contatos.
+5. Planilha modelo de importação: pronta (contatos e organizações, com exemplo ilustrado na tela).
 
 ## Aprovações pendentes
 
