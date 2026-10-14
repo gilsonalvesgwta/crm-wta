@@ -32,6 +32,8 @@ import { MessagesService } from './crm/messages.service.js';
 import { ChannelsController, EvolutionWebhookController, MessagesController } from './crm/channels.controller.js';
 import { ConversationsController, QuickRepliesController } from './crm/conversations.controller.js';
 import { ConversationsService } from './crm/conversations.service.js';
+import { CampaignsController, UnsubscribeController } from './crm/campaigns.controller.js';
+import { CampaignsService } from './crm/campaigns.service.js';
 import { QuickRepliesService } from './crm/quick-replies.service.js';
 import { Evolution } from './infra/evolution.js';
 import { BackupsService } from './backup/backups.service.js';
@@ -54,7 +56,7 @@ export class AppModule {
       controllers: [
         HealthController, AuthController, AdminController, PlatformController, WebhooksController, TenantFeaturesController, ContactsController, OrganizationsController,
         CatalogController, PipelinesController, DealsController, LeadsController, ActivitiesController, RecordsController,
-        ImportsController, PrivacyController, DashboardController, ChannelsController, MessagesController, ConversationsController, QuickRepliesController, EvolutionWebhookController, BackupsController, TenantBackupsController, AutomationsController, IntegrationsController,
+        ImportsController, PrivacyController, DashboardController, ChannelsController, MessagesController, ConversationsController, QuickRepliesController, CampaignsController, UnsubscribeController, EvolutionWebhookController, BackupsController, TenantBackupsController, AutomationsController, IntegrationsController,
       ],
       providers: [
         { provide: CONFIG, useValue: cfg },
@@ -79,7 +81,7 @@ export class AppModule {
         DashboardService,
         DispatcherService,
         Evolution,
-        MessagesService, ConversationsService, QuickRepliesService,
+        MessagesService, ConversationsService, QuickRepliesService, CampaignsService,
         ChannelsService,
         BackupsService,
         AutomationsService,

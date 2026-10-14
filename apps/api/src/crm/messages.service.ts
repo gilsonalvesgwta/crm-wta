@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Actor } from '../access/actor.js';
 import { tenantCtx } from '../access/decorators.js';
@@ -33,6 +34,9 @@ function kindOf(contentType: string): 'image' | 'audio' | 'video' | 'document' {
   if (contentType.startsWith('video/')) return 'video';
   return 'document';
 }
+
+/** Resposta que pede para não receber mais mensagens automáticas. */
+const OPT_OUT = /^(sair|parar|pare|stop|cancelar|descadastrar|nao quero mais)[.!]?$/i;
 
 const EXT: Record<string, string> = {
   'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'audio/ogg': 'ogg', 'audio/mpeg': 'mp3',
@@ -94,6 +98,41 @@ export class MessagesService {
     return this.sendAs({ tenantId: actor.tenantId!, actor, automationRuleId: null }, contactId, input, file);
   }
 
+  /** Envio de uma campanha: sem pessoa, respeitando a lista de supressão, com o link para sair. */
+  sendByCampaign(tenantId: string, campaignId: string, contactId: string, input: SendInput) {
+    return this.sendAs({ tenantId, actor: null, automationRuleId: null, campaignId }, contactId, input);
+  }
+
+  /** Assinatura do link de descadastro (empresa, canal e endereço). */
+  unsubscribeToken(tenantId: string, channel: 'whatsapp' | 'email', address: string): string {
+    const payload = Buffer.from(JSON.stringify({ t: tenantId, c: channel, v: address })).toString('base64url');
+    return `${payload}.${this.unsubscribeSig(payload)}`;
+  }
+
+  private unsubscribeSig(payload: string): string {
+    return createHmac('sha256', this.cfg.masterKeys[this.cfg.currentKey]!).update(`descadastro:${payload}`).digest('base64url').slice(0, 32);
+  }
+
+  readUnsubscribeToken(token: string): { t: string; c: 'whatsapp' | 'email'; v: string } | null {
+    const [payload, sig] = token.split('.');
+    if (!payload || !sig || sig.length !== 32) return null;
+    const want = Buffer.from(this.unsubscribeSig(payload));
+    if (!timingSafeEqual(want, Buffer.from(sig.padEnd(32).slice(0, 32)))) return null;
+    try {
+      const v = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { t: string; c: 'whatsapp' | 'email'; v: string };
+      return /^[0-9a-f-]{36}$/.test(v.t) && (v.c === 'email' || v.c === 'whatsapp') && typeof v.v === 'string' ? v : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Grava o pedido de não receber mais (link do e-mail ou resposta SAIR). */
+  async unsubscribe(tenantId: string, channel: 'whatsapp' | 'email', value: string): Promise<void> {
+    await this.db.app({ tenantId, userId: null }, (q) => q.query(
+      `insert into suppression_list (tenant_id, channel, value, reason) values (app.tenant_id(), $1, $2, 'opt_out')
+       on conflict (tenant_id, channel, value) do nothing`, [channel, value]));
+  }
+
   /** Envio dentro de uma conversa cujo acesso já foi conferido, só pelo canal dela. */
   sendInConversation(actor: Actor, contactId: string, channel: 'whatsapp' | 'email', input: SendInput, file?: Upload) {
     return this.sendAs({ tenantId: actor.tenantId!, actor, automationRuleId: null, checked: true, channel }, contactId, input, file);
@@ -105,7 +144,10 @@ export class MessagesService {
   }
 
   private async sendAs(
-    by: { tenantId: string; actor: Actor | null; automationRuleId: string | null; checked?: boolean; channel?: 'whatsapp' | 'email' },
+    by: {
+      tenantId: string; actor: Actor | null; automationRuleId: string | null; checked?: boolean; channel?: 'whatsapp' | 'email';
+      campaignId?: string;
+    },
     contactId: string, input: SendInput, file?: Upload,
   ) {
     const actor = by.actor;
@@ -122,6 +164,9 @@ export class MessagesService {
       const channel = a.kind === 'whatsapp_evolution' ? 'whatsapp' : 'email';
       if (by.channel && by.channel !== channel) {
         throw Problem.badRequest('Conta de outro canal.', [{ field: 'accountId', message: by.channel === 'email' ? 'Escolha uma conta de e-mail.' : 'Escolha um WhatsApp.' }]);
+      }
+      if (by.campaignId && channel === 'email' && a.status === 'error') {
+        throw Problem.conflict(`A conta de e-mail "${a.name}" está com erro. Confira em Configurações › Canais.`);
       }
       if (channel === 'whatsapp' && a.status !== 'connected') {
         throw Problem.conflict(`O WhatsApp "${a.name}" não está conectado. Peça ao administrador para conectar em Configurações › Canais.`);
@@ -152,9 +197,9 @@ export class MessagesService {
       }
       const kind = contentType ? kindOf(contentType) : 'text';
       const m = await q.query<{ id: string }>(
-        `insert into messages (tenant_id, channel_account_id, channel, direction, status, contact_id, remote, subject, body, kind, file_id, sent_by, automation_rule_id)
-         values (app.tenant_id(), $1, $2, 'out', 'queued', $3, $4, $5, $6, $7, $8, $9, $10) returning id`,
-        [a.id, channel, contactId, to, channel === 'email' ? input.subject!.trim() : null, text, kind, fileId, actor?.membershipId ?? null, by.automationRuleId]);
+        `insert into messages (tenant_id, channel_account_id, channel, direction, status, contact_id, remote, subject, body, kind, file_id, sent_by, automation_rule_id, campaign_id)
+         values (app.tenant_id(), $1, $2, 'out', 'queued', $3, $4, $5, $6, $7, $8, $9, $10, $11) returning id`,
+        [a.id, channel, contactId, to, channel === 'email' ? input.subject!.trim() : null, text, kind, fileId, actor?.membershipId ?? null, by.automationRuleId, by.campaignId ?? null]);
       return { id: m.rows[0]!.id, account: a, channel, to, kind, contentType };
     });
 
@@ -177,7 +222,7 @@ export class MessagesService {
         externalId = await sendTenantMail({
           host: c.host, port: c.port, secure: c.secure, user: c.user, fromName: c.fromName, address: prep.account.address!,
           pass: this.openSecret(prep.account.id, prep.account.secret!),
-        }, {
+        }, by.campaignId ? this.campaignMail(by.tenantId, prep.to, input.subject!.trim(), text ?? '') : {
           to: prep.to, subject: input.subject!.trim(), text: text ?? '', html: textToHtml(text ?? ''),
           attachments: file ? [{ filename: file.name, content: file.data, contentType: prep.contentType! }] : undefined,
         }, this.cfg.CHANNEL_ALLOW_PRIVATE_HOSTS);
@@ -212,6 +257,15 @@ export class MessagesService {
       if (!error) await q.query('update contacts set last_activity_at = now() where id = $1', [contactId]);
       return this.row(q, prep.id);
     });
+  }
+
+  /** E-mail de campanha: rodapé e cabeçalho de descadastro (um clique). */
+  private campaignMail(tenantId: string, to: string, subject: string, text: string) {
+    const url = `${this.cfg.APP_URL.replace(/\/$/, '')}/api/v1/public/descadastrar/${this.unsubscribeToken(tenantId, 'email', to)}`;
+    const foot = `\n\n—\nPara não receber mais estes e-mails: ${url}`;
+    const html = `${textToHtml(text)}<p style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#666;margin-top:24px">`
+      + `Para não receber mais estes e-mails, <a href="${url}">clique aqui</a>.</p>`;
+    return { to, subject, text: text + foot, html, headers: { 'List-Unsubscribe': `<${url}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } };
   }
 
   // ---- Recebimento (webhook da Evolution) ---------------------------------------------
@@ -287,6 +341,15 @@ export class MessagesService {
       await q.query(
         `insert into timeline_entries (tenant_id, kind, contact_id, data) values (app.tenant_id(), $1, $2, $3)`,
         [ev.fromMe ? 'message.sent' : 'message.received', contactId, JSON.stringify({ messageId, channel: 'whatsapp', newContact: created })]);
+      // "SAIR": o número não recebe mais campanhas nem automações.
+      if (!ev.fromMe && ev.text && OPT_OUT.test(ev.text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim())) {
+        await q.query(
+          `insert into suppression_list (tenant_id, channel, value, reason) values (app.tenant_id(), 'whatsapp', $1, 'opt_out')
+           on conflict (tenant_id, channel, value) do nothing`, [ev.e164]);
+        await q.query(
+          `insert into timeline_entries (tenant_id, kind, contact_id, data) values (app.tenant_id(), 'consent.opt_out', $1, $2)`,
+          [contactId, JSON.stringify({ channel: 'whatsapp', via: 'reply' })]);
+      }
       await q.query('update contacts set last_activity_at = now() where id = $1', [contactId]);
       return 'stored';
     });

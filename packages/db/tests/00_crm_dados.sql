@@ -97,6 +97,12 @@ begin
   -- Conversas: a mensagem acima já criou a conversa. Uma resposta pronta.
   insert into quick_replies (tenant_id, channel, shortcut, title, body, created_by)
   values (p_tenant, 'whatsapp', 'fixo', 'Fixo', 'Olá!', p_member);
+
+  -- Campanhas: um rascunho com um destinatário.
+  insert into campaigns (id, tenant_id, name, channel, body, created_by)
+  values (t.id(p_tenant, 23), p_tenant, 'Black Friday', 'whatsapp', 'Oferta!', p_member);
+  insert into campaign_recipients (tenant_id, campaign_id, contact_id, address)
+  values (p_tenant, t.id(p_tenant, 23), t.id(p_tenant, 2), '+5511999990000');
 end
 $$;
 

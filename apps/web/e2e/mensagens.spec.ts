@@ -164,3 +164,56 @@ test('conversas: nova conversa com quem nunca escreveu, resposta pronta pelo ata
   await expectAccessible(page);
   await shot(page, '47-conversas-filtros');
 });
+
+test('campanha de WhatsApp: cinco passos, público, envio no ritmo e relatório', async ({ page }) => {
+  test.setTimeout(120_000);
+  await loginAdmin(page);
+  await page.getByRole('navigation', { name: 'Menu principal' }).getByRole('link', { name: 'Campanhas' }).click();
+  await page.getByRole('link', { name: 'Nova campanha' }).click();
+  await expect(page.getByText('1. Geral')).toBeVisible();
+  await expect(page.getByText('0%')).toBeVisible();
+  // Sem nome e tipo não segue.
+  await page.getByRole('button', { name: 'Continuar' }).click();
+  await expect(page.getByText('Informe o nome da campanha.')).toBeVisible();
+  await page.getByLabel('Nome *').fill('Oferta de outubro');
+  await page.getByLabel('Descrição').fill('Clientes que já conversaram pelo WhatsApp');
+  await page.getByLabel('Tipo de Campanha *').selectOption('whatsapp');
+  await expectAccessible(page);
+  await shot(page, '48-campanha-geral');
+  await page.getByRole('button', { name: 'Continuar' }).click();
+
+  await expect(page.getByText('2. Audiência')).toBeVisible();
+  await expect(page.getByText(/contato\(s\) vão receber/)).toBeVisible();
+  await expect(page.getByText('Por exemplo:')).toContainText('Bruno');
+  await expectAccessible(page);
+  await shot(page, '49-campanha-audiencia');
+  await page.getByRole('button', { name: 'Continuar' }).click();
+
+  await expect(page.getByText('3. Conteúdo')).toBeVisible();
+  await page.getByLabel('Mensagem *').fill('Oi {{primeiro_nome}}! Temos novidades.');
+  await expect(page.getByText('Oi Maria! Temos novidades.')).toBeVisible();
+  await expectAccessible(page);
+  await page.getByRole('button', { name: 'Continuar' }).click();
+
+  await expect(page.getByText('4. Configurações')).toBeVisible();
+  await page.getByLabel('Ritmo de envio').selectOption('120');
+  await page.getByRole('button', { name: 'Continuar' }).click();
+
+  await expect(page.getByText('5. Revisão')).toBeVisible();
+  await expect(page.getByText('80%')).toBeVisible();
+  await expectAccessible(page);
+  await shot(page, '50-campanha-revisao');
+  const before = (await fake(page)).sent.length;
+  await page.getByRole('button', { name: 'Enviar agora' }).click();
+  await expect(page.getByRole('heading', { name: /Oferta de outubro/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Oferta de outubro/ })).toContainText('Concluída', { timeout: 60_000 });
+  const sent = (await fake(page)).sent.slice(before);
+  expect(sent.length).toBeGreaterThan(0);
+  const bruno = sent.find((x) => x.body.number === '5531988887766');
+  expect(bruno?.body.text).toBe('Oi Bruno! Temos novidades.\n\nPara não receber mais mensagens, responda SAIR.');
+  await expect(page.getByRole('region', { name: 'Destinatários' }).or(page.getByText('Destinatários'))).toBeVisible();
+  await expectAccessible(page);
+  await shot(page, '51-campanha-relatorio');
+  await page.getByRole('link', { name: 'Campanhas' }).first().click();
+  await expect(page.getByRole('row').filter({ hasText: 'Oferta de outubro' })).toContainText('Concluída');
+});
