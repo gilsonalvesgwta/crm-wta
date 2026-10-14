@@ -217,3 +217,57 @@ test('campanha de WhatsApp: cinco passos, público, envio no ritmo e relatório'
   await page.getByRole('link', { name: 'Campanhas' }).first().click();
   await expect(page.getByRole('row').filter({ hasText: 'Oferta de outubro' })).toContainText('Concluída');
 });
+
+test('painel da operação: status agora, tendências, mapa de calor e atendentes', async ({ page }) => {
+  await loginAdmin(page);
+  await page.getByRole('button', { name: 'Operação de atendimento' }).click();
+  await expect(page.getByRole('heading', { name: 'Status da operação agora' })).toBeVisible();
+  await expect(page.getByText('Mensagens recebidas', { exact: true })).toBeVisible();
+  await expect(page.getByText('Conversas sem responsável', { exact: true })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Conversas por dia' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Mapa de calor por dia e hora' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Desempenho dos atendentes' })).toContainText('Gilson');
+  await page.getByLabel('Canal', { exact: true }).selectOption('email');
+  await expect(page.getByRole('heading', { name: 'Status da operação agora' })).toBeVisible();
+  await page.getByLabel('Canal', { exact: true }).selectOption('');
+  await expectAccessible(page);
+  await shot(page, '52-painel-operacao');
+});
+
+test('ações agendadas: agendar pelo contato e pela conversa, mudar e cancelar', async ({ page }) => {
+  await loginAdmin(page);
+  await page.getByRole('navigation', { name: 'Menu principal' }).getByRole('link', { name: 'Contatos' }).click();
+  await page.getByRole('navigation', { name: 'Subopções de contatos' }).getByRole('link', { name: 'Ações agendadas' }).click();
+  await page.getByRole('button', { name: 'Agendar mensagem' }).click();
+  const d = page.getByRole('dialog', { name: 'Agendar mensagem' });
+  await d.getByLabel('Contato').fill('Bruno');
+  await d.getByRole('option', { name: 'Bruno Prospect' }).click();
+  await d.getByLabel('Mensagem').fill('Bruno, passando para lembrar da proposta.');
+  await expectAccessible(page);
+  await d.getByRole('button', { name: 'Agendar' }).click();
+  await expect(page.getByText('Mensagem agendada.')).toBeVisible();
+  const item = page.getByRole('listitem').filter({ hasText: 'Bruno, passando para lembrar' });
+  await expect(item).toContainText('Agendada');
+  await expectAccessible(page);
+  await shot(page, '53-acoes-agendadas');
+
+  await item.getByRole('button', { name: /Mudar a mensagem/ }).click();
+  const e = page.getByRole('dialog', { name: 'Mudar mensagem agendada' });
+  await e.getByLabel('Mensagem').fill('Bruno, lembrete da proposta (atualizado).');
+  await e.getByRole('button', { name: 'Salvar' }).click();
+  await expect(page.getByText('Agendamento atualizado.')).toBeVisible();
+  const updated = page.getByRole('listitem').filter({ hasText: 'lembrete da proposta (atualizado)' });
+  await updated.getByRole('button', { name: /Cancelar a mensagem/ }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancelar mensagem' }).click();
+  await expect(page.getByText('Mensagem cancelada.')).toBeVisible();
+  await expect(updated).toHaveCount(0);
+
+  // Pela conversa: escreve e agenda em vez de enviar.
+  await page.goto('/conversas?st=all');
+  await page.getByRole('region', { name: 'Lista de conversas' }).getByRole('button', { name: /Bruno Prospect/ }).first().click();
+  await page.getByLabel('Mensagem', { exact: true }).fill('Mensagem para amanhã');
+  await page.getByRole('button', { name: 'Agendar', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Agendar mensagem' }).getByRole('button', { name: 'Agendar' }).click();
+  await expect(page.getByText(/Agendada para .*Ações agendadas/)).toBeVisible();
+  await expect(page.getByLabel('Mensagem', { exact: true })).toHaveValue('');
+});

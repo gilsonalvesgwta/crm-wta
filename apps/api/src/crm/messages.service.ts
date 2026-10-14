@@ -103,6 +103,11 @@ export class MessagesService {
     return this.sendAs({ tenantId, actor: null, automationRuleId: null, campaignId }, contactId, input);
   }
 
+  /** Mensagem agendada: sai em nome de quem agendou. */
+  sendScheduled(tenantId: string, ownerId: string | null, contactId: string, input: SendInput) {
+    return this.sendAs({ tenantId, actor: null, automationRuleId: null, sentBy: ownerId }, contactId, input);
+  }
+
   /** Assinatura do link de descadastro (empresa, canal e endereço). */
   unsubscribeToken(tenantId: string, channel: 'whatsapp' | 'email', address: string): string {
     const payload = Buffer.from(JSON.stringify({ t: tenantId, c: channel, v: address })).toString('base64url');
@@ -147,6 +152,8 @@ export class MessagesService {
     by: {
       tenantId: string; actor: Actor | null; automationRuleId: string | null; checked?: boolean; channel?: 'whatsapp' | 'email';
       campaignId?: string;
+      /** Mensagem agendada por uma pessoa: sai em nome dela, sem a lista de supressão. */
+      sentBy?: string | null;
     },
     contactId: string, input: SendInput, file?: Upload,
   ) {
@@ -184,7 +191,7 @@ export class MessagesService {
       const to = input.to ? options.find((o) => o === input.to!.trim().toLowerCase() || o === input.to!.trim()) : options[0];
       if (!to) throw Problem.badRequest('Destino inválido.', [{ field: 'to', message: 'Escolha um telefone ou e-mail do contato.' }]);
       // Conversa individual, escrita por alguém da empresa: a lista de supressão vale para campanhas e automações.
-      if (!actor) {
+      if (!actor && !by.sentBy) {
         const suppressed = await q.query('select 1 from suppression_list where channel = $1 and value = $2', [channel, to]);
         if (suppressed.rowCount) throw Problem.conflict('O contato pediu para não receber mensagens automáticas por este canal.');
       }
@@ -199,7 +206,7 @@ export class MessagesService {
       const m = await q.query<{ id: string }>(
         `insert into messages (tenant_id, channel_account_id, channel, direction, status, contact_id, remote, subject, body, kind, file_id, sent_by, automation_rule_id, campaign_id)
          values (app.tenant_id(), $1, $2, 'out', 'queued', $3, $4, $5, $6, $7, $8, $9, $10, $11) returning id`,
-        [a.id, channel, contactId, to, channel === 'email' ? input.subject!.trim() : null, text, kind, fileId, actor?.membershipId ?? null, by.automationRuleId, by.campaignId ?? null]);
+        [a.id, channel, contactId, to, channel === 'email' ? input.subject!.trim() : null, text, kind, fileId, actor?.membershipId ?? by.sentBy ?? null, by.automationRuleId, by.campaignId ?? null]);
       return { id: m.rows[0]!.id, account: a, channel, to, kind, contentType };
     });
 
@@ -252,7 +259,7 @@ export class MessagesService {
       }
       await q.query(
         `insert into timeline_entries (tenant_id, kind, actor_membership_id, contact_id, data) values (app.tenant_id(), $1, $2, $3, $4)`,
-        [error ? 'message.failed' : 'message.sent', actor?.membershipId ?? null, contactId,
+        [error ? 'message.failed' : 'message.sent', actor?.membershipId ?? by.sentBy ?? null, contactId,
           JSON.stringify({ messageId: prep.id, channel: prep.channel, ...(by.automationRuleId ? { automation: by.automationRuleId } : {}) })]);
       if (!error) await q.query('update contacts set last_activity_at = now() where id = $1', [contactId]);
       return this.row(q, prep.id);

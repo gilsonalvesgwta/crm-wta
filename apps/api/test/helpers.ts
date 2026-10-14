@@ -105,7 +105,7 @@ export function testConfig(f: Fixture, extra: Record<string, string> = {}): Conf
     APP_URL: 'https://crm.teste.local',
     MASTER_KEYS: `1:${randomBytes(32).toString('base64')}`,
     MAIL_MODE: 'memory',
-    LOG_LEVEL: 'silent',
+    LOG_LEVEL: process.env.TEST_LOG_LEVEL ?? 'silent',
     COOKIE_SECURE: 'true',
     STORAGE_DIR: mkdtempSync(path.join(tmpdir(), 'crm-arquivos-')),
     DISPATCH_INTERVAL_S: '0',
@@ -113,7 +113,7 @@ export function testConfig(f: Fixture, extra: Record<string, string> = {}): Conf
 }
 
 export async function startApi(f: Fixture, extra: Record<string, string> = {}): Promise<{ app: NestFastifyApplication; mailer: MemoryMailer }> {
-  const app = await createApp(testConfig(f, extra), { logger: false });
+  const app = await createApp(testConfig(f, extra), { logger: !!process.env.TEST_LOG_LEVEL });
   return { app, mailer: app.get<MemoryMailer>(MAILER) };
 }
 

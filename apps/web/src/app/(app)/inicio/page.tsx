@@ -1,9 +1,11 @@
 'use client';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { AlarmClock, ArrowRight, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useLoad } from '@/lib/use-load';
+import { useQueryState } from '@/lib/use-query-state';
+import { OperationDashboard } from '@/components/crm/operation-dashboard';
 import { money, type Activity } from '@/lib/crm';
 import { useSession } from '@/components/shell/session';
 import { useDirectory, usePipelines } from '@/components/crm/data';
@@ -38,7 +40,13 @@ function period(kind: string): { from: Date; to: Date; label: string } {
 const pct = (n: number | null) => (n === null ? '—' : `${Math.round(n * 100)}%`);
 
 export default function HomePage() {
+  return <Suspense><Home /></Suspense>;
+}
+
+function Home() {
   const { me, can } = useSession();
+  const [view, setView] = useQueryState({ visao: '' });
+  const operation = view.visao === 'operacao' && can('reports:view');
   const { data: dir } = useDirectory();
   const { data: pipelines } = usePipelines();
   const [range, setRange] = useState('mes');
@@ -64,7 +72,7 @@ export default function HomePage() {
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">Olá, {first}</h1>
           <p className="text-muted first-letter:uppercase">{tenant ? `${tenant.name} · ` : ''}{today}</p>
         </div>
-        {me.tenantId ? (
+        {me.tenantId && !operation ? (
           <div className="flex flex-wrap gap-2">
             <select aria-label="Período" value={range} onChange={(e) => setRange(e.target.value)} className="h-10 rounded-[6px] border border-line-strong bg-surface px-2.5 text-sm">
               <option value="mes">Este mês</option><option value="30d">Últimos 30 dias</option><option value="trimestre">Este trimestre</option><option value="ano">Este ano</option>
@@ -91,7 +99,17 @@ export default function HomePage() {
         </Alert>
       ) : null}
 
-      {!me.tenantId ? <Empty title="Escolha uma empresa">Entre numa empresa para ver os números.</Empty>
+      {me.tenantId && can('reports:view') ? (
+        <div role="group" aria-label="Visão do painel" className="flex gap-1 border-b border-line">
+          {([['', 'Visão comercial'], ['operacao', 'Operação de atendimento']] as const).map(([v, label]) => (
+            <button key={v} type="button" aria-pressed={view.visao === v} onClick={() => setView({ visao: v })}
+              className={`h-11 border-b-2 px-3 text-sm ${view.visao === v ? 'border-primary font-semibold text-ink' : 'border-transparent font-medium text-muted hover:text-ink'}`}>{label}</button>
+          ))}
+        </div>
+      ) : null}
+
+      {operation ? <OperationDashboard />
+        : !me.tenantId ? <Empty title="Escolha uma empresa">Entre numa empresa para ver os números.</Empty>
         : summary.error ? <LoadError error={summary.error} retry={summary.reload} />
         : !s ? <Loading />
         : (

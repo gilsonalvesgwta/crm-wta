@@ -1,10 +1,11 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { AlertCircle, Check, CheckCheck, Clock, Download, Mail, MessageCircle, MessageSquareText, Paperclip, Send, X } from 'lucide-react';
+import { AlertCircle, CalendarClock, Check, CheckCheck, Clock, Download, Mail, MessageCircle, MessageSquareText, Paperclip, Send, X } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { fileSize, fmtDateTime, phone } from '@/lib/crm';
 import { KIND_LABEL, STATUS_LABEL, renderTemplate, type Channel, type Message, type QuickReply, type SendAccount } from '@/lib/messages';
 import { useSession } from '@/components/shell/session';
+import { ScheduleDialog } from './schedule-dialog';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
@@ -93,7 +94,9 @@ export function MessageThread({ contactId, contactName, conversation, target, ca
   contactId: string; contactName?: string; conversation?: { id: string; channel: Channel };
   target: Target; canSend: boolean; onActivity?: () => void; height?: string;
 }) {
-  const { me } = useSession();
+  const { me, can } = useSession();
+  const [scheduling, setScheduling] = useState(false);
+  const [scheduledMsg, setScheduledMsg] = useState<string | null>(null);
   const base = conversation ? `/api/v1/conversations/${conversation.id}` : `/api/v1/contacts/${contactId}`;
   const [items, setItems] = useState<Message[] | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -322,12 +325,29 @@ export function MessageThread({ contactId, contactName, conversation, target, ca
                   </span>
                 ) : null}
               </div>
-              <Button type="submit" loading={sending} disabled={!account || options.length === 0 || (!text.trim() && !file) || (isEmail && !subject.trim())}>
-                <Send size={16} aria-hidden />Enviar
-              </Button>
+              <div className="flex gap-2">
+                {can('scheduled:manage') && !file ? (
+                  <Button type="button" variant="secondary" disabled={!account || options.length === 0 || !text.trim() || (isEmail && !subject.trim())}
+                    onClick={() => setScheduling(true)}><CalendarClock size={16} aria-hidden />Agendar</Button>
+                ) : null}
+                <Button type="submit" loading={sending} disabled={!account || options.length === 0 || (!text.trim() && !file) || (isEmail && !subject.trim())}>
+                  <Send size={16} aria-hidden />Enviar
+                </Button>
+              </div>
             </div>
+            {scheduledMsg ? <p role="status" className="text-[13px] text-ok">{scheduledMsg}</p> : null}
           </form>
         )
+      ) : null}
+      {scheduling ? (
+        <ScheduleDialog open contact={{ id: contactId, name: contactName ?? 'este contato' }}
+          defaults={{ accountId, text, subject: isEmail ? subject : undefined }}
+          onClose={() => setScheduling(false)}
+          onSaved={(m) => {
+            setScheduling(false);
+            setText(''); setSubject('');
+            setScheduledMsg(`Agendada para ${fmtDateTime.format(new Date(m.sendAt))}. Veja em Contatos › Ações agendadas.`);
+          }} />
       ) : null}
     </div>
   );

@@ -23,6 +23,16 @@ Atualizado em 14 de outubro de 2026.
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
 
+### Operação e ações agendadas (bloco 3 dos ajustes de 14 out 2026)
+
+| Item | Evidência |
+| --- | --- |
+| Início › Operação de atendimento: mensagens, tempo médio de resposta, encerradas, follow-ups, conversas ativas e sem responsável, com filtros de período, canal, atendente e equipe | Integração; ponta a ponta |
+| Tendências por dia (conversas e tempo de 1ª resposta), mapa de calor por dia e hora, resumo do funil, desempenho por canal e por atendente, funil por etapa | Integração; ponta a ponta |
+| Contatos › Ações agendadas: mensagens agendadas, passos de automação, campanhas e tarefas numa lista por dia, com filtros | Integração; ponta a ponta |
+| Agendar mensagem de WhatsApp ou e-mail (pela lista ou pela caixa da conversa), mudar e cancelar; envio no horário pelo despachante | Banco; integração; ponta a ponta |
+| CSAT (nota de satisfação): não incluído; depende de uma pesquisa de satisfação | — |
+
 ### Campanhas (bloco 2 dos ajustes de 14 out 2026)
 
 | Item | Evidência |

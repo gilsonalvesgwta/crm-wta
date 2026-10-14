@@ -103,6 +103,10 @@ begin
   values (t.id(p_tenant, 23), p_tenant, 'Black Friday', 'whatsapp', 'Oferta!', p_member);
   insert into campaign_recipients (tenant_id, campaign_id, contact_id, address)
   values (p_tenant, t.id(p_tenant, 23), t.id(p_tenant, 2), '+5511999990000');
+
+  -- Mensagem agendada.
+  insert into scheduled_messages (id, tenant_id, contact_id, channel_account_id, channel, body, send_at, owner_membership_id)
+  values (t.id(p_tenant, 24), p_tenant, t.id(p_tenant, 2), t.id(p_tenant, 18), 'whatsapp', 'Lembrete', now() + interval '1 day', p_member);
 end
 $$;
 
