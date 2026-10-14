@@ -38,7 +38,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     { href: '/organizacoes', label: 'Organizações', icon: <Building size={18} strokeWidth={1.75} aria-hidden />, show: can('contacts:view') },
     { href: '/agenda', label: 'Agenda', icon: <CalendarDays size={18} strokeWidth={1.75} aria-hidden />, show: can('tasks:manage') },
   ].filter((i) => i.show !== false && !!me.tenantId);
-  const admin = ['settings:admin', 'users:admin', 'audit:view', 'pipelines:admin', 'products:admin', 'contacts:delete', 'channels:admin'].some(can);
+  const admin = ['settings:admin', 'users:admin', 'audit:view', 'pipelines:admin', 'products:admin', 'contacts:delete', 'channels:admin', 'automations:view', 'integrations:admin'].some(can);
   const tenant = me.tenants.find((t) => t.id === me.tenantId);
   const initials = me.user.name.split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 

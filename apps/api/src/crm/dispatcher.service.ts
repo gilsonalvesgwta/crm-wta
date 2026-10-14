@@ -3,6 +3,7 @@ import { CONFIG, type Config } from '../config.js';
 import { Db } from '../infra/db.js';
 import { ActivitiesService } from './activities.service.js';
 import { ImportExportService } from './import-export.service.js';
+import { AutomationsService } from '../automations/automations.service.js';
 
 /**
  * Trabalho em segundo plano da Fase 2, dentro do processo da API: lembretes,
@@ -22,6 +23,7 @@ export class DispatcherService implements OnApplicationBootstrap, OnApplicationS
     @Inject(Db) private readonly db: Db,
     @Inject(ActivitiesService) private readonly activities: ActivitiesService,
     @Inject(ImportExportService) private readonly imports: ImportExportService,
+    @Inject(AutomationsService) private readonly automations: AutomationsService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -43,7 +45,7 @@ export class DispatcherService implements OnApplicationBootstrap, OnApplicationS
   }
 
   /** Uma rodada completa. Exposto para os testes. */
-  async runOnce(budgetMs = 10_000): Promise<{ reminders: number; importBatches: number; seriesExtended: number; expired: number }> {
+  async runOnce(budgetMs = 10_000): Promise<{ reminders: number; importBatches: number; seriesExtended: number; expired: number; automations: { created: number; executed: number } }> {
     const started = Date.now();
     const reminders = await this.reminders();
     let importBatches = 0;
@@ -66,7 +68,8 @@ export class DispatcherService implements OnApplicationBootstrap, OnApplicationS
     // Assinatura vencida suspende a empresa.
     const expired = await this.db.dispatch(async (q) => (await q.query('select tenant_id from app.expire_subscriptions()')).rowCount ?? 0);
     if (expired) this.log.log(`${expired} assinatura(s) vencida(s): empresa(s) suspensa(s)`);
-    return { reminders, importBatches, seriesExtended, expired };
+    const automations = await this.automations.dispatch(Math.max(2000, budgetMs - (Date.now() - started)));
+    return { reminders, importBatches, seriesExtended, expired, automations };
   }
 
   private async reminders(): Promise<number> {

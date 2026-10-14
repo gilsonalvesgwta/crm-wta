@@ -13,7 +13,7 @@ Cada integração terá um de três estados neste arquivo: **planejada**, **impl
 | E-mail por SMTP (envio) | SMTP da caixa da empresa | Lote 2 | Implementada, aguardando teste real |
 | E-mail por IMAP (leitura das respostas) | Sincronização por UID | 5 | Planejada |
 | Gmail e Microsoft 365 | OAuth, Gmail API, Microsoft Graph | 5 | Planejada |
-| n8n | Webhooks assinados na saída; API com chave na entrada | 3 | Planejada |
+| n8n | Chave de API na entrada (`/api/v1/inbound`); webhook das automações na saída | Lote 3 | Implementada, aguardando teste real |
 | Captação de leads | Endereço de captação com token | 7 | Planejada |
 | Greenn (cobrança das empresas clientes) | Webhook da Greenn para o CRM | Lote 1 | Implementada, aguardando teste real |
 
@@ -100,6 +100,13 @@ O primeiro a ser construído é o IMAP/SMTP.
 Conferido ([nó Webhook](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.webhook/)): o nó aceita autenticação básica, por cabeçalho ou JWT; o corpo vai até 16 MB por padrão; os endereços de teste e de produção são diferentes.
 
 O contrato dos eventos e da API de entrada está em [`API.md`](API.md). O n8n não acessa o banco do CRM.
+
+**Implementado (lote 3):**
+
+- **Do n8n para o CRM:** chave de API (Configurações › API e n8n, mostrada uma vez, revogável) e `POST /api/v1/inbound` com `Authorization: Bearer <chave>`. Acha ou cria o contato pelo e-mail ou telefone, cria organização e etiquetas pelo nome, e põe o negócio no funil e na etapa pedidos (pelo nome ou identificador), ou cria um lead. A chave também abre o resto da API, com as permissões de quem a criou. Exige o recurso "API" no plano.
+- **Do CRM para o n8n:** ação "Avisar o n8n (webhook)" nas automações: `POST` em JSON com o evento, a automação, o contato e o negócio. Endereço interno da VPS é recusado; resposta diferente de 2xx conta como falha da execução.
+
+Testado com um servidor local no lugar do n8n. **Falta o teste com o n8n da VPS.**
 
 ## Greenn
 

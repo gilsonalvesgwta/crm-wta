@@ -122,6 +122,20 @@ Toda rota exige sessão, salvo as marcadas como pública. Mutações exigem o ca
 
 Para quem não é superadministrador, as rotas da plataforma respondem 404.
 
+### Automações e integrações (lote 3)
+
+| Método e caminho | Acesso | Função |
+| --- | --- | --- |
+| `GET /api/v1/automations` | `automations:view` | Regras, contagem de execuções em 30 dias e a lista de variáveis dos textos |
+| `POST /api/v1/automations`, `PUT /api/v1/automations/:id` | `automations:admin` + 2FA se exigida | `{name, active, trigger, filters, actions}`. Gatilhos: `contact.created`, `lead.created`, `deal.created`, `deal.stage_changed` (`stageId?`), `deal.won`, `deal.lost`, `message.received`, `birthday` (`time`), `deal.inactive` (`days`). Ações: `send_whatsapp`, `send_email`, `create_task`, `add_tag`, `move_stage`, `webhook`, `wait` (`minutes`). Limite `max_automations` (ativas) |
+| `PATCH /api/v1/automations/:id` | `automations:admin` | `{active}`; desligar cancela as execuções que esperavam |
+| `DELETE /api/v1/automations/:id` | `automations:admin` | Exclui a regra e as execuções |
+| `GET /api/v1/automations/runs?ruleId=` | `automations:view` | Últimas 100 execuções, com o que cada ação fez |
+| `GET, POST /api/v1/api-keys`, `DELETE /api/v1/api-keys/:id` | `integrations:admin` + 2FA se exigida | Chaves de API; a chave inteira só volta na criação. Exige `api_access` no plano |
+| `POST /api/v1/inbound` | Chave de API (`Authorization: Bearer crm_...` ou `X-Api-Key`) ou sessão, com `contacts:edit` | `{contact:{name|firstName, lastName, email, phone, tags[], ownerEmail, birthday, custom}, organization?:{name}, deal?:{title, value, pipeline|pipelineId, stage|stageId, ownerEmail, tags[]}, lead?:{title, source}, note?, touch?}` → `{contactId, created, organizationId, dealId, leadId}` |
+
+Com chave de API não há cookie, então não há verificação de CSRF; chave inválida, revogada, de empresa suspensa ou de plano sem API responde 401.
+
 ### Cópias de segurança (Plataforma)
 
 | Método e caminho | Acesso | Função |

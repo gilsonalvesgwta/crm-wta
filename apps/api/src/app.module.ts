@@ -33,6 +33,11 @@ import { ChannelsController, EvolutionWebhookController, MessagesController } fr
 import { Evolution } from './infra/evolution.js';
 import { BackupsService } from './backup/backups.service.js';
 import { BackupsController } from './backup/backups.controller.js';
+import { AutomationsService } from './automations/automations.service.js';
+import { AutomationsController } from './automations/automations.controller.js';
+import { ApiKeysService } from './integrations/api-keys.service.js';
+import { InboundService } from './integrations/inbound.service.js';
+import { IntegrationsController } from './integrations/integrations.controller.js';
 import {
   ActivitiesController, CatalogController, ContactsController, DashboardController, DealsController, ImportsController,
   LeadsController, OrganizationsController, PipelinesController, PrivacyController, RecordsController,
@@ -46,7 +51,7 @@ export class AppModule {
       controllers: [
         HealthController, AuthController, AdminController, PlatformController, WebhooksController, TenantFeaturesController, ContactsController, OrganizationsController,
         CatalogController, PipelinesController, DealsController, LeadsController, ActivitiesController, RecordsController,
-        ImportsController, PrivacyController, DashboardController, ChannelsController, MessagesController, EvolutionWebhookController, BackupsController,
+        ImportsController, PrivacyController, DashboardController, ChannelsController, MessagesController, EvolutionWebhookController, BackupsController, AutomationsController, IntegrationsController,
       ],
       providers: [
         { provide: CONFIG, useValue: cfg },
@@ -74,6 +79,9 @@ export class AppModule {
         MessagesService,
         ChannelsService,
         BackupsService,
+        AutomationsService,
+        ApiKeysService,
+        InboundService,
         { provide: APP_GUARD, useClass: SessionGuard },
         { provide: APP_FILTER, useClass: ProblemFilter },
       ],

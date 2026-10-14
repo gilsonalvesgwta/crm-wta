@@ -167,6 +167,16 @@ O processamento de cada item acontece depois, no contexto da empresa, como `crm_
 
 `files.purpose` ganha `message`. `app.channel_by_webhook(hash)` devolve empresa e conta do token (só empresa ativa), para o webhook achar o contexto. Excluir o contato apaga as mensagens; remover a conta mantém o histórico sem ela; mesclar contatos leva as mensagens.
 
+### Automações (migração 0007)
+
+| Tabela | Conteúdo |
+| --- | --- |
+| `automation_rules` | Nome, ligada, gatilho, filtros e ações (JSON validado na API), `last_event_at` (até onde os eventos já viraram execução) |
+| `automation_runs` | Uma execução por regra e origem (`evento:<id da linha do tempo>`, `aniversario:<dia>:<contato>`, `parado:<negócio>:<dia>`), com estado, passo, próximo horário (esperas) e o registro de cada ação |
+| `messages.automation_rule_id` | Mensagem enviada por uma automação |
+
+Funções do despachante (`crm_dispatch`): `app.automation_scan_events()` (eventos novos da linha do tempo viram execuções), `app.automation_scan_schedules()` (aniversário no horário e fuso da empresa; negócio parado há N dias) e `app.automation_claim(n)` (reserva por 10 minutos com SKIP LOCKED). Chaves de API: `app.api_key_lookup(prefixo)` e `app.api_key_touch(id)`.
+
 ## Tabelas planejadas
 
 Entram com as migrações de cada fase e podem mudar quando as integrações forem testadas de verdade.
