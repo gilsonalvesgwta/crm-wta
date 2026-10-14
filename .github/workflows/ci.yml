@@ -78,6 +78,13 @@ jobs:
           node-version: 24
           cache: pnpm
 
+      # pg_dump precisa ser da mesma versão do servidor (18) para as cópias.
+      - name: Cliente do PostgreSQL 18
+        run: |
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y > /dev/null
+          sudo apt-get install -y -q postgresql-client-18 > /dev/null
+          echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
+
       - name: Preparar a pasta de saída
         run: |
           mkdir -p "$SAIDA"
@@ -142,9 +149,14 @@ jobs:
             nohup node apps/web/e2e/fake-servers.mjs > "$SAIDA/6-falsos.txt" 2>&1 &
             DATABASE_URL=postgres://crm_api:senha-e2e@localhost:5432/crm_e2e \
             APP_URL=http://localhost:3000 MASTER_KEYS="1:$(openssl rand -base64 32)" \
-            EVOLUTION_URL=http://127.0.0.1:8790 EVOLUTION_API_KEY=chave-e2e CHANNEL_ALLOW_PRIVATE_HOSTS=true \
+            EVOLUTION_URL=http://127.0.0.1:8790 EVOLUTION_API_KEY=chave-e2e CHANNEL_ALLOW_PRIVATE_HOSTS=true BACKUP_DIR=/tmp/crm-backups \
             MAIL_MODE=file MAIL_DIR=/tmp/crm-mail STORAGE_DIR=/tmp/crm-files DISPATCH_INTERVAL_S=2 TRUST_PROXY=true COOKIE_SECURE=false LOG_LEVEL=warn PORT=3001 \
               nohup node apps/api/dist/main.js > "$SAIDA/6-api-servidor.txt" 2>&1 &
+
+            # Agente de cópias (o mesmo do serviço "backup" da stack).
+            PGHOST=localhost PGPORT=5432 PGUSER=postgres PGPASSWORD=postgres PGDATABASE=crm_e2e BACKUP_DIR=/tmp/crm-backups \
+            FILES_DIR=/tmp/crm-files MIGRATE_SCRIPT=packages/db/migrate.sh OWNER_UID=$(id -u) \
+              nohup node apps/api/dist/cli/backup-agent.js > "$SAIDA/6-copias.txt" 2>&1 &
 
             W=apps/web/.next/standalone/apps/web
             cp -r apps/web/.next/static "$W/.next/static"

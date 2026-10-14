@@ -1,5 +1,5 @@
 import pg from 'pg';
-import { Inject, Injectable, type OnModuleDestroy } from '@nestjs/common';
+import { Inject, Injectable, Logger, type OnModuleDestroy } from '@nestjs/common';
 import { CONFIG, type Config } from '../config.js';
 
 export type Q = {
@@ -23,7 +23,12 @@ export class Db implements OnModuleDestroy {
       max: cfg.DATABASE_POOL_MAX,
       application_name: 'crm-api',
     });
+    // Conexão parada caiu (banco reiniciado, restauração do banco inteiro): o
+    // pool descarta e abre outra; sem este tratamento o processo inteiro cairia.
+    this.pool.on('error', (err) => this.log.warn(`conexão do banco perdida: ${err.message}`));
   }
+
+  private readonly log = new Logger('banco');
 
   async onModuleDestroy(): Promise<void> {
     await this.pool.end();
