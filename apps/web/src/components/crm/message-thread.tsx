@@ -1,16 +1,16 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { AlertCircle, CalendarClock, Check, CheckCheck, Clock, Download, Mail, MessageCircle, MessageSquareText, Paperclip, Send, X } from 'lucide-react';
+import { AlertCircle, AtSign, CalendarClock, Check, CheckCheck, Clock, Download, FileText, Mail, MessageCircle, MessageSquareText, Paperclip, Send, X } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { fileSize, fmtDateTime, phone } from '@/lib/crm';
-import { KIND_LABEL, STATUS_LABEL, renderTemplate, type Channel, type Message, type QuickReply, type SendAccount } from '@/lib/messages';
+import { CHANNEL_NAME, KIND_LABEL, KIND_NAME, STATUS_LABEL, channelOfKind, fillTemplate, renderTemplate, templateVariables, type Channel, type Message, type QuickReply, type SendAccount, type WaTemplate } from '@/lib/messages';
 import { useSession } from '@/components/shell/session';
 import { ScheduleDialog } from './schedule-dialog';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
 
-type Target = { phones: string[]; emails: string[] };
+type Target = { phones: string[]; emails: string[]; instagram?: string[] };
 
 /** Envio com arquivo: campos antes do arquivo, como a API espera. */
 async function sendWithFile(base: string, fields: Record<string, string>, file: File): Promise<Message> {
@@ -67,9 +67,9 @@ function Bubble({ m }: { m: Message }) {
         ? m.status === 'failed' ? 'border border-bad bg-bad-soft text-ink' : 'bg-accent-soft text-ink'
         : 'border border-line bg-surface text-ink'}`}>
         <p className="flex flex-wrap items-center gap-1.5 text-[12px] text-muted">
-          {m.channel === 'email' ? <Mail size={13} aria-hidden /> : <MessageCircle size={13} aria-hidden />}
-          <span>{m.channel === 'email' ? 'E-mail' : 'WhatsApp'}{m.account ? ` · ${m.account.name}` : ''}</span>
-          {out ? <span>· {m.automation ? `automação "${m.automation.name}"` : m.sentBy?.name ?? 'pelo celular'}</span> : null}
+          {m.channel === 'email' ? <Mail size={13} aria-hidden /> : m.channel === 'instagram' ? <AtSign size={13} aria-hidden /> : <MessageCircle size={13} aria-hidden />}
+          <span>{CHANNEL_NAME[m.channel]}{m.account ? ` · ${m.account.name}` : ''}</span>
+          {out ? <span>· {m.automation ? `automação "${m.automation.name}"` : m.campaign ? `campanha "${m.campaign.name}"` : m.sentBy?.name ?? 'pelo celular'}</span> : null}
         </p>
         {m.subject ? <p className="font-semibold">{m.subject}</p> : null}
         {m.file ? <Attachment file={m.file} out={out} /> : !m.body ? <p className="italic text-muted">{KIND_LABEL[m.kind] ?? 'Mensagem'}</p> : null}
@@ -109,6 +109,10 @@ export function MessageThread({ contactId, contactName, conversation, target, ca
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState<ApiError | null>(null);
   const [replies, setReplies] = useState<QuickReply[] | null>(null);
+  // WhatsApp oficial: modelo aprovado (obrigatório para começar a conversa ou depois de 24 h).
+  const [templates, setTemplates] = useState<WaTemplate[] | null>(null);
+  const [tplOpen, setTplOpen] = useState(false);
+  const [tpl, setTpl] = useState<{ t: WaTemplate; params: string[] } | null>(null);
   const [picker, setPicker] = useState<{ query: string; viaButton: boolean } | null>(null);
   const [active, setActive] = useState(0);
   const list = useRef<HTMLUListElement>(null);
@@ -146,9 +150,10 @@ export function MessageThread({ contactId, contactName, conversation, target, ca
   useEffect(() => {
     if (!canSend) return;
     api<{ items: SendAccount[] }>('GET', '/api/v1/channels/available').then((r) => {
-      const usable = r.items.filter((a) => !only || (only === 'email') === (a.kind === 'email_smtp'));
+      const usable = r.items.filter((a) => !only || channelOfKind(a.kind) === only);
       setAccounts(usable);
-      const preferred = usable.find((a) => a.kind === 'whatsapp_evolution' && target.phones.length) ?? usable.find((a) => a.kind === 'email_smtp' && target.emails.length) ?? usable[0];
+      const preferred = usable.find((a) => a.kind === 'whatsapp_evolution' && target.phones.length) ?? usable.find((a) => a.kind === 'whatsapp_cloud' && target.phones.length)
+        ?? usable.find((a) => a.kind === 'email_smtp' && target.emails.length) ?? usable[0];
       if (preferred) setAccountId((cur) => cur || preferred.id);
     }).catch(() => setAccounts([]));
   }, [canSend, only, target.phones.length, target.emails.length]);
@@ -168,8 +173,12 @@ export function MessageThread({ contactId, contactName, conversation, target, ca
 
   const account = accounts?.find((a) => a.id === accountId);
   const isEmail = account?.kind === 'email_smtp';
-  const options = isEmail ? target.emails : target.phones;
-  const channel: Channel = isEmail ? 'email' : 'whatsapp';
+  const isInstagram = account?.kind === 'instagram';
+  const isCloud = account?.kind === 'whatsapp_cloud';
+  const options = isEmail ? target.emails : isInstagram ? (target.instagram ?? []) : target.phones;
+  const channel: Channel = account ? channelOfKind(account.kind) : 'whatsapp';
+  const tplVars = tpl ? templateVariables(tpl.t.body) : 0;
+  const tplReady = !!tpl && tpl.params.slice(0, tplVars).filter((x) => x.trim()).length >= tplVars;
   const tenantName = me.tenants.find((t) => t.id === me.tenantId)?.name ?? '';
   const vars = { nome: contactName ?? '', primeiro_nome: (contactName ?? '').split(/\s+/)[0] ?? '', empresa: tenantName, atendente: me.user.name };
   const norm = (v: string) => v.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -197,17 +206,31 @@ export function MessageThread({ contactId, contactName, conversation, target, ca
     setSending(true);
     setErr(null);
     try {
-      const fields = { accountId, to: to || options[0] || '', text, subject: isEmail ? subject : '' };
-      const m = file ? await sendWithFile(base, fields, file)
+      const fields = { accountId, to: isInstagram ? '' : to || options[0] || '', text, subject: isEmail ? subject : '' };
+      const m = tpl && isCloud
+        ? await api<Message>('POST', `${base}/messages`, { accountId, to: fields.to || null, templateId: tpl.t.id, templateParams: tpl.params.slice(0, tplVars) })
+        : file ? await sendWithFile(base, fields, file)
         : await api<Message>('POST', `${base}/messages`, { accountId, to: fields.to || null, text, subject: isEmail ? subject : null });
       setItems((cur) => [...(cur ?? []), m]);
       if (m.status === 'failed') setErr(new ApiError(0, 'send-failed', m.error ?? 'A mensagem não foi enviada.'));
-      else { setText(''); setSubject(''); setFile(null); }
+      else { setText(''); setSubject(''); setFile(null); setTpl(null); setTplOpen(false); }
       activity.current?.();
     } catch (e2) {
-      setErr(e2 instanceof ApiError ? e2 : new ApiError(0, 'error', 'Não foi possível enviar.'));
+      const er = e2 instanceof ApiError ? e2 : new ApiError(0, 'error', 'Não foi possível enviar.');
+      setErr(er);
+      if (er.type === 'outside-window' && isCloud) void openTemplates();
     } finally {
       setSending(false);
+    }
+  }
+
+  async function openTemplates() {
+    setTplOpen(true);
+    if (!account) return;
+    try {
+      setTemplates((await api<{ items: WaTemplate[] }>('GET', `/api/v1/whatsapp-templates?accountId=${account.id}&approved=1`)).items);
+    } catch {
+      setTemplates([]);
     }
   }
 
@@ -240,13 +263,13 @@ export function MessageThread({ contactId, contactName, conversation, target, ca
             {err ? <Alert tone="error">{err.fieldError('text') ?? err.fieldError('to') ?? err.fieldError('subject') ?? err.fieldError('file') ?? err.fieldError('accountId') ?? err.title}</Alert> : null}
             <div className="flex flex-wrap gap-2">
               <label className="sr-only" htmlFor={`canal-${contactId}`}>Enviar por</label>
-              <select id={`canal-${contactId}`} value={accountId} onChange={(e) => { setAccountId(e.target.value); setTo(''); setErr(null); }}
+              <select id={`canal-${contactId}`} value={accountId} onChange={(e) => { setAccountId(e.target.value); setTo(''); setErr(null); setTpl(null); setTplOpen(false); }}
                 className="h-9 min-w-0 flex-1 rounded-[6px] border border-line-strong bg-surface px-2 text-[13px]">
                 {(accounts ?? []).map((a) => (
-                  <option key={a.id} value={a.id}>{a.kind === 'whatsapp_evolution' ? 'WhatsApp' : 'E-mail'} · {a.name}{a.address ? ` · ${a.kind === 'whatsapp_evolution' ? phone(a.address) : a.address}` : ''}</option>
+                  <option key={a.id} value={a.id}>{KIND_NAME[a.kind]} · {a.name}{a.address ? ` · ${a.address.startsWith('+') ? phone(a.address) : a.address}` : ''}</option>
                 ))}
               </select>
-              {options.length > 1 ? (
+              {options.length > 1 && !isInstagram ? (
                 <>
                   <label className="sr-only" htmlFor={`para-${contactId}`}>Para</label>
                   <select id={`para-${contactId}`} value={to || options[0]} onChange={(e) => setTo(e.target.value)}
@@ -257,7 +280,7 @@ export function MessageThread({ contactId, contactName, conversation, target, ca
               ) : null}
             </div>
             {account && options.length === 0 ? (
-              <p className="text-[13px] text-warn">{isEmail ? 'O contato não tem e-mail cadastrado.' : 'O contato não tem telefone cadastrado.'}</p>
+              <p className="text-[13px] text-warn">{isEmail ? 'O contato não tem e-mail cadastrado.' : isInstagram ? 'O contato não tem Instagram (aparece quando a pessoa escreve).' : 'O contato não tem telefone cadastrado.'}</p>
             ) : null}
             {isEmail ? (
               <>
@@ -303,8 +326,50 @@ export function MessageThread({ contactId, contactName, conversation, target, ca
                 )}
               </div>
             ) : null}
+            {isCloud && tplOpen ? (
+              <div className="flex flex-col gap-2 rounded-[8px] border border-line bg-surface-2 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[13px] font-medium">Modelo aprovado do WhatsApp oficial</span>
+                  <button type="button" aria-label="Fechar modelos" onClick={() => { setTplOpen(false); setTpl(null); }}><X size={14} aria-hidden /></button>
+                </div>
+                {!templates ? <Spinner label="Carregando modelos" /> : templates.length === 0 ? (
+                  <p className="text-[13px] text-muted">Nenhum modelo aprovado neste número. Crie em Configurações › Canais › Modelos.</p>
+                ) : (
+                  <>
+                    <label className="sr-only" htmlFor={`modelo-${contactId}`}>Modelo</label>
+                    <select id={`modelo-${contactId}`} value={tpl?.t.id ?? ''} onChange={(e) => {
+                      const t = templates.find((x) => x.id === e.target.value);
+                      setTpl(t ? { t, params: Array.from({ length: templateVariables(t.body) }, (_, i) => (i === 0 && contactName ? contactName.split(/\s+/)[0]! : '')) } : null);
+                    }} className="h-9 rounded-[6px] border border-line-strong bg-surface px-2 text-[13px]">
+                      <option value="">Escolha o modelo</option>
+                      {templates.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.language})</option>)}
+                    </select>
+                    {tpl ? (
+                      <>
+                        {tplVars ? (
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            {Array.from({ length: tplVars }, (_, i) => (
+                              <label key={i} className="flex flex-col gap-1 text-[12px] font-medium">{`Valor de {{${i + 1}}}`}
+                                <input value={tpl.params[i] ?? ''} placeholder={tpl.t.examples[i] ?? ''}
+                                  onChange={(e) => { const p = [...tpl.params]; p[i] = e.target.value; setTpl({ ...tpl, params: p }); }}
+                                  className="h-9 rounded-[6px] border border-line-strong bg-surface px-2.5 text-sm font-normal" />
+                              </label>
+                            ))}
+                          </div>
+                        ) : null}
+                        <div className="rounded-[8px] bg-surface px-3 py-2 text-sm">
+                          {tpl.t.header ? <p className="font-semibold">{tpl.t.header}</p> : null}
+                          <p className="whitespace-pre-wrap">{fillTemplate(tpl.t.body, tpl.params)}</p>
+                          {tpl.t.footer ? <p className="text-[12px] text-muted">{tpl.t.footer}</p> : null}
+                        </div>
+                      </>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            ) : null}
             <label className="sr-only" htmlFor={`texto-${contactId}`}>Mensagem</label>
-            <textarea ref={textArea} id={`texto-${contactId}`} value={text} onChange={(e) => onText(e.target.value)} onKeyDown={onKey} rows={3}
+            <textarea ref={textArea} id={`texto-${contactId}`} hidden={!!tpl} value={text} onChange={(e) => onText(e.target.value)} onKeyDown={onKey} rows={3}
               aria-describedby={`dica-${contactId}`}
               placeholder={isEmail ? 'Escreva o e-mail (/ para respostas prontas)' : 'Escreva a mensagem (/ para respostas prontas, Ctrl+Enter envia)'}
               className="resize-y rounded-[6px] border border-line-strong bg-surface px-3 py-2 text-sm" />
@@ -313,7 +378,8 @@ export function MessageThread({ contactId, contactName, conversation, target, ca
               onChange={(e) => { setFile(e.target.files?.[0] ?? null); e.target.value = ''; }} />
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-2">
-                <Button type="button" variant="ghost" onClick={() => fileInput.current?.click()}><Paperclip size={16} aria-hidden />Anexar</Button>
+                {!isInstagram ? <Button type="button" variant="ghost" onClick={() => fileInput.current?.click()}><Paperclip size={16} aria-hidden />Anexar</Button> : null}
+                {isCloud ? <Button type="button" variant="ghost" aria-expanded={tplOpen} onClick={() => (tplOpen ? (setTplOpen(false), setTpl(null)) : void openTemplates())}><FileText size={16} aria-hidden />Modelo</Button> : null}
                 <Button type="button" variant="ghost" aria-expanded={!!picker} aria-controls={picker ? pickerId : undefined}
                   onClick={() => { setPicker(picker ? null : { query: '', viaButton: true }); setActive(0); }}>
                   <MessageSquareText size={16} aria-hidden />Respostas
@@ -330,7 +396,7 @@ export function MessageThread({ contactId, contactName, conversation, target, ca
                   <Button type="button" variant="secondary" disabled={!account || options.length === 0 || !text.trim() || (isEmail && !subject.trim())}
                     onClick={() => setScheduling(true)}><CalendarClock size={16} aria-hidden />Agendar</Button>
                 ) : null}
-                <Button type="submit" loading={sending} disabled={!account || options.length === 0 || (!text.trim() && !file) || (isEmail && !subject.trim())}>
+                <Button type="submit" loading={sending} disabled={!account || options.length === 0 || (tpl ? !tplReady : (!text.trim() && !file) || (isEmail && !subject.trim()))}>
                   <Send size={16} aria-hidden />Enviar
                 </Button>
               </div>

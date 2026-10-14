@@ -5,6 +5,7 @@ import { audit } from '../admin/audit.js';
 import { CONFIG, type Config } from '../config.js';
 import { OPT_OUT_HINT, type Audience, type CampaignInput } from '../domain/campaigns.js';
 import { render } from '../domain/automations.js';
+import { templateVariables } from '../domain/meta.js';
 import { Problem } from '../http/problem.js';
 import { Db, type Q } from '../infra/db.js';
 import { memberJson } from './fields.js';
@@ -34,7 +35,10 @@ const COLUMNS = `
   to_char(k.window_end, 'HH24:MI') as "windowEnd", k.opt_out_hint as "optOutHint", k.scheduled_at as "scheduledAt",
   k.started_at as "startedAt", k.finished_at as "finishedAt", k.last_error as "lastError",
   ${memberJson('k.created_by')} as "createdBy", ${memberJson('k.started_by')} as "startedBy",
-  k.created_at as "createdAt", k.updated_at as "updatedAt", ${STATS('k')} as stats`;
+  k.created_at as "createdAt", k.updated_at as "updatedAt", ${STATS('k')} as stats,
+  k.template_id as "templateId", k.template_params as "templateParams",
+  (select json_build_object('id', t.id, 'name', t.name, 'language', t.language, 'body', t.body, 'header', t.header, 'status', t.status)
+     from whatsapp_templates t where t.id = k.template_id) as template`;
 
 /** Contatos do público, com o endereço do canal e o último consentimento de marketing. */
 function audienceSql(p: Params, a: Audience, channel: Channel): string {
@@ -148,7 +152,7 @@ export class CampaignsService {
 
   private values(b: CampaignInput) {
     return [b.name, b.description, b.channel, JSON.stringify(b.audience), b.accountId ?? null, b.channel === 'email' ? b.subject : null,
-      b.body, b.perMinute, b.windowStart ?? null, b.windowEnd ?? null, b.optOutHint];
+      b.body, b.perMinute, b.windowStart ?? null, b.windowEnd ?? null, b.optOutHint, b.templateId ?? null, JSON.stringify(b.templateParams)];
   }
 
   async create(actor: Actor, b: CampaignInput) {
@@ -156,8 +160,8 @@ export class CampaignsService {
       await this.checkAccount(q, b.channel, b.accountId);
       const r = await q.query<{ id: string }>(
         `insert into campaigns (tenant_id, name, description, channel, audience, channel_account_id, subject, body, per_minute,
-                                window_start, window_end, opt_out_hint, created_by)
-         values (app.tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) returning id`,
+                                window_start, window_end, opt_out_hint, template_id, template_params, created_by)
+         values (app.tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) returning id`,
         [...this.values(b), actor.membershipId]);
       return this.row(q, r.rows[0]!.id);
     });
@@ -170,7 +174,7 @@ export class CampaignsService {
       await this.checkAccount(q, b.channel, b.accountId);
       await q.query(
         `update campaigns set name = $2, description = $3, channel = $4, audience = $5, channel_account_id = $6, subject = $7, body = $8,
-                per_minute = $9, window_start = $10, window_end = $11, opt_out_hint = $12 where id = $1`, [id, ...this.values(b)]);
+                per_minute = $9, window_start = $10, window_end = $11, opt_out_hint = $12, template_id = $13, template_params = $14 where id = $1`, [id, ...this.values(b)]);
       return this.row(q, id);
     });
   }
@@ -183,6 +187,8 @@ export class CampaignsService {
                                 window_start, window_end, opt_out_hint, created_by)
          select tenant_id, left(name || ' (cópia)', 120), description, channel, audience, channel_account_id, subject, body, per_minute,
                 window_start, window_end, opt_out_hint, $2 from campaigns where id = $1 returning id`, [id, actor.membershipId]);
+      await q.query('update campaigns k set template_id = o.template_id, template_params = o.template_params from campaigns o where k.id = $1 and o.id = $2',
+        [r.rows[0]!.id, id]);
       return this.row(q, r.rows[0]!.id);
     });
   }
@@ -200,13 +206,24 @@ export class CampaignsService {
   /** Aprova o envio: agora ou na data marcada. Confere conta, conteúdo e público. */
   async start(actor: Actor, id: string, scheduledAt: string | null | undefined) {
     return this.db.app(tenantCtx(actor), async (q) => {
-      const k = (await q.query<{ status: string; channel: Channel; audience: Audience; channel_account_id: string | null; subject: string | null; body: string | null }>(
-        'select status, channel, audience, channel_account_id, subject, body from campaigns where id = $1 for update', [id])).rows[0];
+      const k = (await q.query<{ status: string; channel: Channel; audience: Audience; channel_account_id: string | null; subject: string | null; body: string | null;
+        template_id: string | null; template_params: string[] }>(
+        'select status, channel, audience, channel_account_id, subject, body, template_id, template_params from campaigns where id = $1 for update', [id])).rows[0];
       if (!k) throw Problem.notFound('Campanha não encontrada.');
       if (k.status !== 'draft' && k.status !== 'scheduled') throw Problem.conflict('Esta campanha já foi enviada ou cancelada.');
       const errors: { field: string; message: string }[] = [];
       if (!k.channel_account_id) errors.push({ field: 'accountId', message: k.channel === 'email' ? 'Escolha a conta de e-mail que envia.' : 'Escolha o WhatsApp que envia.' });
-      if (!k.body) errors.push({ field: 'body', message: 'Escreva a mensagem.' });
+      const kind = k.channel_account_id ? (await q.query<{ kind: string }>('select kind from channel_accounts where id = $1', [k.channel_account_id])).rows[0]?.kind : null;
+      if (kind === 'whatsapp_cloud') {
+        // WhatsApp oficial: campanha só com modelo aprovado deste número.
+        const t = k.template_id ? (await q.query<{ body: string; status: string; channel_account_id: string }>(
+          'select body, status, channel_account_id from whatsapp_templates where id = $1', [k.template_id])).rows[0] : null;
+        if (!t || t.channel_account_id !== k.channel_account_id) errors.push({ field: 'templateId', message: 'No WhatsApp oficial, escolha um modelo deste número.' });
+        else if (t.status !== 'APPROVED') errors.push({ field: 'templateId', message: 'O modelo ainda não foi aprovado pela Meta.' });
+        else if ((k.template_params ?? []).filter((v) => v.trim()).length < templateVariables(t.body)) {
+          errors.push({ field: 'templateParams', message: 'Preencha todas as variáveis do modelo.' });
+        }
+      } else if (!k.body) errors.push({ field: 'body', message: 'Escreva a mensagem.' });
       if (k.channel === 'email' && !k.subject) errors.push({ field: 'subject', message: 'Escreva o assunto do e-mail.' });
       if (errors.length) throw Problem.badRequest('Falta completar a campanha.', errors);
       const acc = (await q.query<{ status: string; name: string }>('select status, name from channel_accounts where id = $1', [k.channel_account_id])).rows[0]!;
@@ -271,9 +288,10 @@ export class CampaignsService {
     const ctx = { tenantId, userId: null };
     const k = await this.db.app(ctx, async (q) => {
       const c = (await q.query<{ status: string; channel: Channel; audience: Audience; channel_account_id: string | null; subject: string | null;
-        body: string | null; per_minute: number; prepared_at: Date | null; opt_out_hint: boolean; tenant_name: string }>(
+        body: string | null; per_minute: number; prepared_at: Date | null; opt_out_hint: boolean; tenant_name: string;
+        template_id: string | null; template_params: string[] }>(
         `select k.status, k.channel, k.audience, k.channel_account_id, k.subject, k.body, k.per_minute, k.prepared_at, k.opt_out_hint,
-                t.name as tenant_name from campaigns k join tenants t on t.id = k.tenant_id where k.id = $1`, [campaignId])).rows[0];
+                k.template_id, k.template_params, t.name as tenant_name from campaigns k join tenants t on t.id = k.tenant_id where k.id = $1`, [campaignId])).rows[0];
       if (!c || c.status !== 'sending') return null;
       if (!c.prepared_at) {
         const p = new Params();
@@ -314,10 +332,11 @@ export class CampaignsService {
     let sent = 0;
     for (const r of picked) {
       const vars = { nome: r.name, primeiro_nome: r.first_name, empresa: k.tenant_name, responsavel: r.owner_name };
-      const text = render(k.body ?? '', vars) + (k.channel === 'whatsapp' && k.opt_out_hint ? OPT_OUT_HINT : '');
+      const text = k.template_id ? null : render(k.body ?? '', vars) + (k.channel === 'whatsapp' && k.opt_out_hint ? OPT_OUT_HINT : '');
       try {
         const m = await this.messages.sendByCampaign(tenantId, campaignId, r.contact_id, {
           accountId: k.channel_account_id!, to: r.address, text, subject: k.subject ? render(k.subject, vars) : null,
+          templateId: k.template_id, templateParams: k.template_id ? (k.template_params ?? []).map((v) => render(v, vars) || '-') : null,
         }) as { id: string; status: string; error: string | null };
         await this.db.app(ctx, (q) => q.query(
           `update campaign_recipients set status = $2, reason = $3, message_id = $4, sent_at = case when $2 = 'sent' then now() end where id = $1`,

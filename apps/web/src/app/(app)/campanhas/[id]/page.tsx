@@ -133,7 +133,8 @@ function CampaignView({ id }: { id: string }) {
 
       <Panel title="Mensagem">
         {c.subject ? <p className="mb-1 font-semibold">{c.subject}</p> : null}
-        <p className="whitespace-pre-wrap text-sm">{c.body}</p>
+        {c.template ? <p className="mb-1 text-[13px] text-muted">Modelo do WhatsApp oficial: <span className="font-mono">{c.template.name}</span> · valores: {c.templateParams.join(', ') || '—'}</p> : null}
+        <p className="whitespace-pre-wrap text-sm">{c.template ? c.template.body : c.body}</p>
       </Panel>
 
       <Confirm open={confirm === 'cancel'} title="Cancelar a campanha?" confirmLabel="Cancelar campanha"

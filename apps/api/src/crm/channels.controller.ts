@@ -28,6 +28,8 @@ export const sendBody = z.object({
   to: optText(254),
   text: z.string().max(65536, { message: 'Mensagem longa demais.' }).nullable().optional(),
   subject: optText(998),
+  templateId: uuid.nullable().optional(),
+  templateParams: z.array(z.string().max(1000)).max(20).nullable().optional(),
 });
 
 @Controller('v1/channels')

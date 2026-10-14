@@ -5,7 +5,7 @@ import { ArrowLeft, ArrowRight, Check, Mail, MessageCircle, Send, CalendarClock,
 import { ApiError, api } from '@/lib/api';
 import { phone } from '@/lib/crm';
 import { dateTime } from '@/lib/admin-types';
-import { renderTemplate, type Channel, type QuickReply, type SendAccount } from '@/lib/messages';
+import { channelOfKind, fillTemplate, renderTemplate, templateVariables, type Channel, type QuickReply, type SendAccount, type WaTemplate } from '@/lib/messages';
 import { CAMPAIGN_VARIABLES, emptyAudience, type Audience, type AudiencePreview, type Campaign } from '@/lib/campaigns';
 import { useSession } from '@/components/shell/session';
 import { useDirectory, usePipelines } from './data';
@@ -22,6 +22,7 @@ const STEPS = ['Geral', 'Audiência', 'Conteúdo', 'Configurações', 'Revisão'
 type Draft = {
   name: string; description: string; channel: Channel | ''; audience: Audience; accountId: string; subject: string; body: string;
   perMinute: number; useWindow: boolean; windowStart: string; windowEnd: string; optOutHint: boolean; when: 'now' | 'later'; scheduledAt: string;
+  templateId: string; templateParams: string[];
 };
 
 function fromCampaign(c: Campaign | null): Draft {
@@ -31,6 +32,7 @@ function fromCampaign(c: Campaign | null): Draft {
     perMinute: c?.perMinute ?? 10, useWindow: !!c?.windowStart, windowStart: c?.windowStart ?? '08:00', windowEnd: c?.windowEnd ?? '20:00',
     optOutHint: c?.optOutHint ?? true, when: c?.scheduledAt && c.status === 'scheduled' ? 'later' : 'now',
     scheduledAt: c?.scheduledAt ? toLocalInput(new Date(c.scheduledAt)) : '',
+    templateId: c?.templateId ?? '', templateParams: c?.templateParams ?? [],
   };
 }
 
@@ -40,7 +42,7 @@ function toLocalInput(d: Date): string {
 }
 
 /** Os campos de um passo que impedem seguir, com a mensagem. */
-function problems(d: Draft, step: number, preview: AudiencePreview | null): Record<string, string> {
+function problems(d: Draft, step: number, preview: AudiencePreview | null, cloud: WaTemplate | null | 'pick'): Record<string, string> {
   const e: Record<string, string> = {};
   if (step === 0) {
     if (!d.name.trim()) e.name = 'Informe o nome da campanha.';
@@ -50,7 +52,10 @@ function problems(d: Draft, step: number, preview: AudiencePreview | null): Reco
   if (step === 2) {
     if (!d.accountId) e.accountId = d.channel === 'email' ? 'Escolha a conta de e-mail.' : 'Escolha o WhatsApp.';
     if (d.channel === 'email' && !d.subject.trim()) e.subject = 'Escreva o assunto.';
-    if (!d.body.trim()) e.body = 'Escreva a mensagem.';
+    if (cloud === 'pick') e.templateId = 'No WhatsApp oficial, escolha um modelo aprovado.';
+    else if (cloud) {
+      if (d.templateParams.slice(0, templateVariables(cloud.body)).filter((v) => v.trim()).length < templateVariables(cloud.body)) e.templateParams = 'Preencha todas as variáveis do modelo.';
+    } else if (!d.body.trim()) e.body = 'Escreva a mensagem.';
   }
   if (step === 3 && d.when === 'later' && (!d.scheduledAt || new Date(d.scheduledAt).getTime() < Date.now())) e.scheduledAt = 'Escolha uma data e hora futuras.';
   if (step === 3 && d.useWindow && (!d.windowStart || !d.windowEnd)) e.windowEnd = 'Informe o início e o fim.';
@@ -71,6 +76,7 @@ export function CampaignWizard({ initial }: { initial: Campaign | null }) {
   const [err, setErr] = useState<ApiError | null>(null);
   const [accounts, setAccounts] = useState<SendAccount[]>([]);
   const [replies, setReplies] = useState<QuickReply[]>([]);
+  const [templates, setTemplates] = useState<WaTemplate[]>([]);
   const [preview, setPreview] = useState<AudiencePreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const set = (p: Partial<Draft>) => setD((cur) => ({ ...cur, ...p }));
@@ -83,7 +89,13 @@ export function CampaignWizard({ initial }: { initial: Campaign | null }) {
   }, []);
 
   // Conta da campanha: a primeira do canal, se ainda não escolhida.
-  const usable = accounts.filter((a) => (d.channel === 'email') === (a.kind === 'email_smtp'));
+  const usable = accounts.filter((a) => d.channel && channelOfKind(a.kind) === d.channel);
+  const isCloud = accounts.find((a) => a.id === d.accountId)?.kind === 'whatsapp_cloud';
+  useEffect(() => {
+    if (!isCloud) return;
+    api<{ items: WaTemplate[] }>('GET', `/api/v1/whatsapp-templates?accountId=${d.accountId}&approved=1`).then((r) => setTemplates(r.items)).catch(() => setTemplates([]));
+  }, [isCloud, d.accountId]);
+  const chosen = isCloud ? templates.find((t) => t.id === d.templateId) ?? null : null;
   useEffect(() => {
     if (d.channel && !usable.some((a) => a.id === d.accountId) && usable[0]) set({ accountId: usable[0].id });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -102,7 +114,7 @@ export function CampaignWizard({ initial }: { initial: Campaign | null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audienceKey]);
 
-  const errs = problems(d, step, preview);
+  const errs = problems(d, step, preview, isCloud ? (chosen ?? 'pick') : null);
   const pct = Math.round((done / STEPS.length) * 100);
 
   function body() {
@@ -110,6 +122,7 @@ export function CampaignWizard({ initial }: { initial: Campaign | null }) {
       name: d.name, description: d.description || null, channel: d.channel, audience: d.audience, accountId: d.accountId || null,
       subject: d.channel === 'email' ? d.subject || null : null, body: d.body || null, perMinute: d.perMinute,
       windowStart: d.useWindow ? d.windowStart : null, windowEnd: d.useWindow ? d.windowEnd : null, optOutHint: d.optOutHint,
+      templateId: isCloud && d.templateId ? d.templateId : null, templateParams: isCloud ? d.templateParams : [],
     };
   }
 
@@ -274,9 +287,31 @@ export function CampaignWizard({ initial }: { initial: Campaign | null }) {
             {usable.length === 0 ? <Alert tone="info">Nenhum {d.channel === 'email' ? 'e-mail' : 'WhatsApp'} conectado. O administrador conecta em Configurações › Canais.</Alert> : null}
             <Select label={d.channel === 'email' ? 'Enviar pela conta' : 'Enviar pelo número'} value={d.accountId} onChange={(e) => set({ accountId: e.target.value })} error={fieldErr('accountId')}>
               <option value="">Escolha</option>
-              {usable.map((a) => <option key={a.id} value={a.id}>{a.name}{a.address ? ` · ${a.kind === 'whatsapp_evolution' ? phone(a.address) : a.address}` : ''}</option>)}
+              {usable.map((a) => <option key={a.id} value={a.id}>{a.name}{a.kind === 'whatsapp_cloud' ? ' (oficial)' : ''}{a.address ? ` · ${a.address.startsWith('+') ? phone(a.address) : a.address}` : ''}</option>)}
             </Select>
-            {replies.some((r) => r.channel === d.channel) ? (
+            {isCloud ? (
+              <>
+                <Alert tone="info">No WhatsApp oficial, campanhas saem só com modelo aprovado pela Meta. Crie modelos em Configurações › Canais › Modelos.</Alert>
+                <Select label="Modelo aprovado *" value={d.templateId} error={fieldErr('templateId')} onChange={(e) => {
+                  const t = templates.find((x) => x.id === e.target.value);
+                  set({ templateId: e.target.value, templateParams: t ? Array.from({ length: templateVariables(t.body) }, (_, i) => d.templateParams[i] ?? (i === 0 ? '{{primeiro_nome}}' : '')) : [] });
+                }}>
+                  <option value="">{templates.length ? 'Escolha o modelo' : 'Nenhum modelo aprovado neste número'}</option>
+                  {templates.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.language})</option>)}
+                </Select>
+                {chosen && templateVariables(chosen.body) ? (
+                  <fieldset className="grid gap-3 sm:grid-cols-2">
+                    <legend className="mb-1.5 text-[13px] font-medium">Valor de cada variável (pode usar {'{{primeiro_nome}}'} e as outras)</legend>
+                    {Array.from({ length: templateVariables(chosen.body) }, (_, i) => (
+                      <Field key={i} label={`{{${i + 1}}}`} value={d.templateParams[i] ?? ''} placeholder={chosen.examples[i] ?? ''}
+                        onChange={(e) => { const p = [...d.templateParams]; p[i] = e.target.value; set({ templateParams: p }); }} />
+                    ))}
+                    {fieldErr('templateParams') ? <p className="text-[13px] text-bad sm:col-span-2">{fieldErr('templateParams')}</p> : null}
+                  </fieldset>
+                ) : null}
+              </>
+            ) : null}
+            {!isCloud && replies.some((r) => r.channel === d.channel) ? (
               <Select label="Começar de uma resposta pronta" value="" onChange={(e) => {
                 const r = replies.find((x) => x.id === e.target.value);
                 if (r) set({ body: r.body, subject: r.subject ?? d.subject });
@@ -285,16 +320,26 @@ export function CampaignWizard({ initial }: { initial: Campaign | null }) {
                 {replies.filter((r) => r.channel === d.channel).map((r) => <option key={r.id} value={r.id}>/{r.shortcut} · {r.title}</option>)}
               </Select>
             ) : null}
-            {d.channel === 'email' ? <Field label="Assunto *" value={d.subject} onChange={(e) => set({ subject: e.target.value })} error={fieldErr('subject')} maxLength={998} /> : null}
-            <Textarea label="Mensagem *" value={d.body} onChange={(e) => set({ body: e.target.value })} rows={8} error={fieldErr('body')} />
-            <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-muted">
+            {isCloud ? null : d.channel === 'email' ? <Field label="Assunto *" value={d.subject} onChange={(e) => set({ subject: e.target.value })} error={fieldErr('subject')} maxLength={998} /> : null}
+            {!isCloud ? <Textarea label="Mensagem *" value={d.body} onChange={(e) => set({ body: e.target.value })} rows={8} error={fieldErr('body')} /> : null}
+            <div className={`flex flex-wrap items-center gap-1.5 text-[12px] text-muted ${isCloud ? 'hidden' : ''}`}>
               <span>Inserir:</span>
               {CAMPAIGN_VARIABLES.map((v) => (
                 <button key={v.key} type="button" onClick={() => set({ body: `${d.body}{{${v.key}}}` })} title={v.label}
                   className="rounded-full border border-line px-2 py-0.5 font-mono hover:bg-surface-2">{`{{${v.key}}}`}</button>
               ))}
             </div>
-            {d.body.trim() ? (
+            {chosen ? (
+              <div className="rounded-[10px] bg-bg p-3">
+                <p className="mb-1.5 text-[13px] font-medium">Como chega (exemplo para Maria Souza)</p>
+                <div className="ml-auto max-w-[min(480px,90%)] whitespace-pre-wrap rounded-[10px] bg-accent-soft px-3 py-2 text-sm">
+                  {chosen.header ? <p className="font-semibold">{chosen.header}</p> : null}
+                  {fillTemplate(chosen.body, d.templateParams.map((v) => renderTemplate(v, { nome: 'Maria Souza', primeiro_nome: 'Maria', empresa: tenantName, responsavel: me.user.name })))}
+                  {chosen.footer ? <p className="text-[12px] text-muted">{chosen.footer}</p> : null}
+                </div>
+              </div>
+            ) : null}
+            {!isCloud && d.body.trim() ? (
               <div className="flex flex-col gap-1.5">
                 <span className="text-[13px] font-medium">Como chega (exemplo para Maria Souza)</span>
                 <div className="rounded-[10px] bg-bg p-3">
@@ -330,7 +375,7 @@ export function CampaignWizard({ initial }: { initial: Campaign | null }) {
                 <Field label="Às" type="time" value={d.windowEnd} onChange={(e) => set({ windowEnd: e.target.value })} error={fieldErr('windowEnd')} />
               </div>
             ) : null}
-            {d.channel === 'whatsapp' ? (
+            {d.channel === 'whatsapp' && !isCloud ? (
               <label className="flex min-h-11 items-center gap-2 text-sm">
                 <input type="checkbox" checked={d.optOutHint} onChange={(e) => set({ optOutHint: e.target.checked })} className="size-[18px] accent-[var(--primary)]" />
                 Acrescentar &ldquo;Para não receber mais mensagens, responda SAIR.&rdquo;
@@ -355,7 +400,7 @@ export function CampaignWizard({ initial }: { initial: Campaign | null }) {
             <dt className="text-muted">Canal</dt><dd className="flex items-center gap-1.5">{d.channel === 'email' ? <Mail size={14} aria-hidden /> : <MessageCircle size={14} aria-hidden />}{d.channel === 'email' ? 'E-mail' : 'WhatsApp'}{account ? ` · ${account.name}` : ''}</dd>
             <dt className="text-muted">Público</dt><dd>{preview ? `${preview.eligible} contato(s)` : '…'}</dd>
             {d.channel === 'email' ? <><dt className="text-muted">Assunto</dt><dd>{d.subject}</dd></> : null}
-            <dt className="text-muted">Mensagem</dt><dd className="whitespace-pre-wrap">{d.body}</dd>
+            <dt className="text-muted">Mensagem</dt><dd className="whitespace-pre-wrap">{chosen ? `Modelo ${chosen.name}: ${fillTemplate(chosen.body, d.templateParams)}` : d.body}</dd>
             <dt className="text-muted">Ritmo</dt><dd>{d.perMinute} por minuto{d.useWindow ? `, das ${d.windowStart} às ${d.windowEnd}` : ''}</dd>
             <dt className="text-muted">Quando</dt><dd>{d.when === 'later' && d.scheduledAt ? dateTime.format(new Date(d.scheduledAt)) : 'Assim que aprovar'}</dd>
           </dl>

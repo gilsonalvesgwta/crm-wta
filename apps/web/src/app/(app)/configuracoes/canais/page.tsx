@@ -13,6 +13,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Confirm } from '@/components/ui/confirm';
 import { Dialog } from '@/components/ui/dialog';
+import { MetaPanels } from '@/components/crm/meta-channels';
 import { LoadError, Loading } from '@/components/ui/states';
 
 type Limit = { used: number; max: number | null };
@@ -71,7 +72,7 @@ export default function ChannelsPage() {
       {msg ? <Alert tone="success">{msg}</Alert> : null}
       {err ? <Alert tone="error">{err}</Alert> : null}
 
-      <Panel title="WhatsApp" description={`Números conectados pela Evolution API. ${limitText(d.limits.whatsapp, d.limits.whatsapp.used === 1 ? 'número' : 'números')}.`}
+      <Panel title="WhatsApp (QR code)" description={`Números conectados pela Evolution API. ${limitText(d.limits.whatsapp, d.limits.whatsapp.used === 1 ? 'número' : 'números')}.`}
         actions={d.evolutionConfigured ? <Button onClick={() => setNewWa(true)} disabled={waFull}><Plus size={16} aria-hidden />Conectar número</Button> : undefined}>
         {!d.evolutionConfigured ? (
           <Alert tone="info">O WhatsApp ainda não foi habilitado nesta instalação. Fale com o suporte da WTA.</Alert>
@@ -106,6 +107,9 @@ export default function ChannelsPage() {
           </ul>
         )}
       </Panel>
+
+      <MetaPanels accounts={d.accounts} whatsappFull={waFull} onChanged={() => void reload()}
+        onMessage={(ok, e) => { setMsg(ok); setErr(e); }} onRemove={(a) => setRemoving(a)} />
 
       <Panel title="E-mail" description={`Caixas de e-mail da empresa para enviar pelo CRM. ${limitText(d.limits.email, d.limits.email.used === 1 ? 'caixa' : 'caixas')}.`}
         actions={<Button onClick={() => setEmail('new')} disabled={mailFull}><Plus size={16} aria-hidden />Adicionar e-mail</Button>}>
@@ -150,7 +154,8 @@ export default function ChannelsPage() {
         onCancel={() => setRemoving(null)}>
         {removing?.kind === 'whatsapp_evolution'
           ? 'A instância é apagada da Evolution API e o número deixa de receber e enviar pelo CRM. O histórico de mensagens continua nos contatos.'
-          : 'A caixa deixa de enviar pelo CRM. O histórico de mensagens continua nos contatos.'}
+          : removing?.kind === 'email_smtp' ? 'A caixa deixa de enviar pelo CRM. O histórico de mensagens continua nos contatos.'
+          : 'A conta deixa de receber e enviar pelo CRM (na Meta nada muda; remova o webhook lá se quiser). Os modelos cadastrados saem do CRM. O histórico continua nos contatos.'}
       </Confirm>
     </div>
   );

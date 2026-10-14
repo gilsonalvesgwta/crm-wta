@@ -2,10 +2,10 @@
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Filter, Mail, MessageCircle, MessageSquareText, Plus, UserCheck } from 'lucide-react';
+import { ArrowLeft, AtSign, Filter, Mail, MessageCircle, MessageSquareText, Plus, UserCheck } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { phone, relative, type Contact } from '@/lib/crm';
-import { CONVERSATION_STATUS, preview, type Channel, type Conversation, type ConversationStatus } from '@/lib/messages';
+import { CHANNEL_NAME, CONVERSATION_STATUS, preview, type Channel, type Conversation, type ConversationStatus } from '@/lib/messages';
 import { useDebounced, useQueryState } from '@/lib/use-query-state';
 import { useSession } from '@/components/shell/session';
 import { useDirectory, usePipelines, useTags } from '@/components/crm/data';
@@ -102,6 +102,7 @@ function Conversations() {
               <Chip pressed={!f.ch} onClick={() => setF({ ch: '' })}>Todos</Chip>
               <Chip pressed={f.ch === 'whatsapp'} onClick={() => setF({ ch: 'whatsapp' })}><MessageCircle size={14} aria-hidden />WhatsApp</Chip>
               <Chip pressed={f.ch === 'email'} onClick={() => setF({ ch: 'email' })}><Mail size={14} aria-hidden />E-mail</Chip>
+              <Chip pressed={f.ch === 'instagram'} onClick={() => setF({ ch: 'instagram' })}><AtSign size={14} aria-hidden />Instagram</Chip>
               <button type="button" aria-expanded={showFilters} aria-controls="filtros-conversas" onClick={() => setShowFilters((v) => !v)}
                 className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-full border border-line px-3 text-[13px] font-medium text-muted hover:text-ink">
                 <Filter size={14} aria-hidden />Filtros{filters ? <span className="rounded-full bg-primary px-1.5 text-[11px] text-primary-fg">{filters}</span> : null}
@@ -162,7 +163,9 @@ function Conversations() {
                       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className="flex items-center justify-between gap-2">
                           <span className={`flex min-w-0 items-center gap-1.5 truncate ${c.unread ? 'font-semibold' : 'font-medium'}`}>
-                            {c.channel === 'email' ? <Mail size={14} aria-label="E-mail" className="shrink-0 text-muted" /> : <MessageCircle size={14} aria-label="WhatsApp" className="shrink-0 text-muted" />}
+                            {c.channel === 'email' ? <Mail size={14} aria-label="E-mail" className="shrink-0 text-muted" />
+                              : c.channel === 'instagram' ? <AtSign size={14} aria-label="Instagram" className="shrink-0 text-muted" />
+                              : <MessageCircle size={14} aria-label="WhatsApp" className="shrink-0 text-muted" />}
                             <span className="truncate">{c.contact.name}</span>
                           </span>
                           <span className="shrink-0 text-[12px] text-muted">{relative(c.lastMessageAt)}</span>
@@ -230,6 +233,7 @@ function Thread({ id, onBack, onActivity }: { id: string; onBack: () => void; on
   const target = contact
     ? { phones: contact.phones.map((p) => p.number), emails: contact.emails.map((e) => e.email) }
     : { phones: c.phone ? [c.phone] : [], emails: c.email ? [c.email] : [] };
+  const fullTarget = { ...target, instagram: c.instagram ? [c.instagram] : [] };
   return (
     <>
       <header className="flex flex-col gap-3 border-b border-line px-4 py-3">
@@ -239,10 +243,10 @@ function Thread({ id, onBack, onActivity }: { id: string; onBack: () => void; on
           <div className="min-w-0 flex-1">
             <p className="flex flex-wrap items-center gap-2">
               {contact ? <Link href={`/contatos/${c.id}`} className="font-semibold hover:underline">{c.name}</Link> : <span className="font-semibold">{c.name}</span>}
-              <Badge tone={channel === 'email' ? 'neutral' : 'ok'}>{channel === 'email' ? 'E-mail' : 'WhatsApp'}</Badge>
+              <Badge tone={channel === 'email' ? 'neutral' : channel === 'instagram' ? 'info' : 'ok'}>{CHANNEL_NAME[channel]}</Badge>
               <Badge tone={CONVERSATION_STATUS[conv.status].tone}>{CONVERSATION_STATUS[conv.status].label}</Badge>
             </p>
-            <p className="truncate text-[13px] text-muted">{channel === 'email' ? c.email : c.phone ? phone(c.phone) : ''}</p>
+            <p className="truncate text-[13px] text-muted">{channel === 'email' ? c.email : channel === 'instagram' ? c.instagram : c.phone ? phone(c.phone) : ''}</p>
           </div>
           {!conv.assignee && canTake && myId ? (
             <Button variant="secondary" onClick={() => void save({ assigneeId: myId })}><UserCheck size={16} aria-hidden />Assumir</Button>
@@ -277,7 +281,7 @@ function Thread({ id, onBack, onActivity }: { id: string; onBack: () => void; on
         ) : null}
       </header>
       <MessageThread contactId={c.id} contactName={c.name} conversation={{ id: conv.id, channel }} canSend onActivity={onActivity}
-        height="h-[calc(100dvh-420px)] min-h-[340px]" target={target} />
+        height="h-[calc(100dvh-420px)] min-h-[340px]" target={fullTarget} />
     </>
   );
 }

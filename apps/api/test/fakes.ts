@@ -171,3 +171,102 @@ export class FakeSmtp {
     await new Promise<void>((r) => this.server.close(() => r()));
   }
 }
+
+export type FakeMetaSend = { path: string; body: Record<string, unknown> };
+export type FakeTemplate = { id: string; name: string; language: string; category: string; status: string; components: unknown[]; rejected_reason?: string };
+
+/**
+ * Graph API falsa (WhatsApp Cloud API e Instagram), com as respostas
+ * documentadas pela Meta. Não substitui o teste com a Meta de verdade.
+ */
+export class FakeMeta {
+  readonly sent: FakeMetaSend[] = [];
+  readonly templates: FakeTemplate[] = [];
+  readonly tokens = new Set<string>();
+  readonly media = new Map<string, { data: Buffer; type: string }>();
+  failNext: { status: number; body: unknown } | null = null;
+  private server!: Server;
+  private n = 0;
+  url = '';
+
+  constructor(tokens: string[]) {
+    for (const t of tokens) this.tokens.add(t);
+  }
+
+  async start(port = 0): Promise<void> {
+    this.server = httpServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on('data', (c: Buffer) => chunks.push(c));
+      req.on('end', () => {
+        const raw = Buffer.concat(chunks);
+        const send = (status: number, body: unknown, type = 'application/json') => {
+          res.writeHead(status, { 'content-type': type });
+          res.end(type === 'application/json' ? JSON.stringify(body) : body as Buffer);
+        };
+        const u = new URL(req.url ?? '/', 'http://x');
+        if (u.pathname === '/__fake/state') return send(200, { sent: this.sent, templates: this.templates });
+        if (u.pathname === '/__fake/approve' && req.method === 'POST') {
+          for (const t of this.templates) if (t.status === 'PENDING') t.status = 'APPROVED';
+          return send(200, { ok: true });
+        }
+        const file = /^\/media-file\/(.+)$/.exec(u.pathname);
+        if (file) {
+          const m = this.media.get(file[1]!);
+          return m ? send(200, m.data, m.type) : send(404, { error: { message: 'not found' } });
+        }
+        const token = (req.headers.authorization ?? '').replace(/^Bearer /, '');
+        if (!this.tokens.has(token)) return send(401, { error: { message: 'Invalid OAuth access token.', type: 'OAuthException', code: 190 } });
+        if (this.failNext) { const f = this.failNext; this.failNext = null; return send(f.status, f.body); }
+        const path = u.pathname.replace(/^\/v\d+\.\d+\//, '');
+        const json = (): Record<string, unknown> => { try { return JSON.parse(raw.toString('utf8') || '{}') as Record<string, unknown>; } catch { return {}; } };
+        const [id, edge] = path.split('/');
+        if (req.method === 'GET' && !edge && id!.startsWith('1000')) {
+          return send(200, { id, display_phone_number: '+55 11 3333-4444', verified_name: 'Empresa Teste', quality_rating: 'GREEN' });
+        }
+        if (req.method === 'GET' && !edge && id!.startsWith('1784')) return send(200, { id, username: 'empresa.teste', name: 'Empresa Teste' });
+        if (req.method === 'GET' && !edge && id!.startsWith('9')) return send(200, { name: 'Cliente Insta', username: 'cliente.insta' });
+        if (req.method === 'GET' && !edge && id!.startsWith('media-')) {
+          const m = this.media.get(id!);
+          return m ? send(200, { url: `${this.url}/media-file/${id}`, mime_type: m.type, id }) : send(404, { error: { message: 'Unsupported get request', code: 100 } });
+        }
+        if (req.method === 'POST' && edge === 'messages') {
+          const body = json();
+          this.sent.push({ path, body });
+          if (id!.startsWith('1784')) return send(200, { recipient_id: (body.recipient as { id: string }).id, message_id: `mid.${++this.n}` });
+          return send(200, { messaging_product: 'whatsapp', contacts: [{ input: body.to, wa_id: body.to }], messages: [{ id: `wamid.${++this.n}` }] });
+        }
+        if (req.method === 'POST' && edge === 'media') {
+          const mid = `media-up-${++this.n}`;
+          this.media.set(mid, { data: raw, type: 'application/octet-stream' });
+          return send(200, { id: mid });
+        }
+        if (edge === 'message_templates') {
+          if (req.method === 'GET') return send(200, { data: this.templates });
+          if (req.method === 'POST') {
+            const b = json();
+            if (this.templates.some((t) => t.name === b.name && t.language === b.language)) {
+              return send(400, { error: { message: 'Invalid parameter', code: 100, error_user_msg: 'Já existe um conteúdo neste idioma.' } });
+            }
+            const t = { id: String(9000000 + ++this.n), name: String(b.name), language: String(b.language), category: String(b.category), status: 'PENDING', components: b.components as unknown[] };
+            this.templates.push(t);
+            return send(200, { id: t.id, status: t.status, category: t.category });
+          }
+          if (req.method === 'DELETE') {
+            const name = u.searchParams.get('name');
+            const i = this.templates.findIndex((t) => t.name === name);
+            if (i < 0) return send(404, { error: { message: 'not found', code: 100 } });
+            this.templates.splice(i, 1);
+            return send(200, { success: true });
+          }
+        }
+        send(404, { error: { message: `rota falsa desconhecida: ${req.method} ${path}` } });
+      });
+    });
+    await new Promise<void>((r) => this.server.listen(port, '127.0.0.1', r));
+    this.url = `http://127.0.0.1:${(this.server.address() as AddressInfo).port}`;
+  }
+
+  async stop(): Promise<void> {
+    await new Promise<void>((r) => this.server.close(() => r()));
+  }
+}

@@ -18,6 +18,7 @@ export type Campaign = {
   scheduledAt: string | null; startedAt: string | null; finishedAt: string | null; lastError: string | null;
   createdBy: { id: string; name: string } | null; startedBy: { id: string; name: string } | null;
   createdAt: string; updatedAt: string; stats: CampaignStats;
+  templateId: string | null; templateParams: string[]; template: { id: string; name: string; language: string; body: string; header: string | null; status: string } | null;
 };
 
 export type AudiencePreview = { total: number; eligible: number; noAddress: number; revoked: number; noConsent: number; suppressed: number; sample: string[] };

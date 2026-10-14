@@ -154,6 +154,20 @@ Com chave de API não há cookie, então não há verificação de CSRF; chave i
 | `GET /api/v1/backups/jobs/:id` | `settings:admin` | Andamento de um trabalho da empresa (de outra empresa: 404) |
 | `DELETE /api/v1/backups/:nome` | `settings:admin` | Exclui uma cópia da empresa |
 
+### Meta: WhatsApp oficial e Instagram (bloco 4 dos ajustes)
+
+| Endpoint | Permissão | O que faz |
+| --- | --- | --- |
+| `POST /api/v1/channels/whatsapp-cloud`, `PATCH …/:id` | `channels:admin` + 2FA | `{name, phoneNumberId, wabaId, token?, appSecret?}`; confere na Meta e responde `{status, lastError, address, webhook: {url, verifyToken}}` |
+| `POST /api/v1/channels/instagram`, `PATCH …/:id` | `channels:admin` + 2FA | `{name, igUserId, host: "instagram" \| "facebook", token?, appSecret?}` |
+| `POST /api/v1/channels/:id/verify` | `channels:admin` + 2FA | Confere de novo a conta na Meta |
+| `GET /api/v1/whatsapp-templates` | qualquer pessoa da empresa | Modelos (`accountId`, `approved=1`) |
+| `POST /api/v1/whatsapp-templates` | `campaigns:edit` | `{accountId, name, language, category, header?, body, footer?, buttons[], examples[]}`; envia para a Meta aprovar |
+| `POST /api/v1/whatsapp-templates/sync`, `DELETE /api/v1/whatsapp-templates/:id` | `campaigns:edit` | Sincronizar estados; excluir (na Meta e aqui) |
+| `GET`, `POST /api/v1/webhooks/meta/:token` | Público (assinatura) | Verificação (`hub.challenge`) e avisos da Meta |
+
+Envio com modelo: `POST /api/v1/conversations/:id/messages` com `{accountId, templateId, templateParams}`. Fora das 24 h sem modelo: 409 `outside-window`.
+
 ### Operação e ações agendadas (bloco 3 dos ajustes)
 
 | Endpoint | Permissão | O que faz |

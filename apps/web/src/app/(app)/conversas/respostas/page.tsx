@@ -1,6 +1,6 @@
 'use client';
 import { useState, type FormEvent } from 'react';
-import { Mail, MessageCircle, Pencil, Plus, Trash2 } from 'lucide-react';
+import { AtSign, Mail, MessageCircle, Pencil, Plus, Trash2 } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { useLoad } from '@/lib/use-load';
 import { REPLY_VARIABLES, type Channel, type QuickReply } from '@/lib/messages';
@@ -36,19 +36,19 @@ export default function QuickRepliesPage() {
     <div className="mx-auto flex max-w-5xl flex-col gap-5">
       <PageHeader title="Respostas prontas" back={{ href: '/conversas', label: 'Conversas' }}
         subtitle={<>Mensagens prontas para usar nas conversas: digite <kbd className="rounded border border-line bg-surface-2 px-1 font-mono text-[12px]">/</kbd> e o atalho na caixa de mensagem.</>}
-        actions={<Button onClick={() => setEditing({ id: null, draft: { channel: tab, shortcut: '', title: '', subject: '', body: '', shared: canShare } })}><Plus size={16} aria-hidden />Nova resposta</Button>} />
+        actions={<Button disabled={!data} onClick={() => setEditing({ id: null, draft: { channel: tab, shortcut: '', title: '', subject: '', body: '', shared: canShare } })}><Plus size={16} aria-hidden />Nova resposta</Button>} />
       {msg ? <Alert tone="success">{msg}</Alert> : null}
       {err ? <Alert tone="error">{err}</Alert> : null}
       <div role="group" aria-label="Canal" className="flex gap-1">
-        {([['whatsapp', 'WhatsApp', <MessageCircle key="w" size={14} aria-hidden />], ['email', 'E-mail', <Mail key="e" size={14} aria-hidden />]] as const).map(([v, label, icon]) => (
+        {([['whatsapp', 'WhatsApp', <MessageCircle key="w" size={14} aria-hidden />], ['email', 'E-mail', <Mail key="e" size={14} aria-hidden />], ['instagram', 'Instagram', <AtSign key="i" size={14} aria-hidden />]] as const).map(([v, label, icon]) => (
           <button key={v} type="button" aria-pressed={tab === v} onClick={() => setTab(v)}
             className={`inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-sm font-medium ${tab === v ? 'bg-primary text-primary-fg' : 'border border-line text-muted hover:text-ink'}`}>{icon}{label}</button>
         ))}
       </div>
-      <Panel title={tab === 'email' ? 'Respostas de e-mail' : 'Respostas de WhatsApp'}
+      <Panel title={tab === 'email' ? 'Respostas de e-mail' : tab === 'instagram' ? 'Respostas de Instagram' : 'Respostas de WhatsApp'}
         description={canShare ? 'As da empresa aparecem para todos; as pessoais, só para quem criou.' : 'As da empresa são mantidas pelo administrador; você pode criar as suas.'}>
         {error ? <LoadError error={error} retry={reload} /> : loading && !data ? <Loading /> : items.length === 0 ? (
-          <p className="text-[13px] text-muted">Nenhuma resposta pronta {tab === 'email' ? 'de e-mail' : 'de WhatsApp'} ainda.</p>
+          <p className="text-[13px] text-muted">Nenhuma resposta pronta {tab === 'email' ? 'de e-mail' : tab === 'instagram' ? 'de Instagram' : 'de WhatsApp'} ainda.</p>
         ) : (
           <ul className="flex flex-col">
             {items.map((r) => (
@@ -114,7 +114,7 @@ function Editor({ initial, canShare, onClose, onSaved }: {
         {err && !err.errors.length ? <Alert tone="error">{err.title}</Alert> : null}
         <fieldset className="flex gap-4">
           <legend className="mb-1.5 text-[13px] font-medium">Canal</legend>
-          {([['whatsapp', 'WhatsApp'], ['email', 'E-mail']] as const).map(([v, label]) => (
+          {([['whatsapp', 'WhatsApp'], ['email', 'E-mail'], ['instagram', 'Instagram']] as const).map(([v, label]) => (
             <label key={v} className="flex min-h-11 items-center gap-2 text-sm">
               <input type="radio" name="canal-resposta" checked={d.channel === v} onChange={() => set({ channel: v })} className="size-[18px] accent-[var(--primary)]" />{label}
             </label>

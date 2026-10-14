@@ -149,7 +149,7 @@ jobs:
             nohup node apps/web/e2e/fake-servers.mjs > "$SAIDA/6-falsos.txt" 2>&1 &
             DATABASE_URL=postgres://crm_api:senha-e2e@localhost:5432/crm_e2e \
             APP_URL=http://localhost:3000 MASTER_KEYS="1:$(openssl rand -base64 32)" \
-            EVOLUTION_URL=http://127.0.0.1:8790 EVOLUTION_API_KEY=chave-e2e CHANNEL_ALLOW_PRIVATE_HOSTS=true BACKUP_DIR=/tmp/crm-backups \
+            META_GRAPH_URL=http://127.0.0.1:8791 META_INSTAGRAM_URL=http://127.0.0.1:8791 EVOLUTION_URL=http://127.0.0.1:8790 EVOLUTION_API_KEY=chave-e2e CHANNEL_ALLOW_PRIVATE_HOSTS=true BACKUP_DIR=/tmp/crm-backups \
             MAIL_MODE=file MAIL_DIR=/tmp/crm-mail STORAGE_DIR=/tmp/crm-files DISPATCH_INTERVAL_S=2 TRUST_PROXY=true COOKIE_SECURE=false LOG_LEVEL=warn PORT=3001 \
               nohup node apps/api/dist/main.js > "$SAIDA/6-api-servidor.txt" 2>&1 &
 

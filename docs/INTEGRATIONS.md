@@ -65,6 +65,27 @@ Conferido na documentação da Meta ([coexistência](https://developers.facebook
 
 Estratégia: conector `whatsapp_cloud` próprio, sem passar pela Evolution. Janela calculada por conversa, modelos sincronizados com o estado de aprovação, opt-out registrado. A decidir na Fase 6: a WTA se torna Tech Provider ou usa um parceiro.
 
+### Como está implementado (bloco 4, 14 out 2026)
+
+Cada empresa liga o próprio app da Meta (sem Embedded Signup, que fica para quando a WTA for Tech Provider):
+
+1. Em developers.facebook.com, um app do tipo Empresa com o produto **WhatsApp**, o número já registrado na Cloud API.
+2. No Gerenciador de Negócios, um **usuário do sistema** com token permanente e as permissões `whatsapp_business_messaging` e `whatsapp_business_management`.
+3. Em Configurações › Canais › **Adicionar número oficial**: ID do número de telefone, ID da conta do WhatsApp Business (WABA), token e chave secreta do app (Configurações do app › Básico). O CRM confere o número na Meta.
+4. Em "Configurar os avisos na Meta", copiar a URL de retorno e o token de verificação para o Webhook do app e assinar `messages` e `message_template_status_update`.
+
+Comportamento:
+- Avisos conferidos pela assinatura `X-Hub-Signature-256` com a chave secreta do app; endereço próprio por conta (derivado da chave mestra, sempre o mesmo).
+- Texto e arquivos livres só até 24 h depois da última mensagem do cliente naquele número; fora disso, a API responde 409 `outside-window` e a tela abre os modelos.
+- Modelos (Configurações › Canais › Modelos): criar com título, texto com `{{1}}`…, exemplos, rodapé e até 3 botões de resposta rápida; a aprovação chega pelo aviso ou por "Sincronizar com a Meta"; excluir apaga na Meta.
+- Campanhas por número oficial saem só com modelo aprovado; cada variável aceita `{{primeiro_nome}}` e as demais.
+- Mídia recebida é baixada da Meta (só de domínios da Meta) e guardada nos arquivos do contato.
+- Token e chave ficam cifrados e não voltam para a tela.
+
+Variáveis da instalação (opcionais, só para testes): `META_GRAPH_URL`, `META_INSTAGRAM_URL`, `META_GRAPH_VERSION` (padrão `v23.0`).
+
+Validado só contra um servidor falso da Graph API (`apps/api/test/fakes.ts`). **Falta o teste real** com um número da empresa.
+
 ## Instagram Direct
 
 Conferido na documentação da Meta ([mensagens](https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/messaging-api), [visão geral](https://developers.facebook.com/docs/instagram-platform/overview)):
@@ -77,6 +98,16 @@ Conferido na documentação da Meta ([mensagens](https://developers.facebook.com
 - Sem grupos e sem as pastas da caixa do Instagram.
 
 Sem raspagem e sem automação fora da API.
+
+### Como está implementado (bloco 4, 14 out 2026)
+
+Em Configurações › Canais › **Adicionar Instagram**: ID da conta profissional, tipo de acesso (API com login do Instagram, padrão, ou pela Página do Facebook), token e chave secreta do app. Os avisos usam o mesmo esquema do WhatsApp oficial (endereço próprio, assinatura conferida), assinando `messages`.
+
+- A pessoa que escreve vira contato (nome e @ buscados no perfil), com o IGSID guardado em `contact_handles`; a conversa aparece em Conversas › Instagram.
+- Resposta em texto até 24 h depois da última mensagem (a marcação de agente humano de 7 dias não está implementada); envio de arquivo pelo Instagram ainda não.
+- Sem campanhas pelo Instagram (a Meta não permite mensagens em massa).
+
+Validado só contra o servidor falso. **Falta o teste real**, que depende de acesso avançado da Meta para contas de clientes.
 
 ## E-mail
 

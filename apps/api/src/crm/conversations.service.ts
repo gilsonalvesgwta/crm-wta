@@ -10,7 +10,7 @@ import { Params, reachSql, tryReach } from './sql.js';
 
 const RANK = { own: 1, team: 2, tenant: 3 } as const;
 
-export type Channel = 'whatsapp' | 'email';
+export type Channel = 'whatsapp' | 'email' | 'instagram';
 export type ConversationStatus = 'open' | 'waiting' | 'closed';
 
 export type InboxFilter = {
@@ -36,6 +36,7 @@ const COLUMNS = `
   json_build_object('id', c.id, 'name', c.name,
     'phone', (select p.e164 from contact_phones p where p.contact_id = c.id order by p.is_primary desc, p.created_at limit 1),
     'email', (select e.email from contact_emails e where e.contact_id = c.id order by e.is_primary desc, e.created_at limit 1),
+    'instagram', (select coalesce('@' || h.username, h.value) from contact_handles h where h.contact_id = c.id and h.kind = 'instagram' order by h.created_at limit 1),
     'tags', coalesce((select json_agg(json_build_object('id', g.id, 'name', g.name, 'color', g.color) order by g.name)
                         from contact_tags ct join tags g on g.id = ct.tag_id where ct.contact_id = c.id), '[]'::json)) as contact,
   (select count(*)::int from messages m where m.contact_id = v.contact_id and m.channel = v.channel
@@ -191,10 +192,12 @@ export class ConversationsService {
       if (!k || k.anonymized_at) throw Problem.notFound('Contato não encontrado.');
       const has = channel === 'whatsapp'
         ? await q.query('select 1 from contact_phones where contact_id = $1', [contactId])
-        : await q.query('select 1 from contact_emails where contact_id = $1', [contactId]);
+        : channel === 'instagram'
+          ? await q.query("select 1 from contact_handles where contact_id = $1 and kind = 'instagram'", [contactId])
+          : await q.query('select 1 from contact_emails where contact_id = $1', [contactId]);
       if (!has.rowCount) {
-        throw Problem.badRequest(channel === 'whatsapp' ? 'O contato não tem telefone.' : 'O contato não tem e-mail.',
-          [{ field: 'channel', message: channel === 'whatsapp' ? 'Cadastre um telefone no contato.' : 'Cadastre um e-mail no contato.' }]);
+        throw Problem.badRequest(channel === 'whatsapp' ? 'O contato não tem telefone.' : channel === 'instagram' ? 'O contato não tem Instagram.' : 'O contato não tem e-mail.',
+          [{ field: 'channel', message: channel === 'whatsapp' ? 'Cadastre um telefone no contato.' : channel === 'instagram' ? 'O Instagram aparece quando a pessoa manda mensagem para a empresa.' : 'Cadastre um e-mail no contato.' }]);
       }
       const r = await q.query<{ id: string }>(
         `insert into conversations (tenant_id, contact_id, channel, assignee_membership_id, team_id)
