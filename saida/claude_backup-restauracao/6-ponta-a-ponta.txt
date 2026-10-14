@@ -1,0 +1,56 @@
+aplicando 0001_fundacao
+aplicando 0002_autenticacao
+aplicando 0003_nomes_unicos
+aplicando 0004_crm
+aplicando 0005_plataforma
+aplicando 0006_canais
+migrações aplicadas agora: 6
+papel crm_api pronto
+pronto: empresa 2bc8f69a-53c0-441d-88e6-dd9b47bfc8cd, superadministrador 102af008-6c1b-4c58-8331-94b0118636c5
+{"status":"ok","database":"ok"}
+
+Running kernel seems to be up-to-date.
+
+Restarting services...
+ systemctl restart php8.3-fpm.service
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+
+> @crm/web@ e2e /home/runner/work/crm-wta/crm-wta/apps/web
+> playwright test
+
+
+Running 26 tests using 1 worker
+
+  ✓   1 [chromium] › e2e/acesso.spec.ts:12:1 › a tela de login é acessível, no computador e no celular (1.2s)
+  ✓   2 [chromium] › e2e/acesso.spec.ts:24:1 › senha errada mostra a mensagem e não entra (291ms)
+  ✓   3 [chromium] › e2e/acesso.spec.ts:30:1 › sem sessão, a área interna manda para o login e volta depois (418ms)
+  ✓   4 [chromium] › e2e/acesso.spec.ts:40:1 › o administrador entra e vê o aviso para ativar a verificação em duas etapas (1.5s)
+  ✓   5 [chromium] › e2e/acesso.spec.ts:49:1 › convite: a pessoa cria a conta e entra (1.5s)
+  ✓   6 [chromium] › e2e/acesso.spec.ts:72:1 › esqueci a senha: o link do e-mail cria uma senha nova (1.7s)
+  ✓   7 [chromium] › e2e/acesso.spec.ts:99:1 › verificação em duas etapas: ativar, sair e entrar com o código (3.2s)
+  ✓   8 [chromium] › e2e/admin.spec.ts:14:1 › convidar, aceitar, trocar o perfil e desativar (2.8s)
+  ✓   9 [chromium] › e2e/admin.spec.ts:54:1 › equipes: criar e definir as pessoas (1.9s)
+  ✓  10 [chromium] › e2e/admin.spec.ts:72:1 › perfis: o administrador é protegido; um perfil novo nasce de um modelo (2.3s)
+  ✓  11 [chromium] › e2e/admin.spec.ts:89:1 › identidade visual: recusa cor sem contraste, aplica a nova e restaura (2.4s)
+  ✓  12 [chromium] › e2e/admin.spec.ts:119:1 › auditoria mostra o que foi feito, com filtro (1.7s)
+  ✓  13 [chromium] › e2e/admin.spec.ts:130:1 › plataforma: criar e suspender uma empresa (1.9s)
+  ✓  14 [chromium] › e2e/crm.spec.ts:8:1 › contatos: cadastrar, anotar, agendar, anexar e achar duplicado (4.7s)
+  ✓  15 [chromium] › e2e/crm.spec.ts:85:1 › negócios: funil padrão, quadro, regras de etapa, ganho e perda (4.4s)
+  ✓  16 [chromium] › e2e/crm.spec.ts:145:1 › leads: cadastrar e qualificar em negócio (1.8s)
+  ✓  17 [chromium] › e2e/crm.spec.ts:165:1 › agenda e painel (2.4s)
+  ✓  18 [chromium] › e2e/crm.spec.ts:182:1 › importar planilha CSV com erro por linha (4.3s)
+  ✓  19 [chromium] › e2e/crm.spec.ts:203:1 › configurações do CRM: funis e campos (3.3s)
+  ✓  20 [chromium] › e2e/mensagens.spec.ts:18:1 › WhatsApp: conectar pelo QR code, receber e responder pelas Conversas (6.9s)
+  ✓  21 [chromium] › e2e/mensagens.spec.ts:69:1 › e-mail da empresa: cadastrar, testar e enviar pelo contato (2.9s)
+  ✓  22 [chromium] › e2e/plataforma.spec.ts:19:1 › plataforma: plano com limites, edição da empresa, assinatura e exclusão (3.0s)
+  ✓  23 [chromium] › e2e/plataforma.spec.ts:86:1 › conta que perdeu a empresa entra e aceita o convite de uma empresa nova (3.4s)
+  ✓  24 [chromium] › e2e/plataforma.spec.ts:137:1 › identidade visual: modelo de cores, menu e logotipo (1.9s)
+  ✓  25 [chromium] › e2e/plataforma.spec.ts:163:1 › domínio próprio: instruções, cadastro e login com a marca da empresa (2.5s)
+  ✓  26 [chromium] › e2e/plataforma.spec.ts:201:1 › backups: fazer cópia agora, baixar e restaurar uma empresa (11.4s)
+
+  26 passed (1.3m)
