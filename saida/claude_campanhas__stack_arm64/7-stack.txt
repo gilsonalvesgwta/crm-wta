@@ -1,0 +1,60 @@
+Creating network crmwta_interna
+Creating service crmwta_web
+Creating service crmwta_backup
+Creating service crmwta_db
+Creating service crmwta_migrate
+Creating service crmwta_api
+aguardando os serviços...
+crmwta_api 1/1
+crmwta_backup 1/1
+crmwta_db 1/1
+crmwta_migrate 0/1
+crmwta_web 1/1
+traefik-teste 1/1
+OK   API pronta atrás do Traefik
+OK   interface responde
+OK   login do superadministrador criado na configuração inicial
+OK   cookie de sessão
+OK   cookie marcado como Secure
+OK   sessão válida pela interface pública
+OK   página interna renderiza
+OK   arquivo gravado no volume e baixado pelo endereço assinado
+OK   nenhuma porta da stack publicada
+OK   reimplantar não duplica a configuração inicial
+backup: crm-20261014-081827.dump (412K)
+OK   cópia do banco
+restaurado em crm_restaurado: 9 migrações, 1 empresas
+OK   restauração em banco novo
+OK   dados conferidos depois de restaurar
+OK   restauração recusa banco com dados
+OK   agente de cópias ativo, visto pela API
+OK   cópia pedida pela API (banco e arquivos)
+OK   restauração de uma empresa
+OK   restauração do banco inteiro
+OK   a API não reiniciou com a troca do banco
+OK   a API segue no ar e os dados conferem depois das restaurações
+crmwta_api 1/1
+crmwta_backup 1/1
+crmwta_db 1/1
+crmwta_migrate 0/1
+crmwta_web 1/1
+traefik-teste 1/1
+OK   serviço db em 1/1
+OK   serviço api em 1/1
+OK   serviço web em 1/1
+OK   serviço backup em 1/1
+migrate| crmwta_migrate.1.3yqs05tewexs@runnervmidgih    | aguardando o banco...
+migrate| crmwta_migrate.1.3yqs05tewexs@runnervmidgih    | aguardando o banco...
+migrate| crmwta_migrate.1.3yqs05tewexs@runnervmidgih    | aplicando 0001_fundacao
+migrate| crmwta_migrate.1.3yqs05tewexs@runnervmidgih    | aplicando 0002_autenticacao
+migrate| crmwta_migrate.1.3yqs05tewexs@runnervmidgih    | aplicando 0003_nomes_unicos
+migrate| crmwta_migrate.1.3yqs05tewexs@runnervmidgih    | aplicando 0004_crm
+migrate| crmwta_migrate.1.3yqs05tewexs@runnervmidgih    | aplicando 0005_plataforma
+migrate| crmwta_migrate.1.3yqs05tewexs@runnervmidgih    | aplicando 0006_canais
+migrate| crmwta_migrate.1.3yqs05tewexs@runnervmidgih    | aplicando 0007_automacoes
+migrate| crmwta_migrate.1.3yqs05tewexs@runnervmidgih    | aplicando 0008_conversas
+migrate| crmwta_migrate.1.3yqs05tewexs@runnervmidgih    | aplicando 0009_campanhas
+migrate| crmwta_migrate.1.3yqs05tewexs@runnervmidgih    | migrações aplicadas agora: 9
+migrate| crmwta_migrate.1.3yqs05tewexs@runnervmidgih    | papel crm_api pronto
+migrate| crmwta_migrate.1.3yqs05tewexs@runnervmidgih    | pronto: empresa 5e91149b-4379-48e2-a263-e8cf58fc1051, superadministrador f49bce0f-2cde-4355-baee-cada33933090
+migrate| crmwta_migrate.1.3yqs05tewexs@runnervmidgih    | migrate: concluído
