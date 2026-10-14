@@ -10,6 +10,17 @@ Cópias com banco e arquivos, tela na Plataforma (aba Backups) para fazer, baixa
 - **Cópia externa:** botão Baixar na Plataforma (só o administrador geral). O arquivo tem os dados de todas as empresas, inclusive senhas cifradas e hashes: guardar em local seguro. Para usar uma cópia guardada fora, "Enviar cópia guardada": o agente confere o arquivo antes de ele aparecer na lista; arquivo que não é cópia do CRM é apagado.
 - **Cópias antigas** (`crm-*.dump`, só o banco, de antes desta versão) aparecem como "Automática (antiga)" e também restauram.
 
+## Cópias dentro de cada empresa
+
+Pedido do responsável em 14 out 2026. Em Configurações › Cópias de segurança (permissão `settings:admin`, com a verificação em duas etapas quando exigida), o administrador da empresa:
+
+- **Faz** uma cópia só da empresa: `.tar` com `manifest.json` (empresa, tabelas, migrações), `dados/` (uma planilha TSV por tabela com as linhas da empresa) e `arquivos.tar.gz` (os arquivos dela). Das pessoas vão só identificador, e-mail e nome: **sem senhas**. Ficam em `/backups/empresas/<id da empresa>/`, no máximo 20 por empresa.
+- **Baixa** o arquivo para guardar fora.
+- **Restaura**: o agente confere que a cópia é da mesma empresa, faz antes uma cópia do estado atual e grava os dados de volta como na restauração de uma empresa pela Plataforma (as sessões continuam; senhas não mudam).
+- **Exclui** uma cópia.
+
+Cada cópia é apagada sozinha **7 dias** depois de criada (o agente confere a cada poucos segundos). O prazo muda com `DIAS_COPIAS_EMPRESA` no serviço `backup` e `TENANT_BACKUP_DAYS` na API (a tela mostra a data); sem as variáveis, 7. Uma empresa não vê, não baixa e não restaura cópias de outra (404). As cópias da Plataforma (todas as empresas) continuam só com o administrador geral.
+
 ## Restauração
 
 Sempre com a palavra RESTAURAR digitada. Antes de qualquer restauração o agente faz uma cópia "antes de restaurar" do estado atual.

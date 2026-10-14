@@ -1,10 +1,10 @@
 # Situação do projeto
 
-Atualizado em 13 de outubro de 2026.
+Atualizado em 14 de outubro de 2026.
 
 ## Fase atual
 
-**Lote 3 (automações e entrada pelo n8n)**, sobre os lotes 1 e 2 e o backup já instalados. Na sequência: backup por empresa e modelo de planilha de importação.
+**Lote 3 (automações e entrada pelo n8n)**, modelo de planilha de importação e cópias de segurança dentro de cada empresa, sobre os lotes 1 e 2 e o backup já instalados.
 
 **Instalação:** no ar em `https://crm.wtatech.com.br` desde 13 de outubro de 2026, versão `2026.10.13-40971d2`, stack `crmwta` criada pelo Portainer da VPS. Migrações aplicadas, administrador criado, `/api/readyz` respondendo.
 
@@ -42,6 +42,7 @@ Atualizado em 13 de outubro de 2026.
 | Restaurar uma empresa (volta a existir se foi excluída; as outras não mudam; arquivos voltam) | Agente; integração; ponta a ponta; stack |
 | Restaurar o banco inteiro, com o anterior guardado e cópia de segurança automática antes | Agente; stack |
 | Cópias antigas (.dump sem donos) restauram com os donos certos | Agente |
+| Configurações › Cópias de segurança: o administrador da empresa faz, baixa, restaura e exclui cópias só da própria empresa (dados e arquivos, sem senhas); outra empresa não vê nem usa; cópias apagadas sozinhas depois de 7 dias (`DIAS_COPIAS_EMPRESA`) | Agente; integração; ponta a ponta |
 
 ### Lote 2: canais e mensagens
 
@@ -110,7 +111,6 @@ Fase 2, ramo `claude/fase2-crm`, 13 de outubro de 2026, no GitHub Actions (os me
 ## Pendências
 
 - **Limite de requisições geral** por IP e por usuário: entra com o Redis, na Fase 3. O login já tem bloqueio.
-- **Backup dentro de cada empresa** (pedido em 14 out 2026): em Configurações, o administrador da empresa faz, baixa e restaura cópias só da própria empresa; essas cópias são apagadas sozinhas depois de 7 dias. Na Plataforma, o administrador geral continua com todas as empresas ou uma específica.
 - **Certificado dos domínios próprios**: decidir entre Cloudflare for SaaS e a lista no Traefik (DEPLOYMENT.md).
 - **Greenn**: teste com uma compra real.
 - **WhatsApp e e-mail com servidores reais**: conectar um número de teste na Evolution da VPS e cadastrar uma caixa da Hostinger.
@@ -160,7 +160,7 @@ Nenhum aberto. Corrigidos em 13 out 2026 (acesso):
 1. Colar a stack nova (backup ligado à API) no editor web do Portainer e atualizar com "Re-pull image and redeploy"; conferir a aba Backups e baixar uma cópia.
 2. Conectar um número de teste e cadastrar uma caixa de e-mail; conferir receber, responder e enviar arquivo.
 3. Cadastrar o endereço do webhook na Greenn e ligar os produtos aos planos.
-4. Backup dentro de cada empresa (administrador da empresa), com exclusão das cópias depois de 7 dias.
+4. Cópias dentro de cada empresa: prontas (Configurações › Cópias de segurança).
 5. Planilha modelo de importação: pronta (contatos e organizações, com exemplo ilustrado na tela).
 
 ## Aprovações pendentes

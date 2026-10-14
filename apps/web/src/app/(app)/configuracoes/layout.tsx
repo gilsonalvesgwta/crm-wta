@@ -23,6 +23,7 @@ const tabs = [
   { href: '/configuracoes/etiquetas', label: 'Etiquetas', perm: 'contacts:delete' },
   { href: '/configuracoes/distribuicao', label: 'Distribuição de leads', perm: 'deals:assign' },
   { href: '/configuracoes/auditoria', label: 'Auditoria', perm: 'audit:view' },
+  { href: '/configuracoes/backup', label: 'Cópias de segurança', perm: 'settings:admin' },
 ];
 /** Áreas que pedem a verificação em duas etapas confirmada (iguais às da API). */
 const MFA_PERMS = new Set(['settings:admin', 'users:admin', 'channels:admin', 'integrations:admin']);

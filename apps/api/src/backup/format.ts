@@ -4,7 +4,7 @@
 // cópias, e o agente, que tem, executa.
 import path from 'node:path';
 
-export type BackupKind = 'diaria' | 'manual' | 'antes-de-restaurar' | 'enviada' | 'antiga';
+export type BackupKind = 'diaria' | 'manual' | 'antes-de-restaurar' | 'enviada' | 'antiga' | 'empresa';
 
 export type Manifest = {
   name: string;
@@ -15,9 +15,12 @@ export type Manifest = {
   sizeBytes: number;
   migrations: string[];
   tenants: { id: string; name: string; slug: string; status: string }[];
+  /** Cópia de uma empresa só (feita pela própria empresa). */
+  tenantId?: string;
+  tables?: { t: string; cols: string[] }[];
 };
 
-export type JobType = 'backup' | 'restore_full' | 'restore_tenant' | 'inspect';
+export type JobType = 'backup' | 'restore_full' | 'restore_tenant' | 'inspect' | 'backup_tenant' | 'restore_tenant_backup';
 export type JobStatus = 'pending' | 'running' | 'done' | 'failed';
 
 export type Job = {
