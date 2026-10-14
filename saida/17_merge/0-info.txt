@@ -1,0 +1,4 @@
+commit: 8411a75c2d37e9697014f1fce61635ea18eec2db
+ramo: 17/merge
+execucao: 38555420088
+inicio: 2026-10-14T11:17:14Z
