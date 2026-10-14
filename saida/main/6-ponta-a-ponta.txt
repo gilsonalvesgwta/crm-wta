@@ -7,9 +7,10 @@ aplicando 0006_canais
 aplicando 0007_automacoes
 aplicando 0008_conversas
 aplicando 0009_campanhas
-migrações aplicadas agora: 9
+aplicando 0010_agendamentos
+migrações aplicadas agora: 10
 papel crm_api pronto
-pronto: empresa 3d64227d-bc8a-4d84-aa42-6a897397950f, superadministrador 6ac9bbaa-851b-47dc-a682-ac0ab4b97b81
+pronto: empresa 4c2ff453-caee-46d3-b088-d311445e80fe, superadministrador a1a6435d-3b28-44e8-b7ed-798e698b99b7
 {"status":"ok","database":"ok"}
 
 Running kernel seems to be up-to-date.
@@ -27,39 +28,41 @@ No VM guests are running outdated hypervisor (qemu) binaries on this host.
 > playwright test
 
 
-Running 32 tests using 1 worker
+Running 34 tests using 1 worker
 
-  ✓   1 [chromium] › e2e/acesso.spec.ts:12:1 › a tela de login é acessível, no computador e no celular (1.4s)
-  ✓   2 [chromium] › e2e/acesso.spec.ts:24:1 › senha errada mostra a mensagem e não entra (356ms)
-  ✓   3 [chromium] › e2e/acesso.spec.ts:30:1 › sem sessão, a área interna manda para o login e volta depois (466ms)
-  ✓   4 [chromium] › e2e/acesso.spec.ts:40:1 › o administrador entra e vê o aviso para ativar a verificação em duas etapas (1.8s)
-  ✓   5 [chromium] › e2e/acesso.spec.ts:49:1 › convite: a pessoa cria a conta e entra (1.6s)
-  ✓   6 [chromium] › e2e/acesso.spec.ts:72:1 › esqueci a senha: o link do e-mail cria uma senha nova (1.9s)
-  ✓   7 [chromium] › e2e/acesso.spec.ts:99:1 › verificação em duas etapas: ativar, sair e entrar com o código (3.5s)
-  ✓   8 [chromium] › e2e/admin.spec.ts:14:1 › convidar, aceitar, trocar o perfil e desativar (3.2s)
-  ✓   9 [chromium] › e2e/admin.spec.ts:54:1 › equipes: criar e definir as pessoas (2.2s)
-  ✓  10 [chromium] › e2e/admin.spec.ts:72:1 › perfis: o administrador é protegido; um perfil novo nasce de um modelo (2.8s)
-  ✓  11 [chromium] › e2e/admin.spec.ts:89:1 › identidade visual: recusa cor sem contraste, aplica a nova e restaura (2.8s)
-  ✓  12 [chromium] › e2e/admin.spec.ts:119:1 › auditoria mostra o que foi feito, com filtro (1.9s)
-  ✓  13 [chromium] › e2e/admin.spec.ts:130:1 › plataforma: criar e suspender uma empresa (2.0s)
-  ✓  14 [chromium] › e2e/crm.spec.ts:9:1 › contatos: cadastrar, anotar, agendar, anexar e achar duplicado (4.7s)
-  ✓  15 [chromium] › e2e/crm.spec.ts:86:1 › negócios: funil padrão, quadro, regras de etapa, ganho e perda (5.0s)
-  ✓  16 [chromium] › e2e/crm.spec.ts:146:1 › leads: cadastrar e qualificar em negócio (2.1s)
-  ✓  17 [chromium] › e2e/crm.spec.ts:166:1 › agenda e painel (2.9s)
-  ✓  18 [chromium] › e2e/crm.spec.ts:183:1 › importar planilha CSV com erro por linha (4.7s)
-  ✓  19 [chromium] › e2e/crm.spec.ts:204:1 › planilha modelo: baixar, importar sem mexer em nada e reconhecer todas as colunas (4.3s)
-  ✓  20 [chromium] › e2e/crm.spec.ts:228:1 › configurações do CRM: funis e campos (3.9s)
-  ✓  21 [chromium] › e2e/mensagens-automacoes.spec.ts:11:1 › automação: contato novo vira tarefa, com o histórico da execução (6.4s)
-  ✓  22 [chromium] › e2e/mensagens-automacoes.spec.ts:51:1 › n8n: chave de API mostrada uma vez, cadastro de contato e negócio pela entrada, revogar (2.6s)
-  ✓  23 [chromium] › e2e/mensagens.spec.ts:18:1 › WhatsApp: conectar pelo QR code, receber e responder pelas Conversas (7.7s)
-  ✓  24 [chromium] › e2e/mensagens.spec.ts:69:1 › e-mail da empresa: cadastrar, testar e enviar pelo contato (3.4s)
-  ✓  25 [chromium] › e2e/mensagens.spec.ts:109:1 › conversas: nova conversa com quem nunca escreveu, resposta pronta pelo atalho, estado e filtros (4.2s)
-  ✓  26 [chromium] › e2e/mensagens.spec.ts:168:1 › campanha de WhatsApp: cinco passos, público, envio no ritmo e relatório (13.3s)
-  ✓  27 [chromium] › e2e/plataforma.spec.ts:19:1 › plataforma: plano com limites, edição da empresa, assinatura e exclusão (3.5s)
-  ✓  28 [chromium] › e2e/plataforma.spec.ts:86:1 › conta que perdeu a empresa entra e aceita o convite de uma empresa nova (4.0s)
-  ✓  29 [chromium] › e2e/plataforma.spec.ts:137:1 › identidade visual: modelo de cores, menu e logotipo (2.4s)
-  ✓  30 [chromium] › e2e/plataforma.spec.ts:163:1 › domínio próprio: instruções, cadastro e login com a marca da empresa (2.8s)
-  ✓  31 [chromium] › e2e/plataforma.spec.ts:201:1 › backups: fazer cópia agora, baixar e restaurar uma empresa (8.9s)
-  ✓  32 [chromium] › e2e/plataforma.spec.ts:236:1 › cópias dentro da empresa: o administrador faz, baixa e restaura só a própria empresa (8.9s)
+  ✓   1 [chromium] › e2e/acesso.spec.ts:12:1 › a tela de login é acessível, no computador e no celular (1.1s)
+  ✓   2 [chromium] › e2e/acesso.spec.ts:24:1 › senha errada mostra a mensagem e não entra (256ms)
+  ✓   3 [chromium] › e2e/acesso.spec.ts:30:1 › sem sessão, a área interna manda para o login e volta depois (375ms)
+  ✓   4 [chromium] › e2e/acesso.spec.ts:40:1 › o administrador entra e vê o aviso para ativar a verificação em duas etapas (1.4s)
+  ✓   5 [chromium] › e2e/acesso.spec.ts:49:1 › convite: a pessoa cria a conta e entra (1.3s)
+  ✓   6 [chromium] › e2e/acesso.spec.ts:72:1 › esqueci a senha: o link do e-mail cria uma senha nova (1.5s)
+  ✓   7 [chromium] › e2e/acesso.spec.ts:99:1 › verificação em duas etapas: ativar, sair e entrar com o código (2.9s)
+  ✓   8 [chromium] › e2e/admin.spec.ts:14:1 › convidar, aceitar, trocar o perfil e desativar (2.4s)
+  ✓   9 [chromium] › e2e/admin.spec.ts:54:1 › equipes: criar e definir as pessoas (1.7s)
+  ✓  10 [chromium] › e2e/admin.spec.ts:72:1 › perfis: o administrador é protegido; um perfil novo nasce de um modelo (2.0s)
+  ✓  11 [chromium] › e2e/admin.spec.ts:89:1 › identidade visual: recusa cor sem contraste, aplica a nova e restaura (2.1s)
+  ✓  12 [chromium] › e2e/admin.spec.ts:119:1 › auditoria mostra o que foi feito, com filtro (1.5s)
+  ✓  13 [chromium] › e2e/admin.spec.ts:130:1 › plataforma: criar e suspender uma empresa (1.6s)
+  ✓  14 [chromium] › e2e/crm.spec.ts:9:1 › contatos: cadastrar, anotar, agendar, anexar e achar duplicado (4.2s)
+  ✓  15 [chromium] › e2e/crm.spec.ts:86:1 › negócios: funil padrão, quadro, regras de etapa, ganho e perda (4.2s)
+  ✓  16 [chromium] › e2e/crm.spec.ts:146:1 › leads: cadastrar e qualificar em negócio (1.6s)
+  ✓  17 [chromium] › e2e/crm.spec.ts:166:1 › agenda e painel (2.2s)
+  ✓  18 [chromium] › e2e/crm.spec.ts:183:1 › importar planilha CSV com erro por linha (4.1s)
+  ✓  19 [chromium] › e2e/crm.spec.ts:204:1 › planilha modelo: baixar, importar sem mexer em nada e reconhecer todas as colunas (4.0s)
+  ✓  20 [chromium] › e2e/crm.spec.ts:228:1 › configurações do CRM: funis e campos (3.1s)
+  ✓  21 [chromium] › e2e/mensagens-automacoes.spec.ts:11:1 › automação: contato novo vira tarefa, com o histórico da execução (5.8s)
+  ✓  22 [chromium] › e2e/mensagens-automacoes.spec.ts:51:1 › n8n: chave de API mostrada uma vez, cadastro de contato e negócio pela entrada, revogar (2.3s)
+  ✓  23 [chromium] › e2e/mensagens.spec.ts:18:1 › WhatsApp: conectar pelo QR code, receber e responder pelas Conversas (6.8s)
+  ✓  24 [chromium] › e2e/mensagens.spec.ts:69:1 › e-mail da empresa: cadastrar, testar e enviar pelo contato (2.7s)
+  ✓  25 [chromium] › e2e/mensagens.spec.ts:109:1 › conversas: nova conversa com quem nunca escreveu, resposta pronta pelo atalho, estado e filtros (3.4s)
+  ✓  26 [chromium] › e2e/mensagens.spec.ts:168:1 › campanha de WhatsApp: cinco passos, público, envio no ritmo e relatório (16.2s)
+  ✓  27 [chromium] › e2e/mensagens.spec.ts:221:1 › painel da operação: status agora, tendências, mapa de calor e atendentes (1.8s)
+  ✓  28 [chromium] › e2e/mensagens.spec.ts:237:1 › ações agendadas: agendar pelo contato e pela conversa, mudar e cancelar (2.7s)
+  ✓  29 [chromium] › e2e/plataforma.spec.ts:19:1 › plataforma: plano com limites, edição da empresa, assinatura e exclusão (2.8s)
+  ✓  30 [chromium] › e2e/plataforma.spec.ts:86:1 › conta que perdeu a empresa entra e aceita o convite de uma empresa nova (3.2s)
+  ✓  31 [chromium] › e2e/plataforma.spec.ts:137:1 › identidade visual: modelo de cores, menu e logotipo (1.9s)
+  ✓  32 [chromium] › e2e/plataforma.spec.ts:163:1 › domínio próprio: instruções, cadastro e login com a marca da empresa (2.3s)
+  ✓  33 [chromium] › e2e/plataforma.spec.ts:201:1 › backups: fazer cópia agora, baixar e restaurar uma empresa (11.2s)
+  ✓  34 [chromium] › e2e/plataforma.spec.ts:236:1 › cópias dentro da empresa: o administrador faz, baixa e restaura só a própria empresa (8.5s)
 
-  32 passed (2.1m)
+  34 passed (1.9m)
