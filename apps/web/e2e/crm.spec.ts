@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { test, expect, type Page } from '@playwright/test';
 import { expectAccessible, loginAdmin, shot } from './util';
 
@@ -198,6 +199,30 @@ test('importar planilha CSV com erro por linha', async ({ page }) => {
   await expect(page.getByText('2 contatos encontrados')).toBeVisible();
   await page.goto('/contatos?q=Carla');
   await expect(page.getByText('1 contato encontrado')).toBeVisible();
+});
+
+test('planilha modelo: baixar, importar sem mexer em nada e reconhecer todas as colunas', async ({ page }) => {
+  await loginAdmin(page);
+  await page.goto('/contatos/importar');
+  await expect(page.getByRole('table', { name: 'Exemplo de como preencher a planilha' })).toContainText('Primeiro nome');
+  await expectAccessible(page);
+  await shot(page, '27-planilha-modelo');
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Baixar planilha modelo' }).click()]);
+  expect(download.suggestedFilename()).toBe('modelo-contatos.csv');
+  const buffer = readFileSync((await download.path())!);
+  expect(buffer.subarray(0, 3)).toEqual(Buffer.from([0xef, 0xbb, 0xbf]));
+  await page.locator('input[type=file]').setInputFiles({ name: download.suggestedFilename(), mimeType: 'text/csv', buffer });
+  await expect(page.getByRole('heading', { name: '2. Ligue as colunas aos campos' })).toBeVisible();
+  for (const [col, target] of [['Primeiro nome', 'firstName'], ['Sobrenome', 'lastName'], ['E-mail', 'email'], ['Telefone', 'phone'], ['Empresa', 'organization'],
+    ['Aniversário', 'birthday'], ['Etiquetas', 'tags'], ['Responsável', 'ownerEmail'], ['Origem', 'source'], ['Cidade', 'city'], ['UF', 'state'], ['Cargo', 'jobTitle']] as const) {
+    await expect(page.getByLabel(`Campo para a coluna ${col}`, { exact: true })).toHaveValue(target);
+  }
+  await page.getByRole('button', { name: 'Importar 2 linhas' }).click();
+  // Os dois entram; o responsável do exemplo (e-mail fictício) vira só um aviso na linha.
+  await expect(async () => {
+    await page.goto('/contatos?q=exemplo.com.br');
+    await expect(page.getByText('2 contatos encontrados')).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 30_000 });
 });
 
 test('configurações do CRM: funis e campos', async ({ page }) => {
