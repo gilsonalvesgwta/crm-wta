@@ -19,7 +19,7 @@ Pedido do responsável em 14 out 2026. Em Configurações › Cópias de seguran
 - **Restaura**: o agente confere que a cópia é da mesma empresa, faz antes uma cópia do estado atual e grava os dados de volta como na restauração de uma empresa pela Plataforma (as sessões continuam; senhas não mudam).
 - **Exclui** uma cópia.
 
-Cada cópia é apagada sozinha **7 dias** depois de criada (o agente confere a cada minuto). O prazo muda com `DIAS_COPIAS_EMPRESA` no serviço `backup` e `TENANT_BACKUP_DAYS` na API (a tela mostra a data); sem as variáveis, 7. Uma empresa não vê, não baixa e não restaura cópias de outra (404). As cópias da Plataforma (todas as empresas) continuam só com o administrador geral.
+Cada cópia é apagada sozinha **7 dias** depois de criada (o agente confere a cada poucos segundos). O prazo muda com `DIAS_COPIAS_EMPRESA` no serviço `backup` e `TENANT_BACKUP_DAYS` na API (a tela mostra a data); sem as variáveis, 7. Uma empresa não vê, não baixa e não restaura cópias de outra (404). As cópias da Plataforma (todas as empresas) continuam só com o administrador geral.
 
 ## Restauração
 
