@@ -47,6 +47,12 @@ Canais, lote 2, conferido por `apps/api/test/canais.test.ts`, `domain-canais.tes
 - O texto do e-mail é escapado antes de virar HTML.
 - Histórico de mensagens segue o alcance do contato (404 fora dele). Arquivos de mensagens passam pelas mesmas regras dos anexos. Anonimizar o titular apaga as mensagens; exportar inclui.
 
+Automações e chaves de API (lote 3), conferido por `automacoes.test.ts` e `08_automacoes.sql`:
+
+- Chave de API `crm_<prefixo>_<segredo de 32 bytes>`; o banco guarda só o SHA-256, comparado em tempo constante. A chave age com as permissões atuais de quem a criou; pessoa desativada, empresa suspensa ou plano sem API invalidam a chave.
+- Automações respeitam a lista de supressão; resposta automática a mensagem recebida no máximo a cada 12 horas por contato (contra conversa entre robôs); webhook só para endereço público.
+- O despachante não lê tabelas: só as funções `automation_*`; cada execução roda no contexto da empresa.
+
 Cópias de segurança, conferido por `backup-agent.test.ts`, `backups.test.ts` e pelo teste da stack:
 
 - A API nunca tem a senha de superusuário do banco: ela escreve pedidos numa pasta; o agente do serviço `backup` executa.

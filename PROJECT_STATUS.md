@@ -4,7 +4,7 @@ Atualizado em 13 de outubro de 2026.
 
 ## Fase atual
 
-**Lote 2 (WhatsApp pela Evolution, e-mail da empresa, Conversas e histórico por contato)**, sobre o lote 1 já mesclado. Lote 3 (automações e n8n) na sequência.
+**Lote 3 (automações e entrada pelo n8n)**, sobre os lotes 1 e 2 e o backup já instalados. Na sequência: backup por empresa e modelo de planilha de importação.
 
 **Instalação:** no ar em `https://crm.wtatech.com.br` desde 13 de outubro de 2026, versão `2026.10.13-40971d2`, stack `crmwta` criada pelo Portainer da VPS. Migrações aplicadas, administrador criado, `/api/readyz` respondendo.
 
@@ -22,6 +22,16 @@ Atualizado em 13 de outubro de 2026.
 | Usuários, equipes, dados da empresa, identidade visual com contraste calculado | Integração e ponta a ponta |
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
+
+### Lote 3: automações e n8n
+
+| Item | Evidência |
+| --- | --- |
+| Automações com gatilho (contato, lead e negócio novos, mudança de etapa, ganho, perda, mensagem recebida, aniversário, negócio parado), filtros (funil, etapa, etiqueta, origem) e ações em sequência (WhatsApp, e-mail, tarefa, etiqueta, mover etapa, webhook, esperar) | Banco; integração contra Evolution e SMTP falsos; ponta a ponta |
+| Variáveis nos textos ({{primeiro_nome}}, {{empresa}}, {{negocio}}…); modelos prontos na tela | Integração; ponta a ponta |
+| Registro de cada execução com o que cada ação fez, ou por que não se aplicou | Integração; ponta a ponta |
+| Lista de supressão respeitada; resposta automática no máximo a cada 12 h por contato; limite de automações do plano | Integração |
+| Chaves de API e entrada do n8n: contato achado ou criado, organização e etiquetas pelo nome, negócio no funil e etapa escolhidos (pelo nome), lead | Integração; ponta a ponta |
 
 ### Backup e restauração pela Plataforma
 
@@ -106,7 +116,7 @@ Fase 2, ramo `claude/fase2-crm`, 13 de outubro de 2026, no GitHub Actions (os me
 - **Greenn**: teste com uma compra real.
 - **WhatsApp e e-mail com servidores reais**: conectar um número de teste na Evolution da VPS e cadastrar uma caixa da Hostinger.
 - **Leitura das respostas de e-mail (IMAP)**: Fase 5. Hoje as respostas chegam na caixa de sempre.
-- **Lote 3**: automações (e-mail, WhatsApp, aniversário, acompanhamento, lembretes) e cadastro de lead, contato e negócio pelo n8n no funil e etapa escolhidos.
+- **Automações e n8n com servidores reais**: criar uma chave, ligar um fluxo do n8n à entrada e uma automação ao webhook do n8n.
 - **Visões salvas**: a API existe; falta a tela para salvar e escolher filtros.
 - **Lembretes só dentro do CRM.** Lembrete por e-mail ou WhatsApp entra com os canais (Fases 4 e 5).
 - **Metas comerciais**: Fase 7, junto com os dashboards avançados.
@@ -151,7 +161,8 @@ Nenhum aberto. Corrigidos em 13 out 2026 (acesso):
 1. Colar a stack nova (backup ligado à API) no editor web do Portainer e atualizar com "Re-pull image and redeploy"; conferir a aba Backups e baixar uma cópia.
 2. Conectar um número de teste e cadastrar uma caixa de e-mail; conferir receber, responder e enviar arquivo.
 3. Cadastrar o endereço do webhook na Greenn e ligar os produtos aos planos.
-4. Lote 3: automações e entrada pelo n8n.
+4. Backup dentro de cada empresa (administrador da empresa), com exclusão das cópias depois de 7 dias.
+5. Modelo de planilha CSV para importar contatos.
 
 ## Aprovações pendentes
 

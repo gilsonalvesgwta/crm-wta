@@ -67,7 +67,7 @@ function Bubble({ m }: { m: Message }) {
         <p className="flex flex-wrap items-center gap-1.5 text-[12px] text-muted">
           {m.channel === 'email' ? <Mail size={13} aria-hidden /> : <MessageCircle size={13} aria-hidden />}
           <span>{m.channel === 'email' ? 'E-mail' : 'WhatsApp'}{m.account ? ` · ${m.account.name}` : ''}</span>
-          {out ? <span>· {m.sentBy?.name ?? 'pelo celular'}</span> : null}
+          {out ? <span>· {m.automation ? `automação "${m.automation.name}"` : m.sentBy?.name ?? 'pelo celular'}</span> : null}
         </p>
         {m.subject ? <p className="font-semibold">{m.subject}</p> : null}
         {m.file ? <Attachment file={m.file} out={out} /> : !m.body ? <p className="italic text-muted">{KIND_LABEL[m.kind] ?? 'Mensagem'}</p> : null}

@@ -7,6 +7,7 @@ export type Message = {
   createdAt: string; sentAt: string | null; deliveredAt: string | null; readAt: string | null; seenAt: string | null;
   account: { id: string; name: string; kind: string; address: string | null } | null;
   sentBy: { id: string; name: string } | null;
+  automation?: { id: string; name: string } | null;
   file: { id: string; name: string; contentType: string; sizeBytes: number } | null;
 };
 

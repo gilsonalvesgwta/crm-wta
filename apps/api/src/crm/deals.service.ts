@@ -292,7 +292,7 @@ export class DealsService {
     const missing = await this.missingFor(q, id, stageId);
     if (missing.length) throw Problem.badRequest(`A etapa "${stage.name}" exige campos que faltam.`, missing);
     await timeline(q, actor, 'deal.created', { dealId: id, contactId: input.contactId, organizationId: input.organizationId, leadId },
-      { stageId, title: input.title });
+      { stageId, pipelineId: input.pipelineId, title: input.title });
     return id;
   }
 
@@ -403,7 +403,7 @@ export class DealsService {
       }
       const kind = to.kind === 'won' ? 'deal.won' : to.kind === 'lost' ? 'deal.lost' : 'deal.stage_changed';
       await timeline(q, actor, kind, { dealId: id, contactId: cur.contact_id, organizationId: cur.organization_id },
-        { fromStage: from.rows[0]?.name, toStage: to.name, reasonId: input.reasonId ?? null });
+        { fromStage: from.rows[0]?.name, toStage: to.name, toStageId: to.id, pipelineId, reasonId: input.reasonId ?? null });
       return this.detail(q, id);
     });
   }
