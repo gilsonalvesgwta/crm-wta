@@ -116,6 +116,15 @@ describe('cópias na plataforma', () => {
     assert.equal((await owner.get('/api/v1/platform/tenants')).status, 200);
   });
 
+  test('a API sobrevive às conexões derrubadas (troca do banco na restauração completa)', async () => {
+    await owner.get('/api/v1/platform/tenants');
+    await f.admin.query(`select pg_terminate_backend(pid) from pg_stat_activity where datname = $1 and usename = 'crm_api'`, [f.dbName]);
+    await new Promise((r) => setTimeout(r, 200));
+    let status = 0;
+    for (let i = 0; i < 3 && status !== 200; i++) status = (await owner.get('/api/v1/platform/tenants')).status;
+    assert.equal(status, 200);
+  });
+
   test('só o administrador geral vê; excluir uma cópia', async () => {
     assert.equal((await admin.get('/api/v1/platform/backups')).status, 404);
     assert.equal((await admin.raw(`/api/v1/platform/backups/${copy}/download`)).status, 404);

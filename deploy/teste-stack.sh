@@ -124,11 +124,11 @@ pedido() {
   extra="$2"
   docker exec "$api" sh -c "printf '%s' '{\"id\":\"$id\",\"type\":\"$1\",\"requestedBy\":\"teste\",\"requestedAt\":\"$(date -u +%FT%TZ)\",\"status\":\"pending\",\"log\":[]$extra}' > /backups/.trabalhos/$id.json"
   for i in $(seq 1 90); do
-    st=$(docker exec "$api" sh -c "cat /backups/.trabalhos/$id.json" | grep -o '"status": *"[a-z]*"' | head -n1 | sed -E 's/.*"([a-z]+)"$/\1/')
+    st=$(docker exec "$bk" sh -c "cat /backups/.trabalhos/$id.json" | grep -o '"status": *"[a-z]*"' | head -n1 | sed -E 's/.*"([a-z]+)"$/\1/')
     [ "$st" = done ] || [ "$st" = failed ] && break
     sleep 2
   done
-  [ "$st" = done ] || docker exec "$api" sh -c "cat /backups/.trabalhos/$id.json" >&2
+  [ "$st" = done ] || docker exec "$bk" sh -c "cat /backups/.trabalhos/$id.json" >&2
   echo "$st"
 }
 for i in $(seq 1 30); do docker exec "$api" test -f /backups/.trabalhos/agente.json && break; sleep 2; done
@@ -138,6 +138,9 @@ copia=$(docker exec "$api" sh -c 'ls -1 /backups/crm-*-manual.tar | tail -n1 | x
 tenant=$(docker exec "$db" psql -U postgres -d crm -At -c "select id from tenants limit 1")
 [ "$(pedido restore_tenant ",\"file\":\"$copia\",\"tenantId\":\"$tenant\"")" = done ] && ok "restauração de uma empresa" || erro "restauração de uma empresa"
 [ "$(pedido restore_full ",\"file\":\"$copia\"")" = done ] && ok "restauração do banco inteiro" || erro "restauração do banco inteiro"
+sleep 5
+napi=$(docker ps -q -f name=crmwta_api | head -n1)
+[ "$napi" = "$api" ] && ok "a API não reiniciou com a troca do banco" || erro "a API reiniciou durante a restauração do banco inteiro"
 for i in $(seq 1 30); do curl -fsS -o /dev/null "https://$DOM/api/readyz" --resolve "$DOM:443:127.0.0.1" -k 2>/dev/null && break; sleep 2; done
 n=$(docker exec "$db" psql -U postgres -d crm -At -c "select count(*) from users where email = 'dono@wta.test'")
 [ "$n" = 1 ] && ok "a API segue no ar e os dados conferem depois das restaurações" || erro "dados depois das restaurações ($n)"
