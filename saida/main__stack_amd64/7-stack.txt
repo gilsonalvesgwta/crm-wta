@@ -1,9 +1,9 @@
 Creating network crmwta_interna
-Creating service crmwta_backup
 Creating service crmwta_db
 Creating service crmwta_migrate
 Creating service crmwta_api
 Creating service crmwta_web
+Creating service crmwta_backup
 aguardando os serviços...
 crmwta_api 1/1
 crmwta_backup 1/1
@@ -21,9 +21,9 @@ OK   página interna renderiza
 OK   arquivo gravado no volume e baixado pelo endereço assinado
 OK   nenhuma porta da stack publicada
 OK   reimplantar não duplica a configuração inicial
-backup: crm-20261014-082854.dump (412K)
+backup: crm-20261014-085954.dump (424K)
 OK   cópia do banco
-restaurado em crm_restaurado: 9 migrações, 1 empresas
+restaurado em crm_restaurado: 10 migrações, 1 empresas
 OK   restauração em banco novo
 OK   dados conferidos depois de restaurar
 OK   restauração recusa banco com dados
@@ -43,18 +43,18 @@ OK   serviço db em 1/1
 OK   serviço api em 1/1
 OK   serviço web em 1/1
 OK   serviço backup em 1/1
-migrate| crmwta_migrate.1.zw882xen4tvm@runnervmmprz5    | aguardando o banco...
-migrate| crmwta_migrate.1.zw882xen4tvm@runnervmmprz5    | aguardando o banco...
-migrate| crmwta_migrate.1.zw882xen4tvm@runnervmmprz5    | aplicando 0001_fundacao
-migrate| crmwta_migrate.1.zw882xen4tvm@runnervmmprz5    | aplicando 0002_autenticacao
-migrate| crmwta_migrate.1.zw882xen4tvm@runnervmmprz5    | aplicando 0003_nomes_unicos
-migrate| crmwta_migrate.1.zw882xen4tvm@runnervmmprz5    | aplicando 0004_crm
-migrate| crmwta_migrate.1.zw882xen4tvm@runnervmmprz5    | aplicando 0005_plataforma
-migrate| crmwta_migrate.1.zw882xen4tvm@runnervmmprz5    | aplicando 0006_canais
-migrate| crmwta_migrate.1.zw882xen4tvm@runnervmmprz5    | aplicando 0007_automacoes
-migrate| crmwta_migrate.1.zw882xen4tvm@runnervmmprz5    | aplicando 0008_conversas
-migrate| crmwta_migrate.1.zw882xen4tvm@runnervmmprz5    | aplicando 0009_campanhas
-migrate| crmwta_migrate.1.zw882xen4tvm@runnervmmprz5    | migrações aplicadas agora: 9
-migrate| crmwta_migrate.1.zw882xen4tvm@runnervmmprz5    | papel crm_api pronto
-migrate| crmwta_migrate.1.zw882xen4tvm@runnervmmprz5    | pronto: empresa 8f0466cc-b864-4ea6-8ff0-891efef522bb, superadministrador f0568876-079d-4338-a019-3b9e3d1751fb
-migrate| crmwta_migrate.1.zw882xen4tvm@runnervmmprz5    | migrate: concluído
+migrate| crmwta_migrate.1.4b19en06x2y2@runnervmmprz5    | aguardando o banco...
+migrate| crmwta_migrate.1.4b19en06x2y2@runnervmmprz5    | aplicando 0001_fundacao
+migrate| crmwta_migrate.1.4b19en06x2y2@runnervmmprz5    | aplicando 0002_autenticacao
+migrate| crmwta_migrate.1.4b19en06x2y2@runnervmmprz5    | aplicando 0003_nomes_unicos
+migrate| crmwta_migrate.1.4b19en06x2y2@runnervmmprz5    | aplicando 0004_crm
+migrate| crmwta_migrate.1.4b19en06x2y2@runnervmmprz5    | aplicando 0005_plataforma
+migrate| crmwta_migrate.1.4b19en06x2y2@runnervmmprz5    | aplicando 0006_canais
+migrate| crmwta_migrate.1.4b19en06x2y2@runnervmmprz5    | aplicando 0007_automacoes
+migrate| crmwta_migrate.1.4b19en06x2y2@runnervmmprz5    | aplicando 0008_conversas
+migrate| crmwta_migrate.1.4b19en06x2y2@runnervmmprz5    | aplicando 0009_campanhas
+migrate| crmwta_migrate.1.4b19en06x2y2@runnervmmprz5    | aplicando 0010_agendamentos
+migrate| crmwta_migrate.1.4b19en06x2y2@runnervmmprz5    | migrações aplicadas agora: 10
+migrate| crmwta_migrate.1.4b19en06x2y2@runnervmmprz5    | papel crm_api pronto
+migrate| crmwta_migrate.1.4b19en06x2y2@runnervmmprz5    | pronto: empresa c98b2ae3-c5da-40be-8d93-7fdf28c3d96f, superadministrador 71f641ba-6d62-4392-bacb-f0bb3174121c
+migrate| crmwta_migrate.1.4b19en06x2y2@runnervmmprz5    | migrate: concluído
