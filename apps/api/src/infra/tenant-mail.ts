@@ -5,6 +5,7 @@ export type SmtpAccount = { host: string; port: number; secure: boolean; user: s
 export type TenantMail = {
   to: string; subject: string; text: string; html: string;
   attachments?: { filename: string; content: Buffer; contentType: string }[];
+  headers?: Record<string, string>;
 };
 
 export class SmtpError extends Error {}

@@ -23,6 +23,17 @@ Atualizado em 14 de outubro de 2026.
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
 
+### Campanhas (bloco 2 dos ajustes de 14 out 2026)
+
+| Item | Evidência |
+| --- | --- |
+| Campanhas de WhatsApp e e-mail em 5 passos (Geral, Audiência, Conteúdo, Configurações, Revisão), com rascunho salvo a cada passo | Ponta a ponta |
+| Público por etiquetas (incluir e excluir), responsável, equipe, funil e etapa, origem e data de cadastro; prévia de quantos recebem e por que alguns ficam de fora | Integração; ponta a ponta |
+| Supressão e consentimento respeitados; "responda SAIR" no WhatsApp e link de descadastro (com List-Unsubscribe) no e-mail | Integração |
+| Envio no ritmo (mensagens por minuto) e na janela de horário; agendamento; pausar, retomar, cancelar; pausa sozinha se o WhatsApp desconectar | Banco; integração |
+| Relatório: enviadas, entregues, lidas, respostas, falhas, não enviadas e lista de destinatários | Integração; ponta a ponta |
+| Aprovação: quem edita campanhas (marketing) monta; quem aprova (administrador, gestor) inicia | Integração |
+
 ### Conversas (bloco 1 dos ajustes de 14 out 2026)
 
 | Item | Evidência |

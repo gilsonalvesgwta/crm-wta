@@ -154,6 +154,21 @@ Com chave de API não há cookie, então não há verificação de CSRF; chave i
 | `GET /api/v1/backups/jobs/:id` | `settings:admin` | Andamento de um trabalho da empresa (de outra empresa: 404) |
 | `DELETE /api/v1/backups/:nome` | `settings:admin` | Exclui uma cópia da empresa |
 
+### Campanhas (bloco 2 dos ajustes)
+
+| Endpoint | Permissão | O que faz |
+| --- | --- | --- |
+| `GET /api/v1/campaigns` | `campaigns:view` | Campanhas com números (`stats`: total, pending, sent, failed, skipped, delivered, read, replied). Filtros `status`, `q` |
+| `POST /api/v1/campaigns/preview` | `campaigns:edit` | `{channel, audience}` → quantos recebem e por que alguns ficam de fora (sem endereço, supressão, consentimento revogado ou ausente) |
+| `POST /api/v1/campaigns`, `PATCH /api/v1/campaigns/:id` | `campaigns:edit` | Rascunho: `{name, description?, channel, audience, accountId?, subject?, body?, perMinute, windowStart?, windowEnd?, optOutHint}`. Edita só antes de o envio começar |
+| `GET /api/v1/campaigns/:id`, `GET /api/v1/campaigns/:id/recipients` | `campaigns:view` | Campanha e destinatários (filtro `status`, paginado) |
+| `POST /api/v1/campaigns/:id/duplicate`, `DELETE /api/v1/campaigns/:id` | `campaigns:edit` | Duplicar; excluir rascunho, concluída ou cancelada |
+| `POST /api/v1/campaigns/:id/start` | `campaigns:approve` (empresa) | `{scheduledAt?}`: aprova o envio agora ou na data. Confere conta, texto, assunto e público |
+| `POST /api/v1/campaigns/:id/pause`, `/resume`, `/cancel` | `campaigns:approve` (empresa) | Pausar, retomar, cancelar (quem não recebeu fica como "não enviada") |
+| `GET` ou `POST /api/v1/public/descadastrar/:token` | Público (link assinado) | Descadastro dos e-mails de campanha (também pelo cabeçalho List-Unsubscribe, um clique) |
+
+O despachante monta o público na hora do envio (snapshot), envia no ritmo escolhido (mensagens por minuto, com pequena variação) e dentro da janela de horário no fuso da empresa. Fica de fora quem não tem endereço, está na lista de supressão ou revogou o consentimento; com `consentOnly`, só quem consentiu. WhatsApp desconectado no meio pausa a campanha sem perder ninguém. Responder "SAIR" (ou "PARAR", "STOP"…) põe o número na supressão.
+
 ### Canais e mensagens (lote 2)
 
 | Método e caminho | Acesso | Função |

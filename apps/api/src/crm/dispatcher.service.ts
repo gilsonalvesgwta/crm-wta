@@ -4,6 +4,7 @@ import { Db } from '../infra/db.js';
 import { ActivitiesService } from './activities.service.js';
 import { ImportExportService } from './import-export.service.js';
 import { AutomationsService } from '../automations/automations.service.js';
+import { CampaignsService } from './campaigns.service.js';
 
 /**
  * Trabalho em segundo plano da Fase 2, dentro do processo da API: lembretes,
@@ -24,6 +25,7 @@ export class DispatcherService implements OnApplicationBootstrap, OnApplicationS
     @Inject(ActivitiesService) private readonly activities: ActivitiesService,
     @Inject(ImportExportService) private readonly imports: ImportExportService,
     @Inject(AutomationsService) private readonly automations: AutomationsService,
+    @Inject(CampaignsService) private readonly campaigns: CampaignsService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -45,7 +47,7 @@ export class DispatcherService implements OnApplicationBootstrap, OnApplicationS
   }
 
   /** Uma rodada completa. Exposto para os testes. */
-  async runOnce(budgetMs = 10_000): Promise<{ reminders: number; importBatches: number; seriesExtended: number; expired: number; automations: { created: number; executed: number } }> {
+  async runOnce(budgetMs = 10_000): Promise<{ reminders: number; importBatches: number; seriesExtended: number; expired: number; automations: { created: number; executed: number }; campaigns: { sent: number } }> {
     const started = Date.now();
     const reminders = await this.reminders();
     let importBatches = 0;
@@ -69,7 +71,8 @@ export class DispatcherService implements OnApplicationBootstrap, OnApplicationS
     const expired = await this.db.dispatch(async (q) => (await q.query('select tenant_id from app.expire_subscriptions()')).rowCount ?? 0);
     if (expired) this.log.log(`${expired} assinatura(s) vencida(s): empresa(s) suspensa(s)`);
     const automations = await this.automations.dispatch(Math.max(2000, budgetMs - (Date.now() - started)));
-    return { reminders, importBatches, seriesExtended, expired, automations };
+    const campaigns = await this.campaigns.dispatch(Math.max(2000, budgetMs - (Date.now() - started)));
+    return { reminders, importBatches, seriesExtended, expired, automations, campaigns };
   }
 
   private async reminders(): Promise<number> {

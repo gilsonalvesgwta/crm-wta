@@ -37,7 +37,14 @@ fi
 
 for file in "$HERE"/[0-9]*.sql; do
   echo "== $(basename "$file")"
-  psql "$TEST_URL" -X -q -v ON_ERROR_STOP=1 -f "$file" >/dev/null
+  if ! out="$(psql "$TEST_URL" -X -q -v ON_ERROR_STOP=1 -f "$file" 2>&1 >/dev/null)"; then
+    echo "$out" >&2
+    # No GitHub Actions, a falha vira anotação (legível pela API, sem baixar o log).
+    if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+      echo "::error title=Teste de banco $(basename "$file")::$(echo "$out" | grep -m1 -E 'ERROR|FALHOU' | tr -d '\r')"
+    fi
+    exit 1
+  fi
 done
 
 total="$(psql "$TEST_URL" -X -At -c 'select count(*) from t.results')"
