@@ -244,7 +244,7 @@ test('cópias dentro da empresa: o administrador faz, baixa e restaura só a pr�
   await expect(page.getByText('Cópia pedida.')).toBeVisible();
   const row = page.getByRole('region', { name: 'Cópias disponíveis' }).getByRole('row').nth(1);
   await expect(row).toBeVisible({ timeout: 60_000 });
-  const expires = new Date(Date.now() + 7 * 86_400_000).toLocaleDateString('pt-BR');
+  const expires = new Date(Date.now() + 7 * 86_400_000).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   await expect(row).toContainText(expires);
   const href = await row.getByRole('link', { name: /Baixar/ }).getAttribute('href');
   const dl = await page.request.get(href!);
