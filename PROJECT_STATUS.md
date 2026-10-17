@@ -31,6 +31,7 @@ Atualizado em 14 de outubro de 2026.
 | Regra das 24 h: fora da janela, só modelo aprovado (a tela abre os modelos) | Integração; ponta a ponta |
 | Modelos: criar (título, variáveis com exemplos, rodapé, botões), aprovação pelo aviso ou sincronizando, excluir; usar na conversa e nas campanhas | Banco; integração; ponta a ponta |
 | Instagram: cadastrar, receber mensagens diretas (contato com o @), responder em até 24 h | Integração; ponta a ponta |
+| Passo a passo da conexão (WhatsApp oficial e Instagram) ao lado do canal, no formulário e em página própria para imprimir; registro do número com o PIN e renovação automática do token do Instagram | Banco; integração; ponta a ponta |
 | Teste com a Meta de verdade | **Pendente** (precisa do app e do número da empresa) |
 
 ### Operação e ações agendadas (bloco 3 dos ajustes de 14 out 2026)

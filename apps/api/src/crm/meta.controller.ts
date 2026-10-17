@@ -17,12 +17,14 @@ const cloudBody = z.object({
   phoneNumberId: numericId('ID do número de telefone'),
   wabaId: numericId('ID da conta do WhatsApp Business'),
   token: secret, appSecret: secret,
+  /** PIN de 6 dígitos da verificação em duas etapas: registra o número na Cloud API. */
+  pin: z.string().trim().regex(/^\d{6}$/, { message: 'O PIN tem 6 números.' }).nullable().optional().or(z.literal('').transform(() => null)),
 });
 const instagramBody = z.object({
   name: text(120, 'um nome para a conta'),
   igUserId: numericId('ID da conta do Instagram'),
   host: z.enum(['instagram', 'facebook']).default('instagram'),
-  token: secret, appSecret: secret,
+  token: secret, appSecret: secret, appSecret2: secret,
 });
 
 @Controller('v1')

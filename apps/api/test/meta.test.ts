@@ -76,6 +76,8 @@ describe('WhatsApp oficial (Cloud API)', () => {
     assert.equal(ok.status, 200, JSON.stringify(ok.body));
     assert.equal(ok.body.status, 'connected');
     assert.equal(ok.body.address, '+551133334444');
+    assert.equal(ok.body.subscribed, true);
+    assert.equal(meta.calls.at(-1)!.path, '200000000001/subscribed_apps', 'o app é ligado à conta do WhatsApp Business');
     hookPath = new URL(ok.body.webhook.url).pathname;
     verifyToken = ok.body.webhook.verifyToken;
     const list = await admin.get('/api/v1/channels');
@@ -202,12 +204,27 @@ describe('WhatsApp oficial (Cloud API)', () => {
   });
 });
 
+describe('registro do número e chaves', () => {
+  test('com o PIN, o número é registrado na Cloud API; PIN errado mostra o erro', async () => {
+    const wrong = await admin.patch(`/api/v1/channels/whatsapp-cloud/${cloud}`, { name: 'Oficial', phoneNumberId: '100000000123', wabaId: '200000000001', pin: '000000' });
+    assert.equal(wrong.body.status, 'error');
+    assert.match(wrong.body.lastError, /não foi registrado/);
+    assert.equal((await admin.patch(`/api/v1/channels/whatsapp-cloud/${cloud}`, { name: 'Oficial', phoneNumberId: '100000000123', wabaId: '200000000001', pin: '12' })).status, 422);
+    const ok = await admin.patch(`/api/v1/channels/whatsapp-cloud/${cloud}`, { name: 'Oficial', phoneNumberId: '100000000123', wabaId: '200000000001', pin: '123456' });
+    assert.equal(ok.body.status, 'connected', JSON.stringify(ok.body));
+    assert.equal(ok.body.registered, true);
+    const reg = meta.calls.filter((c) => c.path === '100000000123/register').at(-1)!;
+    assert.deepEqual(reg.body, { messaging_product: 'whatsapp', pin: '123456' });
+  });
+});
+
 describe('Instagram', () => {
   test('cadastrar e receber: o contato nasce com o @ do Instagram', async () => {
     const r = await admin.post('/api/v1/channels/instagram', { name: 'Insta', igUserId: '17841400000099', token: TOKEN, appSecret: SECRET });
     assert.equal(r.status, 201, JSON.stringify(r.body));
     assert.equal(r.body.status, 'connected');
     assert.equal(r.body.address, '@empresa.teste');
+    assert.equal(meta.calls.at(-1)!.path, 'me/subscribed_apps', 'os avisos de mensagens são ativados para a conta');
     ig = r.body.id;
     igHook = new URL(r.body.webhook.url).pathname;
     const msg = (mid: string, text: string, at = Date.now()) => ({ object: 'instagram', entry: [{ id: '17841400000099', time: at, messaging: [
@@ -233,5 +250,27 @@ describe('Instagram', () => {
     assert.equal(late.status, 409);
     assert.match(late.body.title, /24 horas/);
     assert.equal((await admin.post(`/api/v1/conversations/${conv}/messages`, { accountId: cloud, text: 'x' })).status, 422, 'conta de outro canal');
+  });
+
+  test('aviso assinado com a segunda chave (app do Instagram) também vale', async () => {
+    await admin.patch(`/api/v1/channels/instagram/${ig}`, { name: 'Insta', igUserId: '17841400000099', appSecret2: 'chave-do-app-do-instagram' });
+    const body = { object: 'instagram', entry: [{ id: '17841400000099', time: Date.now(), messaging: [
+      { sender: { id: '912345678901' }, recipient: { id: '17841400000099' }, timestamp: Date.now(), message: { mid: 'mid.IN2', text: 'Outra' } }] }] };
+    assert.equal((await hook(igHook, body, 'chave-do-app-do-instagram')).status, 200);
+    assert.equal((await hook(igHook, body, 'chave-errada')).status, 403);
+  });
+
+  test('o token do Instagram é renovado sozinho antes dos 60 dias', async () => {
+    await f.admin.query(`update channel_accounts set config = config || jsonb_build_object('tokenRefreshedAt', now() - interval '8 days') where id = $1`, [ig]);
+    await app.get(DispatcherService).runOnce();
+    assert.deepEqual(meta.refreshed, [TOKEN]);
+    const conv = (await admin.get('/api/v1/conversations?channel=instagram')).body.items[0].id;
+    await f.admin.query("update messages set created_at = now() where channel = 'instagram' and direction = 'in'");
+    meta.tokens.delete(TOKEN);
+    const s = await admin.post(`/api/v1/conversations/${conv}/messages`, { accountId: ig, text: 'Com o token novo' });
+    assert.equal(s.body.status, 'sent', 'usa o token renovado');
+    meta.tokens.add(TOKEN);
+    await app.get(DispatcherService).runOnce();
+    assert.equal(meta.refreshed.length, 1, 'não renova de novo logo em seguida');
   });
 });

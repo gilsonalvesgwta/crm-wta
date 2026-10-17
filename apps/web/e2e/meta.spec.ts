@@ -33,16 +33,30 @@ let igHook = '';
 test('WhatsApp oficial: cadastrar, avisos da Meta, modelo aprovado', async ({ page }) => {
   await loginAdmin(page);
   await openSettings(page, 'Canais');
+  // Passo a passo ao lado do canal, com as abas WhatsApp oficial e Instagram.
+  await page.getByRole('button', { name: 'Passo a passo' }).first().click();
+  const sheet = page.getByRole('complementary', { name: 'Passo a passo da conexão' });
+  await expect(sheet.getByRole('heading', { name: 'Gerar o token permanente (usuário do sistema)' })).toBeVisible();
+  await sheet.getByRole('checkbox', { name: 'Feito' }).first().check();
+  await expectAccessible(page);
+  await shot(page, '59-passo-a-passo-whatsapp');
+  await sheet.getByRole('button', { name: 'Instagram' }).click();
+  await expect(sheet.getByRole('heading', { name: 'Adicionar a conta do Instagram e gerar o token' })).toBeVisible();
+  await sheet.getByRole('button', { name: 'Fechar o passo a passo' }).click();
   await page.getByRole('button', { name: 'Adicionar número oficial' }).click();
   const d = page.getByRole('dialog', { name: 'Adicionar número oficial do WhatsApp' });
+  // O formulário abre com o passo a passo ao lado.
+  await expect(d.getByRole('region', { name: 'Passo a passo' }).getByRole('heading', { name: 'Definir o PIN de 6 dígitos' })).toBeVisible();
+  await shot(page, '60-formulario-com-passo-a-passo');
   await d.getByLabel('Nome da conta').fill('Oficial');
   await d.getByLabel('ID do número de telefone').fill('100000000777');
   await d.getByLabel('ID da conta do WhatsApp Business').fill('200000000777');
   await d.getByLabel('Token de acesso permanente').fill(TOKEN);
-  await d.getByLabel('Chave secreta do app').fill(SECRET);
+  await d.getByLabel('Chave secreta do app', { exact: true }).fill(SECRET);
+  await d.getByLabel('PIN (6 dígitos)').fill('123456');
   await expectAccessible(page);
   await d.getByRole('button', { name: 'Salvar e conferir' }).click();
-  await expect(page.getByText(/Conta salva e conferida na Meta/)).toBeVisible();
+  await expect(page.getByText(/Conta salva e conferida na Meta, com o número registrado na API/)).toBeVisible();
   const row = page.getByRole('listitem').filter({ hasText: 'Oficial' }).filter({ hasText: 'Empresa Teste' });
   await expect(row).toContainText('Conectada');
   await row.getByText('Configurar os avisos na Meta').click();
@@ -114,8 +128,9 @@ test('Instagram: cadastrar, receber a mensagem direta e responder', async ({ pag
   const d = page.getByRole('dialog', { name: 'Adicionar Instagram' });
   await d.getByLabel('Nome da conta').fill('Insta da loja');
   await d.getByLabel('ID da conta do Instagram').fill('17841400000777');
-  await d.getByLabel('Token de acesso permanente').fill(TOKEN);
-  await d.getByLabel('Chave secreta do app').fill(SECRET);
+  await d.getByLabel('Segunda chave secreta (opcional)').fill('outra-chave-e2e');
+  await d.getByLabel('Token de acesso', { exact: true }).fill(TOKEN);
+  await d.getByLabel('Chave secreta do app', { exact: true }).fill(SECRET);
   await d.getByRole('button', { name: 'Salvar e conferir' }).click();
   await expect(page.getByText(/Conta salva e conferida na Meta/)).toBeVisible();
   const row = page.getByRole('listitem').filter({ hasText: 'Insta da loja' });
@@ -136,4 +151,17 @@ test('Instagram: cadastrar, receber a mensagem direta e responder', async ({ pag
   expect([last.path, (last.body.recipient as { id: string }).id]).toEqual(['17841400000777/messages', '955500011122']);
   await expectAccessible(page);
   await shot(page, '58-instagram');
+});
+
+test('passo a passo em página própria, para abrir ao lado do site da Meta', async ({ page }) => {
+  await loginAdmin(page);
+  await page.goto('/configuracoes/canais/guia?canal=instagram');
+  await expect(page.getByRole('heading', { name: 'Passo a passo: Instagram' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Problemas comuns e como resolver' })).toBeVisible();
+  await page.getByText('As mensagens não aparecem no CRM').click();
+  await expect(page.getByText(/Permitir acesso às mensagens/).first()).toBeVisible();
+  await page.getByRole('button', { name: 'WhatsApp oficial' }).click();
+  await expect(page.getByRole('heading', { name: 'Passo a passo: WhatsApp oficial (API da Meta)' })).toBeVisible();
+  await expectAccessible(page);
+  await shot(page, '61-passo-a-passo-pagina');
 });

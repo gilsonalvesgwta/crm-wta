@@ -6,6 +6,7 @@ import { ImportExportService } from './import-export.service.js';
 import { AutomationsService } from '../automations/automations.service.js';
 import { CampaignsService } from './campaigns.service.js';
 import { ScheduledService } from './scheduled.service.js';
+import { MetaService } from './meta.service.js';
 
 /**
  * Trabalho em segundo plano da Fase 2, dentro do processo da API: lembretes,
@@ -28,6 +29,7 @@ export class DispatcherService implements OnApplicationBootstrap, OnApplicationS
     @Inject(AutomationsService) private readonly automations: AutomationsService,
     @Inject(CampaignsService) private readonly campaigns: CampaignsService,
     @Inject(ScheduledService) private readonly scheduled: ScheduledService,
+    @Inject(MetaService) private readonly meta: MetaService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -75,6 +77,7 @@ export class DispatcherService implements OnApplicationBootstrap, OnApplicationS
     const automations = await this.automations.dispatch(Math.max(2000, budgetMs - (Date.now() - started)));
     const scheduled = await this.scheduled.dispatch(Math.max(2000, budgetMs - (Date.now() - started)));
     const campaigns = await this.campaigns.dispatch(Math.max(2000, budgetMs - (Date.now() - started)));
+    await this.meta.refreshInstagramTokens().catch((err) => this.log.error(`renovação de tokens: ${String(err)}`));
     return { reminders, importBatches, seriesExtended, expired, automations, campaigns, scheduled };
   }
 

@@ -82,7 +82,9 @@ Comportamento:
 - Mídia recebida é baixada da Meta (só de domínios da Meta) e guardada nos arquivos do contato.
 - Token e chave ficam cifrados e não voltam para a tela.
 
-Variáveis da instalação (opcionais, só para testes): `META_GRAPH_URL`, `META_INSTAGRAM_URL`, `META_GRAPH_VERSION` (padrão `v23.0`).
+Variáveis da instalação (opcionais, só para testes): `META_GRAPH_URL`, `META_INSTAGRAM_URL`, `META_GRAPH_VERSION` (padrão `v25.0`).
+
+Passo a passo para o cliente (16 out 2026): em Configurações › Canais, o botão **Passo a passo** abre o guia num painel ao lado da tela (e ao lado do formulário de cadastro); também há a página `/configuracoes/canais/guia?canal=whatsapp|instagram`, para abrir em outra aba ou imprimir. Conferido com a documentação da Meta em outubro de 2026 (`apps/web/src/components/crm/meta-guide.tsx`, com a data em `GUIDE_UPDATED`). Ao salvar a conta, o CRM também liga o app à WABA (`subscribed_apps`) e, com o PIN de 6 dígitos, registra o número (`/register`, até 10 tentativas em 72 h).
 
 Validado só contra um servidor falso da Graph API (`apps/api/test/fakes.ts`). **Falta o teste real** com um número da empresa.
 
@@ -106,6 +108,8 @@ Em Configurações › Canais › **Adicionar Instagram**: ID da conta profissio
 - A pessoa que escreve vira contato (nome e @ buscados no perfil), com o IGSID guardado em `contact_handles`; a conversa aparece em Conversas › Instagram.
 - Resposta em texto até 24 h depois da última mensagem (a marcação de agente humano de 7 dias não está implementada); envio de arquivo pelo Instagram ainda não.
 - Sem campanhas pelo Instagram (a Meta não permite mensagens em massa).
+
+Ao salvar, o CRM ativa os avisos da conta (`/me/subscribed_apps?subscribed_fields=messages`). O token de longa duração (60 dias) é renovado pelo despachante a cada 7 dias (`app.meta_token_refresh_due`). A assinatura dos avisos é conferida com a chave do app e, se informada, com a chave do app do Instagram.
 
 Validado só contra o servidor falso. **Falta o teste real**, que depende de acesso avançado da Meta para contas de clientes.
 

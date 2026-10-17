@@ -74,9 +74,9 @@ export class MessagesService {
   }
 
   /** Token e segredo do app de uma conta da Meta (guardados cifrados juntos). */
-  metaCreds(accountId: string, sealed: Buffer | null): { token: string; appSecret: string } {
+  metaCreds(accountId: string, sealed: Buffer | null): { token: string; appSecret: string; appSecret2?: string } {
     if (!sealed) throw new MetaError('A conta está sem o token de acesso.');
-    return JSON.parse(this.openSecret(accountId, sealed)) as { token: string; appSecret: string };
+    return JSON.parse(this.openSecret(accountId, sealed)) as { token: string; appSecret: string; appSecret2?: string };
   }
 
   sealSecret(accountId: string, secret: string): Buffer {
