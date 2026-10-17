@@ -14,6 +14,8 @@ export class FakeEvolution {
   private server!: Server;
   private n = 0;
   url = '';
+  /** Mídias que a Evolution devolve em getBase64FromMediaMessage, pelo id da mensagem. */
+  readonly media = new Map<string, { base64: string; mimetype: string }>();
   readonly key: string;
 
   constructor(key: string) {
@@ -32,7 +34,9 @@ export class FakeEvolution {
         // Controle dos testes de ponta a ponta: ver e mudar o estado das instâncias.
         if (req.url === '/__fake/state' && req.method === 'GET') return send(200, { instances: [...this.instances.values()], sent: this.sent });
         if (req.url === '/__fake/state' && req.method === 'POST') {
-          const b = JSON.parse(raw || '{}') as { instance: string; state?: string; owner?: string };
+          const b = JSON.parse(raw || '{}') as { instance: string; state?: string; owner?: string; media?: Record<string, { base64: string; mimetype: string }> };
+          for (const [k, v] of Object.entries(b.media ?? {})) this.media.set(k, v);
+          if (b.media) return send(200, {});
           const i = this.instances.get(b.instance);
           if (!i) return send(404, {});
           if (b.state) i.state = b.state;
@@ -70,6 +74,11 @@ export class FakeEvolution {
           case 'GET /instance/connectionState': return send(200, { instance: { instanceName: name, state: inst.state } });
           case 'DELETE /instance/logout': inst.state = 'close'; return send(200, { status: 'SUCCESS', error: false, response: { message: 'Instance logged out' } });
           case 'DELETE /instance/delete': inst.deleted = true; return send(200, { status: 'SUCCESS', error: false, response: { message: 'Instance deleted' } });
+          case 'POST /chat/getBase64FromMediaMessage': {
+            const m = this.media.get(String((body.message as { key?: { id?: string } } | undefined)?.key?.id));
+            return m ? send(201, { mediaType: 'audioMessage', fileName: null, mimetype: m.mimetype, base64: m.base64 })
+              : send(400, { status: 400, error: 'Bad Request', response: { message: ['Message not found'] } });
+          }
           case 'POST /webhook/set': inst.webhook = (body.webhook as { url: string }).url; return send(201, { webhook: body.webhook });
           case 'POST /message/sendText':
           case 'POST /message/sendMedia': {

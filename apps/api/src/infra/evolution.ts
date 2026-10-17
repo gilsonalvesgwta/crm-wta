@@ -45,7 +45,7 @@ export class Evolution {
 
   private async call<T = Json>(method: string, path: string, body?: unknown, timeoutMs = 20_000): Promise<T> {
     this.assertConfigured();
-    if (!/^\/[a-zA-Z/]+\/crmwta-[a-z0-9-]+(\?.*)?$|^\/instance\/(create|fetchInstances)(\?.*)?$/.test(path)) {
+    if (!/^\/[a-zA-Z0-9/]+\/crmwta-[a-z0-9-]+(\?.*)?$|^\/instance\/(create|fetchInstances)(\?.*)?$/.test(path)) {
       throw new Error(`caminho da Evolution fora do permitido: ${path}`);
     }
     let res: Response;
@@ -131,6 +131,17 @@ export class Evolution {
       number, mediatype: m.mediatype, mimetype: m.mimetype, media: m.base64, fileName: m.fileName, caption: m.caption ?? '',
     }, 60_000);
     return idOf(r);
+  }
+
+  /** Baixa a mídia de uma mensagem que a Evolution guardou (quando o aviso chegou sem o arquivo). */
+  async mediaOf(name: string, messageId: string): Promise<{ base64: string; mimetype: string | null; fileName: string | null } | null> {
+    const r = await this.call<Json>('POST', `/chat/getBase64FromMediaMessage/${name}`, { message: { key: { id: messageId } }, convertToMp4: false }, 60_000);
+    if (typeof r?.base64 !== 'string' || !r.base64) return null;
+    return {
+      base64: r.base64.replace(/^data:[^,]*,/, ''),
+      mimetype: typeof r.mimetype === 'string' ? r.mimetype : null,
+      fileName: typeof r.fileName === 'string' && r.fileName ? r.fileName : null,
+    };
   }
 }
 

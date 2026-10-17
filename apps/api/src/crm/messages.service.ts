@@ -54,8 +54,10 @@ const OPT_OUT = /^(sair|parar|pare|stop|cancelar|descadastrar|nao quero mais)[.!
 
 const EXT: Record<string, string> = {
   'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'audio/ogg': 'ogg', 'audio/mpeg': 'mp3',
-  'audio/mp4': 'm4a', 'video/mp4': 'mp4', 'application/pdf': 'pdf',
+  'audio/mp4': 'm4a', 'audio/aac': 'aac', 'audio/amr': 'amr', 'video/mp4': 'mp4', 'video/3gpp': '3gp', 'application/pdf': 'pdf',
 };
+
+const MEDIA_KINDS = new Set(['image', 'audio', 'video', 'document', 'sticker']);
 
 @Injectable()
 export class MessagesService {
@@ -398,22 +400,8 @@ export class MessagesService {
       if (!messageId) return 'duplicate';
 
       if (ev.media) {
-        const data = Buffer.from(ev.media.base64, 'base64');
-        if (data.length > 0 && data.length <= this.cfg.UPLOAD_MAX_MB * 1024 * 1024) {
-          const ext = (ev.media.mimetype && EXT[ev.media.mimetype.split(';')[0]!.trim()]) ?? 'bin';
-          const name = ev.media.fileName ?? `whatsapp-${ev.kind}.${ext}`;
-          try {
-            await q.query('savepoint midia');
-            const fileId = await this.files.storeIn(q, { tenantId, membershipId: null } as unknown as Actor,
-              { name, data, purpose: 'message', ref: { kind: 'contact', id: contactId } });
-            await q.query('update messages set file_id = $1 where id = $2', [fileId, messageId]);
-            await q.query('release savepoint midia');
-          } catch (err) {
-            // Tipo não aceito (ou falha ao gravar): a mensagem fica, sem o arquivo.
-            await q.query('rollback to savepoint midia');
-            this.log.warn(`mídia do WhatsApp não guardada: ${(err as Error).message}`);
-          }
-        }
+        await this.attachMedia(q, tenantId, contactId, messageId, Buffer.from(ev.media.base64, 'base64'), ev.media.mimetype, ev.media.fileName,
+          `whatsapp-${ev.kind}`);
       }
       await q.query(
         `insert into timeline_entries (tenant_id, kind, contact_id, data) values (app.tenant_id(), $1, $2, $3)`,
@@ -484,6 +472,52 @@ export class MessagesService {
   }
 
   /** Guarda a mídia de uma mensagem recebida; tipo não aceito fica sem o arquivo. */
+  // ---- Mídia que chegou sem o arquivo ----------------------------------------------
+
+  /**
+   * Busca na Evolution o arquivo de uma mensagem de mídia que ficou sem ele
+   * (aviso sem o conteúdo ou tipo recusado antes). Devolve a mensagem atualizada.
+   */
+  async fetchMedia(actor: Actor, messageId: string) {
+    const m = await this.db.app(tenantCtx(actor), async (q) => {
+      const r = (await q.query<{ contact_id: string; kind: string; file_id: string | null; external_id: string | null; account_kind: string | null; instance: string | null; account_id: string | null }>(
+        `select m.contact_id, m.kind, m.file_id, m.external_id, a.kind as account_kind, a.external_id as instance, a.id as account_id
+           from messages m left join channel_accounts a on a.id = m.channel_account_id where m.id = $1`, [messageId])).rows[0];
+      if (!r) throw Problem.notFound('Mensagem não encontrada.');
+      await this.records.assertAccess(q, actor, { kind: 'contact', id: r.contact_id }, false);
+      return r;
+    });
+    if (!m.file_id) {
+      if (!MEDIA_KINDS.has(m.kind)) throw Problem.badRequest('Esta mensagem não tem arquivo.');
+      if (m.account_kind !== 'whatsapp_evolution' || !m.instance || !m.external_id || !m.account_id) {
+        throw new Problem(409, 'O arquivo desta mensagem não está mais disponível.', 'media-unavailable');
+      }
+      const ok = await this.recoverMedia(actor.tenantId!, m.account_id, m.instance, m.external_id);
+      if (!ok) throw new Problem(409, 'O WhatsApp não devolveu o arquivo desta mensagem. Ele pode ter expirado no celular.', 'media-unavailable');
+    }
+    return this.db.app(tenantCtx(actor), (q) => this.row(q, messageId));
+  }
+
+  /** Guarda o arquivo de uma mensagem da Evolution que ainda está sem ele. Usado logo depois do aviso e sob demanda. */
+  async recoverMedia(tenantId: string, accountId: string, instance: string, externalId: string): Promise<boolean> {
+    let media: Awaited<ReturnType<Evolution['mediaOf']>>;
+    try {
+      media = await this.evo.mediaOf(instance, externalId);
+    } catch (err) {
+      this.log.warn(`mídia do WhatsApp não baixada: ${(err as Error).message}`);
+      return false;
+    }
+    if (!media) return false;
+    return this.db.app({ tenantId, userId: null }, async (q) => {
+      const r = (await q.query<{ id: string; contact_id: string; kind: string; file_id: string | null }>(
+        'select id, contact_id, kind, file_id from messages where channel_account_id = $1 and external_id = $2 for update', [accountId, externalId])).rows[0];
+      if (!r) return false;
+      if (r.file_id) return true;
+      await this.attachMedia(q, tenantId, r.contact_id, r.id, Buffer.from(media.base64, 'base64'), media.mimetype, media.fileName, `whatsapp-${r.kind}`);
+      return (await q.query('select 1 from messages where id = $1 and file_id is not null', [r.id])).rowCount === 1;
+    });
+  }
+
   private async attachMedia(q: Q, tenantId: string, contactId: string, messageId: string, data: Buffer, mimetype: string | null, fileName: string | null, prefix: string) {
     if (!data.length || data.length > this.cfg.UPLOAD_MAX_MB * 1024 * 1024) return;
     const ext = (mimetype && EXT[mimetype.split(';')[0]!.trim()]) ?? 'bin';

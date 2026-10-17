@@ -302,7 +302,12 @@ export class ChannelsService {
     for (const ev of read.events) {
       try {
         if (ev.type === 'message') {
-          if ((await this.messages.receiveWhatsapp(acc.tenant_id, acc.account_id, ev)) !== 'duplicate') handled++;
+          const stored = await this.messages.receiveWhatsapp(acc.tenant_id, acc.account_id, ev);
+          if (stored !== 'duplicate') handled++;
+          // O aviso veio sem o arquivo (áudio, foto...): busca na Evolution sem segurar a resposta do aviso.
+          if (stored === 'stored' && !ev.media && ['image', 'audio', 'video', 'document', 'sticker'].includes(ev.kind) && acc.external_id) {
+            void this.messages.recoverMedia(acc.tenant_id, acc.account_id, acc.external_id, ev.id);
+          }
         } else if (ev.type === 'status') {
           if (await this.messages.updateStatus(acc.tenant_id, acc.account_id, ev)) handled++;
         } else if (ev.type === 'connection') {

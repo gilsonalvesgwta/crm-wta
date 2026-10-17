@@ -169,6 +169,9 @@ test('agenda e painel', async ({ page }) => {
   await expect(page.getByRole('group', { name: 'Visão' })).toBeVisible();
   await page.getByRole('button', { name: 'Próximo' }).click();
   await page.getByRole('button', { name: 'Hoje' }).click();
+  // A atividade é para amanhã: no sábado, amanhã já está na semana seguinte (a semana começa no domingo).
+  const weekday = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', weekday: 'short' }).format(new Date());
+  if (weekday === 'Sat') await page.getByRole('button', { name: 'Próximo' }).click();
   await expect(page.getByText('Ligar para apresentar a proposta').first()).toBeVisible();
   await page.getByRole('button', { name: 'Mês' }).click();
   await expectAccessible(page);

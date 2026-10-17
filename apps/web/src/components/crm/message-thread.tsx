@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { AlertCircle, AtSign, CalendarClock, Check, CheckCheck, Clock, Download, FileText, Mail, MessageCircle, MessageSquareText, Paperclip, Send, X } from 'lucide-react';
+import { AlertCircle, AtSign, CalendarClock, Check, CheckCheck, Clock, Download, FileText, Mail, MessageCircle, MessageSquareText, Paperclip, Play, Send, X } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { fileSize, fmtDateTime, phone } from '@/lib/crm';
 import { CHANNEL_NAME, KIND_LABEL, KIND_NAME, STATUS_LABEL, channelOfKind, fillTemplate, renderTemplate, templateVariables, type Channel, type Message, type QuickReply, type SendAccount, type WaTemplate } from '@/lib/messages';
@@ -33,7 +33,7 @@ function StatusIcon({ m }: { m: Message }) {
   return icon ? <span className="inline-flex items-center gap-1" title={label}>{icon}<span className="sr-only">{label}</span></span> : null;
 }
 
-function Attachment({ file, out }: { file: NonNullable<Message['file']>; out: boolean }) {
+function Attachment({ file, out, autoPlay = false }: { file: NonNullable<Message['file']>; out: boolean; autoPlay?: boolean }) {
   const [url, setUrl] = useState<string | null>(null);
   const image = file.contentType.startsWith('image/');
   const audio = file.contentType.startsWith('audio/');
@@ -50,11 +50,47 @@ function Attachment({ file, out }: { file: NonNullable<Message['file']>; out: bo
   return (
     <div className="flex flex-col gap-1.5">
       {image && url ? <img src={url} alt={file.name} className="max-h-60 max-w-full rounded-[6px] object-contain" /> : null}
-      {audio && url ? <audio controls src={url} className="max-w-full"><track kind="captions" /></audio> : null}
+      {audio && url ? <audio controls autoPlay={autoPlay} src={url} className="max-w-full"><track kind="captions" /></audio> : null}
       <button type="button" onClick={() => void open()}
         className={`flex items-center gap-2 self-start rounded-[6px] px-2 py-1 text-[13px] ${out ? 'bg-black/10' : 'bg-surface-2'} hover:underline`}>
         <Download size={14} aria-hidden /><span className="max-w-[220px] truncate">{file.name}</span><span className="opacity-70">{fileSize(file.sizeBytes)}</span>
       </button>
+    </div>
+  );
+}
+
+const MEDIA_ACTION: Record<string, string> = {
+  audio: 'Ouvir áudio', image: 'Ver imagem', video: 'Ver vídeo', document: 'Abrir documento', sticker: 'Ver figurinha',
+};
+
+/** Mídia que chegou sem o arquivo: busca no WhatsApp quando alguém pede. */
+function MissingMedia({ m, out }: { m: Message; out: boolean }) {
+  const [file, setFile] = useState<Message['file']>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  if (file) return <Attachment file={file} out={out} autoPlay />;
+  const label = KIND_LABEL[m.kind] ?? 'Mensagem';
+  if (m.account?.kind !== 'whatsapp_evolution') return !m.body ? <p className="italic text-muted">{label}</p> : null;
+  async function load() {
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await api<Message>('POST', `/api/v1/messages/${m.id}/media`);
+      if (r.file) setFile(r.file);
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.title : 'Não foi possível carregar o arquivo.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="flex flex-col gap-1">
+      <button type="button" onClick={() => void load()} disabled={busy}
+        className={`flex items-center gap-2 self-start rounded-full px-3 py-1.5 text-[13px] font-medium ${out ? 'bg-black/10' : 'bg-surface-2'} hover:underline disabled:opacity-70`}>
+        {busy ? <Spinner /> : m.kind === 'audio' || m.kind === 'video' ? <Play size={14} aria-hidden /> : <Download size={14} aria-hidden />}
+        {MEDIA_ACTION[m.kind] ?? label}
+      </button>
+      {err ? <p role="alert" className="text-[12px] text-bad">{err}</p> : null}
     </div>
   );
 }
@@ -72,7 +108,9 @@ function Bubble({ m }: { m: Message }) {
           {out ? <span>· {m.automation ? `automação "${m.automation.name}"` : m.campaign ? `campanha "${m.campaign.name}"` : m.sentBy?.name ?? 'pelo celular'}</span> : null}
         </p>
         {m.subject ? <p className="font-semibold">{m.subject}</p> : null}
-        {m.file ? <Attachment file={m.file} out={out} /> : !m.body ? <p className="italic text-muted">{KIND_LABEL[m.kind] ?? 'Mensagem'}</p> : null}
+        {m.file ? <Attachment file={m.file} out={out} />
+          : MEDIA_ACTION[m.kind] ? <MissingMedia m={m} out={out} />
+          : !m.body ? <p className="italic text-muted">{KIND_LABEL[m.kind] ?? 'Mensagem'}</p> : null}
         {m.body ? <p className="whitespace-pre-wrap break-words">{m.body}</p> : null}
         {m.status === 'failed' && m.error ? <p className="text-[12px] font-medium text-bad">{m.error}</p> : null}
         <p className="flex items-center justify-end gap-1.5 text-[11px] text-muted">

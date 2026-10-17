@@ -6,6 +6,12 @@ import { Browser, createDatabase, createUser, dropDatabase, startApi, type Fixtu
 import { FakeEvolution, FakeSmtp } from './fakes.js';
 
 const KEY = 'chave-global-de-teste';
+/** Começo de um arquivo Ogg com Opus (o áudio de voz do WhatsApp). */
+const OPUS = (() => {
+  const h = Buffer.alloc(28); h.write('OggS'); h[26] = 1; h[27] = 19;
+  const head = Buffer.alloc(19); head.write('OpusHead'); head[8] = 1; head[9] = 1;
+  return Buffer.concat([h, head, Buffer.alloc(64, 1)]);
+})();
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==', 'base64');
 
 let f: Fixture;
@@ -210,6 +216,48 @@ describe('WhatsApp pela Evolution', () => {
     assert.deepEqual(dl.body, PNG);
     // Arquivo de conversa não aparece entre os anexos do contato.
     assert.equal((await admin.get(`/api/v1/records/contact/${id}/files`)).body.length, 0);
+  });
+
+  test('áudio de voz do WhatsApp: guardado, recuperado depois e sob demanda', async () => {
+    const id = await contact(admin, { firstName: 'Heloisa', phones: [{ number: '+5598991102762' }] });
+    const hist = async () => (await admin.get(`/api/v1/contacts/${id}/messages`)).body.items as { id: string; kind: string; file: { contentType: string } | null }[];
+    // Aviso com o áudio (Opus dentro de Ogg, como o WhatsApp manda).
+    await upsert({
+      key: { remoteJid: '5598991102762@s.whatsapp.net', fromMe: false, id: 'IN-PTT-1' }, pushName: 'Heloisa', messageType: 'audioMessage',
+      message: { audioMessage: { mimetype: 'audio/ogg; codecs=opus', ptt: true }, base64: OPUS.toString('base64') },
+    });
+    let a = (await hist()).find((m) => m.kind === 'audio')!;
+    assert.equal(a.file?.contentType, 'audio/ogg');
+
+    // Aviso sem o arquivo: o CRM busca na Evolution logo em seguida.
+    evo.media.set('IN-PTT-2', { base64: OPUS.toString('base64'), mimetype: 'audio/ogg; codecs=opus' });
+    await upsert({
+      key: { remoteJid: '5598991102762@s.whatsapp.net', fromMe: false, id: 'IN-PTT-2' }, pushName: 'Heloisa', messageType: 'audioMessage',
+      message: { audioMessage: { mimetype: 'audio/ogg; codecs=opus', ptt: true } },
+    });
+    for (let i = 0; i < 50 && !(await hist()).filter((m) => m.kind === 'audio')[1]?.file; i++) await new Promise((r) => setTimeout(r, 100));
+    assert.equal((await hist()).filter((m) => m.kind === 'audio')[1]?.file?.contentType, 'audio/ogg');
+
+    // Áudio antigo, sem arquivo: só a Evolution ainda tem, e vem quando alguém pede para ouvir.
+    await upsert({
+      key: { remoteJid: '5598991102762@s.whatsapp.net', fromMe: false, id: 'IN-PTT-3' }, pushName: 'Heloisa', messageType: 'audioMessage',
+      message: { audioMessage: { mimetype: 'audio/ogg; codecs=opus', ptt: true } },
+    });
+    await new Promise((r) => setTimeout(r, 300));
+    a = (await hist()).filter((m) => m.kind === 'audio')[2]!;
+    assert.equal(a.file, null);
+    const gone = await admin.post(`/api/v1/messages/${a.id}/media`, {});
+    assert.equal(gone.status, 409);
+    assert.equal(gone.body.type, 'media-unavailable');
+    evo.media.set('IN-PTT-3', { base64: OPUS.toString('base64'), mimetype: 'audio/ogg; codecs=opus' });
+    const ok = await admin.post(`/api/v1/messages/${a.id}/media`, {});
+    assert.equal(ok.status, 200, JSON.stringify(ok.body));
+    assert.equal(ok.body.file.contentType, 'audio/ogg');
+    const url = await admin.get(`/api/v1/files/${ok.body.file.id}/url`);
+    assert.deepEqual((await admin.raw(url.body.url)).body, OPUS);
+    // Mensagem de texto não tem arquivo para buscar.
+    const txt = (await admin.post(`/api/v1/contacts/${id}/messages`, { accountId: waAccount, text: 'Recebi' })).body;
+    assert.equal((await admin.post(`/api/v1/messages/${txt.id}/media`, {})).status, 422);
   });
 
   test('falha no envio fica registrada com o motivo', async () => {

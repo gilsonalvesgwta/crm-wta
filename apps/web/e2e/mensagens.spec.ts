@@ -64,6 +64,25 @@ test('WhatsApp: conectar pelo QR code, receber e responder pelas Conversas', asy
   expect([sent.type, sent.body.number, sent.body.text]).toEqual(['text', '5521977776666', 'Olá, Maria! Fazemos sim.']);
   await expectAccessible(page);
   await shot(page, '42-conversas');
+
+  // Áudio de voz: o aviso vem sem o arquivo; um chega e já toca, o outro é buscado no WhatsApp quando pedido.
+  const OPUS = Buffer.concat([Buffer.from('OggS'), Buffer.alloc(22), Buffer.from([1, 19]), Buffer.from('OpusHead'), Buffer.from([1, 1]), Buffer.alloc(73, 1)]).toString('base64');
+  const voice = (id: string) => page.request.post(hook, {
+    data: { event: 'messages.upsert', instance: inst.name,
+      data: { key: { remoteJid: '5521977776666@s.whatsapp.net', fromMe: false, id }, pushName: 'Maria Cliente', message: { audioMessage: { mimetype: 'audio/ogg; codecs=opus', ptt: true } }, messageType: 'audioMessage' } },
+  });
+  await page.request.post(`${FAKE}/__fake/state`, { data: { media: { 'E2E-PTT-1': { base64: OPUS, mimetype: 'audio/ogg; codecs=opus' } } } });
+  expect((await voice('E2E-PTT-1')).status()).toBe(200);
+  expect((await voice('E2E-PTT-2')).status()).toBe(200);
+  await expect(async () => {
+    await page.reload();
+    await page.getByRole('button', { name: /Maria Cliente/ }).click();
+    await expect(thread.locator('audio')).toHaveCount(1, { timeout: 2000 });
+  }).toPass({ timeout: 15_000 });
+  await page.request.post(`${FAKE}/__fake/state`, { data: { media: { 'E2E-PTT-2': { base64: OPUS, mimetype: 'audio/ogg; codecs=opus' } } } });
+  await thread.getByRole('button', { name: 'Ouvir áudio' }).click();
+  await expect(thread.locator('audio')).toHaveCount(2);
+  await expectAccessible(page);
 });
 
 test('e-mail da empresa: cadastrar, testar e enviar pelo contato', async ({ page }) => {
