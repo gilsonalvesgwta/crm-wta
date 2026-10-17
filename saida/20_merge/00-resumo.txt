@@ -1,0 +1,6 @@
+instalar: success
+tipos: success
+testes-api: success
+compilar: success
+ponta-a-ponta: failure
+fim: 2026-10-17T02:02:59Z
