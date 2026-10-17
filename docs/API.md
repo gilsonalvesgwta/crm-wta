@@ -219,6 +219,7 @@ O despachante monta o público na hora do envio (snapshot), envia no ritmo escol
 | `POST /api/v1/contacts/:id/messages` | `conversations:reply`, no alcance | `{accountId, to?, text, subject?}` (assunto obrigatório no e-mail). Responde 201 com a mensagem; falha de entrega volta como `status: "failed"` e `error` |
 | `POST /api/v1/contacts/:id/messages/file` | `conversations:reply`, no alcance | Multipart: campos `accountId`, `to`, `text`, `subject` antes do arquivo `file` (até 16 MB) |
 | `POST /api/v1/contacts/:id/messages/seen` | `contacts:view` | Marca as recebidas como vistas |
+| `POST /api/v1/messages/:id/media` | `contacts:view` | Busca no WhatsApp (Evolution) o arquivo de uma mensagem de mídia que chegou sem ele; devolve a mensagem com `file`. 409 `media-unavailable` se o WhatsApp não tiver mais o arquivo |
 | `POST /api/v1/webhooks/evolution/:token` | Público; o token é a autorização | Avisos da Evolution. Token errado: 404 |
 
 ### Marca, domínio próprio e plano da empresa

@@ -15,7 +15,9 @@ import { REF_COLUMN, RecordsService, type RecordRef } from './records.service.js
 /** Tipos aceitos. HTML, SVG e executáveis ficam de fora: poderiam rodar no navegador ou na máquina de quem baixa. */
 const BINARY_TYPES = new Map<string, string>([
   ['application/pdf', 'pdf'], ['image/png', 'png'], ['image/jpeg', 'jpg'], ['image/gif', 'gif'], ['image/webp', 'webp'],
-  ['image/heic', 'heic'], ['audio/mpeg', 'mp3'], ['audio/ogg', 'ogg'], ['audio/mp4', 'm4a'], ['video/mp4', 'mp4'],
+  ['image/heic', 'heic'], ['audio/mpeg', 'mp3'], ['audio/ogg', 'ogg'], ['audio/mp4', 'm4a'], ['audio/x-m4a', 'm4a'],
+  ['audio/aac', 'aac'], ['audio/amr', 'amr'], ['audio/wav', 'wav'], ['video/mp4', 'mp4'], ['video/quicktime', 'mov'],
+  ['video/3gpp', '3gp'], ['video/webm', 'webm'],
   ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'docx'],
   ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'xlsx'],
   ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'pptx'],
@@ -52,7 +54,9 @@ export class FilesService {
     const ext = path.extname(name).slice(1).toLowerCase();
     const ft = await fileTypeFromBuffer(data);
     if (ft) {
-      if (BINARY_TYPES.has(ft.mime)) return ft.mime;
+      // "audio/ogg; codecs=opus" (áudio de voz do WhatsApp) vale como "audio/ogg".
+      const mime = ft.mime.split(';')[0]!.trim();
+      if (BINARY_TYPES.has(mime)) return mime;
       throw Problem.badRequest('Tipo de arquivo não aceito.', [{ field: 'file', message: `Arquivos ${ft.ext.toUpperCase()} não são aceitos.` }]);
     }
     const text = TEXT_TYPES.get(ext);

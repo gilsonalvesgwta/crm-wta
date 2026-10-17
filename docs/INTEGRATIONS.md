@@ -39,6 +39,7 @@ Estratégia:
 **Implementado (lote 2):**
 
 - Configurações › Canais › Conectar número: o CRM cria a instância `crmwta-<empresa>-<código>` (`POST /instance/create`, integração `WHATSAPP-BAILEYS`, webhook com `MESSAGES_UPSERT`, `MESSAGES_UPDATE`, `SEND_MESSAGE`, `CONNECTION_UPDATE` e mídia em base64) e mostra o QR code (`GET /instance/connect`), renovado a cada 30 s. A tela confere o estado a cada 4 s (`connectionState`, `fetchInstances` para o número).
+- Mídia recebida: o arquivo vem em base64 no aviso. Áudio de voz chega como `audio/ogg; codecs=opus` e é guardado como `audio/ogg` (toca no navegador). Se o aviso vier sem o arquivo, o CRM busca em seguida com `POST /chat/getBase64FromMediaMessage/{instância}`; mensagens antigas sem arquivo mostram "Ouvir áudio" / "Ver imagem", que faz a mesma busca na hora.
 - Recebimento: mensagem de número desconhecido cria o contato (nome do perfil do WhatsApp, origem "whatsapp"); número sem o nono dígito encontra o contato cadastrado com ele. Grupos, status, canais e reações ficam fora. Mídia é guardada no armazenamento do CRM.
 - Envio: texto (`sendText`) e arquivo (`sendMedia`), com estado enviado, entregue e lido pelos avisos `MESSAGES_UPDATE`. Mensagem mandada pelo celular também entra no histórico.
 - Desconectar (`logout`), remover (`delete`) e refazer o webhook (`webhook/set`) só nas instâncias do CRM.

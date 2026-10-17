@@ -159,6 +159,14 @@ export class MessagesController {
     return this.svc.send(a, id(i), parse(sendBody, u.body), u.file);
   }
 
+  /** Arquivo de uma mensagem que chegou sem ele (busca no WhatsApp). */
+  @Require('contacts:view')
+  @Post('messages/:id/media')
+  @HttpCode(200)
+  media(@CurrentActor() a: Actor, @Param('id') i: string) {
+    return this.svc.fetchMedia(a, id(i));
+  }
+
   @Require('contacts:view')
   @Post('contacts/:id/messages/seen')
   @HttpCode(200)
