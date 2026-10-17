@@ -39,9 +39,9 @@ test('contatos: cadastrar, anotar, agendar, anexar e achar duplicado', async ({ 
   const act = page.getByRole('dialog', { name: 'Nova atividade' });
   await act.getByLabel('Tipo').selectOption('call');
   await act.getByLabel('Título').fill('Ligar para apresentar a proposta');
-  const tomorrow = new Date(Date.now() + 86400000);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  await act.getByLabel('Início').fill(`${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T10:00`);
+  // Amanhã no fuso do navegador (São Paulo), não no da máquina que roda o teste.
+  const tomorrow = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(Date.now() + 86400000));
+  await act.getByLabel('Início').fill(`${tomorrow}T10:00`);
   await act.getByLabel('Lembrete').selectOption('30');
   await act.getByRole('button', { name: 'Criar atividade' }).click();
   await expect(page.getByRole('button', { name: 'Ligar para apresentar a proposta', exact: true })).toBeVisible();

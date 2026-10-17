@@ -184,6 +184,8 @@ export class FakeMeta {
   readonly templates: FakeTemplate[] = [];
   readonly tokens = new Set<string>();
   readonly media = new Map<string, { data: Buffer; type: string }>();
+  readonly calls: FakeMetaSend[] = [];
+  readonly refreshed: string[] = [];
   failNext: { status: number; body: unknown } | null = null;
   private server!: Server;
   private n = 0;
@@ -214,6 +216,14 @@ export class FakeMeta {
           const m = this.media.get(file[1]!);
           return m ? send(200, m.data, m.type) : send(404, { error: { message: 'not found' } });
         }
+        if (u.pathname === '/refresh_access_token') {
+          const t = u.searchParams.get('access_token') ?? '';
+          if (!this.tokens.has(t)) return send(400, { error: { message: 'Error validating access token', code: 190 } });
+          const next = `${t}-renovado`;
+          this.tokens.add(next);
+          this.refreshed.push(t);
+          return send(200, { access_token: next, token_type: 'bearer', expires_in: 5183944 });
+        }
         const token = (req.headers.authorization ?? '').replace(/^Bearer /, '');
         if (!this.tokens.has(token)) return send(401, { error: { message: 'Invalid OAuth access token.', type: 'OAuthException', code: 190 } });
         if (this.failNext) { const f = this.failNext; this.failNext = null; return send(f.status, f.body); }
@@ -234,6 +244,13 @@ export class FakeMeta {
           this.sent.push({ path, body });
           if (id!.startsWith('1784')) return send(200, { recipient_id: (body.recipient as { id: string }).id, message_id: `mid.${++this.n}` });
           return send(200, { messaging_product: 'whatsapp', contacts: [{ input: body.to, wa_id: body.to }], messages: [{ id: `wamid.${++this.n}` }] });
+        }
+        if (req.method === 'POST' && (edge === 'subscribed_apps' || edge === 'register')) {
+          this.calls.push({ path, body: json() });
+          if (edge === 'register' && (json().pin as string) !== '123456') {
+            return send(400, { error: { message: 'Two step verification PIN Mismatch', code: 133005, error_user_msg: 'PIN incorreto.' } });
+          }
+          return send(200, { success: true });
         }
         if (req.method === 'POST' && edge === 'media') {
           const mid = `media-up-${++this.n}`;

@@ -51,7 +51,7 @@ const schema = z.object({
   /** API da Meta (WhatsApp oficial e Instagram). Só muda nos testes. */
   META_GRAPH_URL: z.string().url().default('https://graph.facebook.com').transform((v) => v.replace(/\/+$/, '')),
   META_INSTAGRAM_URL: z.string().url().default('https://graph.instagram.com').transform((v) => v.replace(/\/+$/, '')),
-  META_GRAPH_VERSION: z.string().regex(/^v\d{2}\.\d$/).default('v23.0'),
+  META_GRAPH_VERSION: z.string().regex(/^v\d{2}\.\d$/).default('v25.0'),
   /** Pasta das cópias de segurança (volume crmwta_backup, compartilhado com o serviço "backup"). */
   BACKUP_DIR: z.string().min(1).default('/backups'),
   /** Dias que as cópias feitas pelas próprias empresas ficam guardadas. */

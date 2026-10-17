@@ -124,7 +124,40 @@ export class Meta {
     return this.call('DELETE', 'facebook', `${wabaId}/message_templates?${q}`, token);
   }
 
+  /** Liga o app à conta do WhatsApp Business: sem isso, os avisos das mensagens não chegam. */
+  async subscribeWaba(wabaId: string, token: string): Promise<void> {
+    await this.call('POST', 'facebook', `${wabaId}/subscribed_apps`, token, {});
+  }
+
+  /** Registra o número na Cloud API com o PIN da verificação em duas etapas (6 dígitos). */
+  async registerPhone(phoneNumberId: string, token: string, pin: string): Promise<void> {
+    await this.call('POST', 'facebook', `${phoneNumberId}/register`, token, { messaging_product: 'whatsapp', pin });
+  }
+
   // ---- Instagram ----------------------------------------------------------------------
+
+  /** Ativa os avisos de mensagens desta conta do Instagram para o app. */
+  async igSubscribe(token: string, host: MetaHost): Promise<void> {
+    await this.call('POST', host, 'me/subscribed_apps?subscribed_fields=messages', token, {});
+  }
+
+  /** Renova o token de longa duração do Instagram (vale 60 dias; precisa ter mais de 24 h). */
+  async igRefresh(token: string): Promise<{ token: string; expiresIn: number }> {
+    let res: Response;
+    try {
+      res = await fetch(`${this.cfg.META_INSTAGRAM_URL}/refresh_access_token?grant_type=ig_refresh_token&access_token=${encodeURIComponent(token)}`,
+        { signal: AbortSignal.timeout(20_000) });
+    } catch {
+      throw new MetaError('Não foi possível falar com o Instagram.');
+    }
+    const data = await res.json().catch(() => ({})) as { access_token?: string; expires_in?: number; error?: { message?: string; code?: number } };
+    if (!res.ok || !data.access_token) {
+      const code = data.error?.code ?? null;
+      throw new MetaError(code === 190 ? 'O token do Instagram venceu ou foi revogado: gere um novo e salve na conta.' : `O Instagram não renovou o token: ${data.error?.message ?? res.status}`, code, res.status);
+    }
+    return { token: data.access_token, expiresIn: data.expires_in ?? 0 };
+  }
+
 
   igInfo(igUserId: string, token: string, host: MetaHost) {
     return this.call<{ id: string; username?: string; name?: string }>('GET', host, `${igUserId}?fields=id,username,name`, token);

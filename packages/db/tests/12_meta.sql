@@ -20,3 +20,15 @@ select t.ok(t.count($$select 1 from whatsapp_templates where tenant_id = t.a()$$
 select t.ok(t.count($$select 1 from contact_handles where tenant_id = t.a()$$) = 0, 'nem o Instagram dos contatos da A');
 select t.ctx(null, null);
 reset role;
+
+-- Renovação do token do Instagram: só contas com token de mais de 7 dias, uma vez por dia.
+insert into channel_accounts (id, tenant_id, kind, name, status, external_id, secret, config, created_at)
+values (t.id(t.a(), 26), t.a(), 'instagram', 'Insta', 'connected', '17841400000555', '\x00',
+        jsonb_build_object('host', 'instagram', 'tokenRefreshedAt', now() - interval '10 days'), now() - interval '20 days');
+insert into channel_accounts (id, tenant_id, kind, name, status, external_id, secret, config)
+values (t.id(t.a(), 27), t.a(), 'instagram', 'Insta novo', 'connected', '17841400000556', '\x00',
+        jsonb_build_object('host', 'instagram', 'tokenRefreshedAt', now()));
+set role crm_dispatch;
+select t.ok((select array_agg(account_id) from app.meta_token_refresh_due(10)) = array[t.id(t.a(), 26)], 'só o token antigo entra na renovação');
+select t.ok((select count(*) from app.meta_token_refresh_due(10)) = 0, 'e não de novo no mesmo dia');
+reset role;

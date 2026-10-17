@@ -12,8 +12,8 @@ import { Meta, MetaError, type MetaHost } from '../infra/meta.js';
 import { assertWithin } from './limits.js';
 import { MessagesService } from './messages.service.js';
 
-export type CloudInput = { name: string; phoneNumberId: string; wabaId: string; token?: string | null; appSecret?: string | null };
-export type InstagramInput = { name: string; igUserId: string; host: MetaHost; token?: string | null; appSecret?: string | null };
+export type CloudInput = { name: string; phoneNumberId: string; wabaId: string; token?: string | null; appSecret?: string | null; pin?: string | null };
+export type InstagramInput = { name: string; igUserId: string; host: MetaHost; token?: string | null; appSecret?: string | null; appSecret2?: string | null };
 
 type Account = { id: string; tenant_id?: string; kind: string; name: string; status: string; external_id: string | null; config: Record<string, unknown>; secret: Buffer | null };
 
@@ -68,9 +68,9 @@ export class MetaService {
     return a;
   }
 
-  private seal(id: string, cur: Buffer | null, token?: string | null, appSecret?: string | null): Buffer {
-    const old = cur ? this.messages.metaCreds(id, cur) : { token: '', appSecret: '' };
-    const next = { token: token || old.token, appSecret: appSecret || old.appSecret };
+  private seal(id: string, cur: Buffer | null, token?: string | null, appSecret?: string | null, appSecret2?: string | null): Buffer {
+    const old: { token: string; appSecret: string; appSecret2?: string } = cur ? this.messages.metaCreds(id, cur) : { token: '', appSecret: '' };
+    const next = { token: token || old.token, appSecret: appSecret || old.appSecret, ...(appSecret2 || old.appSecret2 ? { appSecret2: appSecret2 || old.appSecret2 } : {}) };
     if (!next.token) throw Problem.badRequest('Falta o token.', [{ field: 'token', message: 'Cole o token de acesso permanente.' }]);
     if (!next.appSecret) throw Problem.badRequest('Falta o segredo do app.', [{ field: 'appSecret', message: 'Cole a chave secreta do app (Configurações › Básico, na Meta).' }]);
     return this.messages.sealSecret(id, JSON.stringify(next));
@@ -107,25 +107,27 @@ export class MetaService {
       }
       return accId;
     });
-    return this.test(actor, saved);
+    return this.test(actor, saved, { pin: b.pin ?? null });
   }
 
   async saveInstagram(actor: Actor, id: string | null, b: InstagramInput) {
     const saved = await this.db.app(tenantCtx(actor), async (q) => {
       const accId = id ?? (await q.query<{ id: string }>('select gen_random_uuid() as id')).rows[0]!.id;
       const cur = id ? await this.account(q, id, 'instagram') : null;
-      const secret = this.seal(accId, cur?.secret ?? null, b.token, b.appSecret);
+      const secret = this.seal(accId, cur?.secret ?? null, b.token, b.appSecret, b.appSecret2);
       const hash = tokenHash(this.derive('meta-hook', accId));
+      // Token novo: conta os 60 dias a partir de agora (a renovação automática usa esta data).
+      const fresh = b.token ? { tokenRefreshedAt: new Date().toISOString(), tokenRefreshTriedAt: null } : {};
       try {
         await q.query('savepoint conta');
         if (cur) {
           await q.query(`update channel_accounts set name = $2, external_id = $3, config = $4, secret = $5, status = 'pending', webhook_token_hash = $6 where id = $1`,
-            [accId, b.name, b.igUserId, JSON.stringify({ ...cur.config, host: b.host }), secret, hash]);
+            [accId, b.name, b.igUserId, JSON.stringify({ ...cur.config, host: b.host, ...fresh }), secret, hash]);
         } else {
           await q.query(
             `insert into channel_accounts (id, tenant_id, kind, name, status, external_id, config, secret, webhook_token_hash, created_by)
              values ($1, app.tenant_id(), 'instagram', $2, 'pending', $3, $4, $5, $6, $7)`,
-            [accId, b.name, b.igUserId, JSON.stringify({ host: b.host }), secret, hash, actor.membershipId]);
+            [accId, b.name, b.igUserId, JSON.stringify({ host: b.host, ...fresh }), secret, hash, actor.membershipId]);
           await audit(q, actor, 'channel.created', 'channel_account', accId, { kind: 'instagram', igUserId: b.igUserId });
         }
       } catch (err) {
@@ -138,12 +140,17 @@ export class MetaService {
     return this.test(actor, saved);
   }
 
-  /** Confere o token na Meta e guarda o número (ou o @ do Instagram). */
-  async test(actor: Actor, id: string) {
+  /**
+   * Confere o token na Meta e guarda o número (ou o @ do Instagram). Também
+   * liga o app à conta (avisos de mensagens) e, com o PIN, registra o número
+   * na Cloud API: são os passos que a Meta só permite fazer pela API.
+   */
+  async test(actor: Actor, id: string, opts: { pin?: string | null } = {}) {
     const a = await this.db.app(tenantCtx(actor), (q) => this.account(q, id));
     if (a.kind !== 'whatsapp_cloud' && a.kind !== 'instagram') throw Problem.notFound('Conta não encontrada.');
     let error: string | null = null;
     let address: string | null = null;
+    const warnings: string[] = [];
     const config: Record<string, unknown> = { ...a.config };
     try {
       const c = this.messages.metaCreds(a.id, a.secret);
@@ -152,9 +159,32 @@ export class MetaService {
         address = info.display_phone_number ? waToE164(info.display_phone_number) : null;
         config.verifiedName = info.verified_name ?? null;
         config.quality = info.quality_rating ?? null;
+        try {
+          await this.meta.subscribeWaba(a.config.wabaId as string, c.token);
+          config.subscribedAt = new Date().toISOString();
+        } catch (err) {
+          warnings.push(`Não consegui ligar o app à conta do WhatsApp Business (sem isso as mensagens não chegam): ${(err as Error).message}`);
+        }
+        if (opts.pin) {
+          try {
+            await this.meta.registerPhone(a.external_id!, c.token, opts.pin);
+            config.registeredAt = new Date().toISOString();
+          } catch (err) {
+            error = `O número não foi registrado na API: ${(err as Error).message} Confira o PIN de 6 dígitos (verificação em duas etapas) e tente de novo.`;
+          }
+        }
       } else {
-        const info = await this.meta.igInfo(a.external_id!, c.token, (a.config.host as MetaHost) ?? 'instagram');
+        const host = (a.config.host as MetaHost) ?? 'instagram';
+        const info = await this.meta.igInfo(a.external_id!, c.token, host);
         address = info.username ? `@${info.username}` : null;
+        if (host === 'instagram') {
+          try {
+            await this.meta.igSubscribe(c.token, host);
+            config.subscribedAt = new Date().toISOString();
+          } catch (err) {
+            warnings.push(`Não consegui ativar os avisos de mensagens desta conta: ${(err as Error).message}`);
+          }
+        }
       }
     } catch (err) {
       error = err instanceof MetaError ? err.message : 'Falha inesperada ao falar com a Meta.';
@@ -164,8 +194,9 @@ export class MetaService {
       await q.query(
         `update channel_accounts set status = $2, last_error = $3, address = coalesce($4, address), config = $5,
                 connected_at = case when $2 = 'connected' then coalesce(connected_at, now()) else connected_at end where id = $1`,
-        [id, error ? 'error' : 'connected', error, address, JSON.stringify(config)]);
-      return { id, status: error ? 'error' : 'connected', lastError: error, address, webhook: this.webhook(id) };
+        [id, error ? 'error' : 'connected', error ?? (warnings.length ? warnings.join(' ') : null), address, JSON.stringify(config)]);
+      return { id, status: error ? 'error' : 'connected', lastError: error, warnings, address, webhook: this.webhook(id),
+        subscribed: !!config.subscribedAt, registered: !!config.registeredAt };
     });
   }
 
@@ -193,7 +224,12 @@ export class MetaService {
     const ctx = { tenantId: acc.tenant_id, userId: null };
     const a = await this.db.app(ctx, (q) => this.account(q, acc.account_id));
     const creds = this.messages.metaCreds(a.id, a.secret);
-    if (!raw || !validSignature(raw, signature, creds.appSecret)) throw Problem.forbidden('Assinatura inválida.');
+    // A Meta assina com a chave secreta do app; no Instagram pode ser a do app do Instagram ou a do app da Meta.
+    const secrets = [creds.appSecret, creds.appSecret2].filter((x): x is string => !!x);
+    if (!raw || !secrets.some((s) => validSignature(raw, signature, s))) {
+      this.log.warn(`aviso da Meta com assinatura que não confere (conta ${a.id}): confira a chave secreta do app`);
+      throw Problem.forbidden('Assinatura inválida.');
+    }
     let handled = 0;
     if (a.kind === 'whatsapp_cloud') {
       for (const ev of readCloudWebhook(body)) {
@@ -242,6 +278,36 @@ export class MetaService {
       }
     }
     return { handled };
+  }
+
+  /** Renova os tokens do Instagram antes dos 60 dias (rodado pelo despachante). */
+  async refreshInstagramTokens(): Promise<number> {
+    const due = await this.db.dispatch(async (q) =>
+      (await q.query<{ tenant_id: string; account_id: string }>('select tenant_id, account_id from app.meta_token_refresh_due(20)')).rows);
+    let n = 0;
+    for (const d of due) {
+      const ctx = { tenantId: d.tenant_id, userId: null };
+      try {
+        const a = await this.db.app(ctx, (q) => this.account(q, d.account_id, 'instagram'));
+        const c = this.messages.metaCreds(a.id, a.secret);
+        const r = await this.meta.igRefresh(c.token);
+        const sealed = this.messages.sealSecret(a.id, JSON.stringify({ ...c, token: r.token }));
+        await this.db.app(ctx, (q) => q.query(
+          `update channel_accounts set secret = $2, config = config || $3::jsonb,
+                  last_error = case when status = 'error' and last_error like '%token%' then null else last_error end,
+                  status = case when status = 'error' and last_error like '%token%' then 'connected' else status end
+            where id = $1`,
+          [a.id, sealed, JSON.stringify({ tokenRefreshedAt: new Date().toISOString(), tokenExpiresAt: r.expiresIn ? new Date(Date.now() + r.expiresIn * 1000).toISOString() : null })]));
+        n++;
+      } catch (err) {
+        const msg = err instanceof MetaError ? err.message : 'Falha ao renovar o token do Instagram.';
+        this.log.warn(`renovação do token do Instagram (${d.account_id}): ${msg}`);
+        if (err instanceof MetaError && err.code === 190) {
+          await this.db.app(ctx, (q) => q.query(`update channel_accounts set status = 'error', last_error = $2 where id = $1`, [d.account_id, msg]));
+        }
+      }
+    }
+    return n;
   }
 
   // ---- Modelos de mensagem (WhatsApp oficial) ----------------------------------------------
