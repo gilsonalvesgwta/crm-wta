@@ -6,7 +6,7 @@ Scope: 2 of 3 workspace projects
 apps/api build$ tsc -p tsconfig.build.json
 apps/web build$ next build
 apps/web build: ▲ Next.js 16.4.0 (Turbopack)
-apps/web build: ✓ Running next.config.ts took 61ms
+apps/web build: ✓ Running next.config.ts took 32ms
 apps/web build: ⚠ No build cache found. Please configure build caching for faster rebuilds. Read more: https://nextjs.org/docs/messages/no-cache
 apps/web build: Attention: Next.js now collects completely anonymous telemetry regarding usage.
 apps/web build: This information is used to shape Next.js' roadmap and prioritize features.
@@ -14,15 +14,15 @@ apps/web build: You can learn more, including how to opt-out if you'd not like t
 apps/web build: https://nextjs.org/telemetry
 apps/web build:   Creating an optimized production build ...
 apps/api build: Done
-apps/web build: ✓ Compiled successfully in 9.0s
+apps/web build: ✓ Compiled successfully in 8.5s
 apps/web build:   Running TypeScript ...
-apps/web build:   Finished TypeScript in 8.9s ...
+apps/web build:   Finished TypeScript in 8.5s ...
 apps/web build:   Collecting page data using 3 workers ...
 apps/web build:   Generating static pages using 3 workers (0/45) ...
 apps/web build:   Generating static pages using 3 workers (11/45) 
 apps/web build:   Generating static pages using 3 workers (22/45) 
 apps/web build:   Generating static pages using 3 workers (33/45) 
-apps/web build: ✓ Generating static pages using 3 workers (45/45) in 476ms
+apps/web build: ✓ Generating static pages using 3 workers (45/45) in 416ms
 apps/web build:   Finalizing page optimization ...
 apps/web build: Route (app)
 apps/web build: ┌ ƒ /
