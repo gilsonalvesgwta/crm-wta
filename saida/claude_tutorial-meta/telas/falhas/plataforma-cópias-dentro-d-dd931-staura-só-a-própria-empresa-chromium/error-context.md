@@ -16,27 +16,27 @@ Error: expect(locator).toContainText(expected) failed
 
 Locator: getByRole('region', { name: 'Cópias disponíveis' }).getByRole('row').nth(1)
 Expected substring: "24/10/2026"
-Received string:    "16/10/2026, 23:04120 KB23/10/2026Baixar a cópia de 16/10/2026, 23:04Restaurar a cópia de 16/10/2026, 23:04"
+Received string:    "16/10/2026, 23:14140 KB23/10/2026Baixar a cópia de 16/10/2026, 23:14Restaurar a cópia de 16/10/2026, 23:14"
 Timeout: 5000ms
 
 Call log:
   - Expect "toContainText" getByRole('region', { name: 'Cópias disponíveis' }).getByRole('row').nth(1) with timeout 5000ms
   - waiting for getByRole('region', { name: 'Cópias disponíveis' }).getByRole('row').nth(1)
     14 × locator resolved to <tr class="border-b border-line last:border-0">…</tr>
-       - unexpected value "16/10/2026, 23:04120 KB23/10/2026Baixar a cópia de 16/10/2026, 23:04Restaurar a cópia de 16/10/2026, 23:04"
+       - unexpected value "16/10/2026, 23:14140 KB23/10/2026Baixar a cópia de 16/10/2026, 23:14Restaurar a cópia de 16/10/2026, 23:14"
 
 ```
 
 ```yaml
-- row "16/10/2026, 23:04 120 KB 23/10/2026 Baixar a cópia de 16/10/2026, 23:04 Restaurar a cópia de 16/10/2026, 23:04 Excluir a cópia de 16/10/2026, 23:04":
-  - cell "16/10/2026, 23:04"
-  - cell "120 KB"
+- row "16/10/2026, 23:14 140 KB 23/10/2026 Baixar a cópia de 16/10/2026, 23:14 Restaurar a cópia de 16/10/2026, 23:14 Excluir a cópia de 16/10/2026, 23:14":
+  - cell "16/10/2026, 23:14"
+  - cell "140 KB"
   - cell "23/10/2026"
-  - cell "Baixar a cópia de 16/10/2026, 23:04 Restaurar a cópia de 16/10/2026, 23:04 Excluir a cópia de 16/10/2026, 23:04":
-    - link "Baixar a cópia de 16/10/2026, 23:04":
-      - /url: /api/v1/backups/crm-20261017-020455-empresa.tar/download
-    - button "Restaurar a cópia de 16/10/2026, 23:04"
-    - button "Excluir a cópia de 16/10/2026, 23:04"
+  - cell "Baixar a cópia de 16/10/2026, 23:14 Restaurar a cópia de 16/10/2026, 23:14 Excluir a cópia de 16/10/2026, 23:14":
+    - link "Baixar a cópia de 16/10/2026, 23:14":
+      - /url: /api/v1/backups/crm-20261017-021417-empresa.tar/download
+    - button "Restaurar a cópia de 16/10/2026, 23:14"
+    - button "Excluir a cópia de 16/10/2026, 23:14"
 ```
 
 # Test source
