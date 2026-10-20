@@ -24,12 +24,14 @@ export type ActivityInput = {
   reminderMinutes?: number | null;
 };
 
+export type CallOutcome = 'held' | 'no_show' | 'rescheduled';
+
 /** Quanto à frente as ocorrências de uma série ficam criadas. */
 const HORIZON_DAYS = 366;
 
 const COLS = `
   a.id, a.type, a.title, a.description, a.starts_at as "startsAt", a.ends_at as "endsAt", a.all_day as "allDay", a.status,
-  a.done_at as "doneAt", a.priority, a.reminder_minutes as "reminderMinutes", a.series_id as "seriesId",
+  a.done_at as "doneAt", a.outcome, a.priority, a.reminder_minutes as "reminderMinutes", a.series_id as "seriesId",
   a.series_index as "seriesIndex", a.created_at as "createdAt", a.team_id as "teamId",
   (a.status = 'open' and a.starts_at is not null and coalesce(a.ends_at, a.starts_at) < now()) as overdue,
   ${memberJson('a.owner_membership_id')} as owner,
@@ -257,13 +259,19 @@ export class ActivitiesService {
     });
   }
 
-  async setStatus(actor: Actor, id: string, status: 'open' | 'done' | 'canceled') {
+  /**
+   * Conclui, reabre ou cancela. Ligação e reunião concluídas guardam o resultado
+   * (realizada, não compareceu, remarcada); sem resultado informado, conta como realizada.
+   */
+  async setStatus(actor: Actor, id: string, status: 'open' | 'done' | 'canceled', outcome?: CallOutcome) {
     const r = reachOf(actor, 'tasks:manage');
     return this.db.app(tenantCtx(actor), async (q) => {
       const cur = await this.visible(q, r, id, true);
       await q.query(
-        `update activities set status = $2, done_at = case when $2 = 'done' then coalesce(done_at, now()) else null end where id = $1`,
-        [id, status]);
+        `update activities set status = $2, done_at = case when $2 = 'done' then coalesce(done_at, now()) else null end,
+                outcome = case when $2 = 'done' and type in ('call', 'meeting') then coalesce($3, outcome, 'held') end
+          where id = $1`,
+        [id, status, outcome ?? null]);
       if (status === 'done' && cur.status !== 'done') {
         // A última atividade concluída marca o "último contato" dos registros ligados.
         if (cur.contact_id) await q.query('update contacts set last_activity_at = now() where id = $1', [cur.contact_id]);

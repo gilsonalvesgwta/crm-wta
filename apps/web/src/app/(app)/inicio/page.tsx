@@ -5,8 +5,9 @@ import { AlarmClock, ArrowRight, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useLoad } from '@/lib/use-load';
 import { useQueryState } from '@/lib/use-query-state';
+import { SalesDashboard } from '@/components/crm/sales-dashboard';
 import { OperationDashboard } from '@/components/crm/operation-dashboard';
-import { money, type Activity } from '@/lib/crm';
+import { money, statusBody, type Activity } from '@/lib/crm';
 import { useSession } from '@/components/shell/session';
 import { useDirectory, usePipelines } from '@/components/crm/data';
 import { ActivityRow } from '@/components/crm/record-panels';
@@ -47,6 +48,7 @@ function Home() {
   const { me, can } = useSession();
   const [view, setView] = useQueryState({ visao: '' });
   const operation = view.visao === 'operacao' && can('reports:view');
+  const salesView = view.visao === 'indicadores' && can('reports:view');
   const { data: dir } = useDirectory();
   const { data: pipelines } = usePipelines();
   const [range, setRange] = useState('mes');
@@ -72,7 +74,7 @@ function Home() {
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">Olá, {first}</h1>
           <p className="text-muted first-letter:uppercase">{tenant ? `${tenant.name} · ` : ''}{today}</p>
         </div>
-        {me.tenantId && !operation ? (
+        {me.tenantId && !operation && !salesView ? (
           <div className="flex flex-wrap gap-2">
             <select aria-label="Período" value={range} onChange={(e) => setRange(e.target.value)} className="h-10 rounded-[6px] border border-line-strong bg-surface px-2.5 text-sm">
               <option value="mes">Este mês</option><option value="30d">Últimos 30 dias</option><option value="trimestre">Este trimestre</option><option value="ano">Este ano</option>
@@ -101,7 +103,7 @@ function Home() {
 
       {me.tenantId && can('reports:view') ? (
         <div role="group" aria-label="Visão do painel" className="flex gap-1 border-b border-line">
-          {([['', 'Visão comercial'], ['operacao', 'Operação de atendimento']] as const).map(([v, label]) => (
+          {([['', 'Visão comercial'], ['indicadores', 'Indicadores comerciais'], ['operacao', 'Operação de atendimento']] as const).map(([v, label]) => (
             <button key={v} type="button" aria-pressed={view.visao === v} onClick={() => setView({ visao: v })}
               className={`h-11 border-b-2 px-3 text-sm ${view.visao === v ? 'border-primary font-semibold text-ink' : 'border-transparent font-medium text-muted hover:text-ink'}`}>{label}</button>
           ))}
@@ -109,6 +111,7 @@ function Home() {
       ) : null}
 
       {operation ? <OperationDashboard />
+        : salesView ? <SalesDashboard />
         : !me.tenantId ? <Empty title="Escolha uma empresa">Entre numa empresa para ver os números.</Empty>
         : summary.error ? <LoadError error={summary.error} retry={summary.reload} />
         : !s ? <Loading />
@@ -178,7 +181,7 @@ function Home() {
                       <span className="rounded-full bg-surface-2 px-2.5 py-1 font-medium text-muted">{s.activities.today} hoje</span>
                     </div>
                     {!todayList.data?.length ? <p className="text-[13px] text-muted">Nada agendado para hoje.</p>
-                      : <div className="flex flex-col gap-3">{todayList.data.map((a) => <ActivityRow key={a.id} a={a} onToggle={async () => { await api('POST', `/api/v1/activities/${a.id}/status`, { status: 'done' }); void todayList.reload(); void summary.reload(); }} />)}</div>}
+                      : <div className="flex flex-col gap-3">{todayList.data.map((a) => <ActivityRow key={a.id} a={a} onToggle={async (o) => { await api('POST', `/api/v1/activities/${a.id}/status`, statusBody(a, o)); void todayList.reload(); void summary.reload(); }} />)}</div>}
                   </Panel>
                 ) : null}
                 <Panel title="Segurança da conta">

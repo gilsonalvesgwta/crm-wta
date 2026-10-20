@@ -33,6 +33,7 @@ import { ChannelsController, EvolutionWebhookController, MessagesController } fr
 import { ConversationsController, QuickRepliesController } from './crm/conversations.controller.js';
 import { ConversationsService } from './crm/conversations.service.js';
 import { OperationService } from './crm/operation.service.js';
+import { SalesService } from './crm/sales.service.js';
 import { ScheduledController } from './crm/scheduled.controller.js';
 import { ScheduledService } from './crm/scheduled.service.js';
 import { CampaignsController, UnsubscribeController } from './crm/campaigns.controller.js';
@@ -87,7 +88,7 @@ export class AppModule {
         DashboardService,
         DispatcherService,
         Evolution, Meta, MetaService,
-        MessagesService, OperationService, ScheduledService, ConversationsService, QuickRepliesService, CampaignsService,
+        MessagesService, OperationService, SalesService, ScheduledService, ConversationsService, QuickRepliesService, CampaignsService,
         ChannelsService,
         BackupsService,
         AutomationsService,

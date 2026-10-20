@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useLoad } from '@/lib/use-load';
 import { useQueryState } from '@/lib/use-query-state';
-import { ACTIVITY_LABEL, fmtTime, type Activity } from '@/lib/crm';
+import { ACTIVITY_LABEL, fmtTime, statusBody, type Activity, type CallOutcome } from '@/lib/crm';
 import { useSession } from '@/components/shell/session';
 import { useDirectory } from '@/components/crm/data';
 import { ActivityDialog } from '@/components/crm/activity-dialog';
@@ -60,8 +60,8 @@ function Agenda() {
     : new URLSearchParams({ from: from.toISOString(), to: to.toISOString(), status: 'all', limit: '1000', ...(owner ? { ownerId: owner } : {}) });
   const list = useLoad(() => (owner || view === 'tarefas' ? api<Activity[]>('GET', `/api/v1/activities?${qs}`) : Promise.resolve([] as Activity[])), [qs.toString()]);
 
-  async function toggle(a: Activity) {
-    await api('POST', `/api/v1/activities/${a.id}/status`, { status: a.status === 'done' ? 'open' : 'done' }).catch(() => undefined);
+  async function toggle(a: Activity, outcome?: CallOutcome) {
+    await api('POST', `/api/v1/activities/${a.id}/status`, statusBody(a, outcome)).catch(() => undefined);
     void list.reload();
   }
   const step = (n: number) => {
@@ -113,7 +113,7 @@ function Agenda() {
       {list.error ? <LoadError error={list.error} retry={list.reload} /> : !list.data ? <Loading /> : view === 'tarefas' ? (
         <section aria-label="Tarefas" className="rounded-[10px] border border-line bg-surface p-4">
           {!list.data.length ? <Empty title={{ overdue: 'Nada atrasado', today: 'Nada para hoje', week: 'Nada nos próximos 7 dias', none: 'Nenhuma tarefa sem data' }[f.prazo] ?? 'Nada aqui'} />
-            : <div className="flex flex-col gap-3">{list.data.map((a) => <ActivityRow key={a.id} a={a} onToggle={() => toggle(a)} onEdit={() => setDialog({ activity: a })} />)}</div>}
+            : <div className="flex flex-col gap-3">{list.data.map((a) => <ActivityRow key={a.id} a={a} onToggle={(o) => toggle(a, o)} onEdit={() => setDialog({ activity: a })} />)}</div>}
         </section>
       ) : view === 'mes' ? (
         <MonthGrid from={from} month={day.getMonth()} items={list.data} onOpen={(a) => setDialog({ activity: a })} onDay={(d) => setF({ visao: 'dia', dia: iso(d) })} />

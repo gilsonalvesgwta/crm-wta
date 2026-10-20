@@ -253,6 +253,44 @@ test('painel da operação: status agora, tendências, mapa de calor e atendente
   await shot(page, '52-painel-operacao');
 });
 
+test('indicadores comerciais: resultado da call e números de contato, calls e vendas', async ({ page }) => {
+  await loginAdmin(page);
+  const h = { 'x-crm-request': '1' };
+  const c = await page.request.post('/api/v1/contacts', { data: { firstName: 'Otávio', lastName: 'Prado', allowDuplicate: true }, headers: h });
+  const contactId = (await c.json()).id as string;
+  const startsAt = new Date(Date.now() - 2 * 3600_000).toISOString();
+  for (const title of ['Call de diagnóstico', 'Call de retorno']) {
+    expect((await page.request.post('/api/v1/activities', { data: { type: 'call', title, startsAt, contactId }, headers: h })).status()).toBe(201);
+  }
+  // Ao concluir a call pelo contato, o CRM pergunta como foi.
+  await page.goto(`/contatos/${contactId}`);
+  await page.getByRole('button', { name: 'Concluir: Call de diagnóstico' }).click();
+  const how = page.getByRole('group', { name: 'Como foi: Call de diagnóstico' });
+  await expect(how).toBeVisible();
+  await expectAccessible(page);
+  await how.getByRole('button', { name: 'Realizada' }).click();
+  await expect(page.getByRole('button', { name: 'Reabrir: Call de diagnóstico' })).toBeVisible();
+  await page.getByRole('button', { name: 'Concluir: Call de retorno' }).click();
+  await page.getByRole('group', { name: 'Como foi: Call de retorno' }).getByRole('button', { name: 'Não compareceu' }).click();
+  await expect(page.getByText('Não compareceu', { exact: true })).toBeVisible();
+
+  await page.goto('/inicio');
+  await page.getByRole('button', { name: 'Indicadores comerciais' }).click();
+  await expect(page.getByRole('heading', { name: 'Números do período' })).toBeVisible();
+  for (const t of ['Leads contatados', 'Calls agendadas', 'Calls realizadas', 'Vendas na call', 'Vendas no follow-up', 'Vendas no total']) {
+    await expect(page.getByText(t, { exact: true }).first()).toBeVisible();
+  }
+  await expect(page.getByText(/Comparecimento \d+%/)).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Indicadores por vendedor' })).toContainText('Gilson');
+  await page.getByLabel('Período', { exact: true }).selectOption('14');
+  await expect(page.getByText('(14 dias)')).toBeVisible();
+  await page.getByLabel('Período', { exact: true }).selectOption('custom');
+  await expect(page.getByLabel('Data inicial', { exact: true })).toBeVisible();
+  await page.getByLabel('Período', { exact: true }).selectOption('7');
+  await expectAccessible(page);
+  await shot(page, '53-indicadores-comerciais');
+});
+
 test('ações agendadas: agendar pelo contato e pela conversa, mudar e cancelar', async ({ page }) => {
   await loginAdmin(page);
   await page.getByRole('navigation', { name: 'Menu principal' }).getByRole('link', { name: 'Contatos' }).click();

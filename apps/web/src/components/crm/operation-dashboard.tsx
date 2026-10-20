@@ -41,7 +41,7 @@ export function duration(s: number | null): string {
 }
 const dayLabel = (d: string) => dShort.format(new Date(`${d}T00:00:00Z`));
 
-function Card({ title, help, icon, badge, value, detail, tone }: {
+export function Card({ title, help, icon, badge, value, detail, tone }: {
   title: string; help: string; icon: ReactNode; badge: ReactNode; value: string; detail: string; tone?: 'warn' | 'bad';
 }) {
   return (
@@ -63,7 +63,7 @@ function Card({ title, help, icon, badge, value, detail, tone }: {
 }
 
 /** Linha simples, uma série, com cruz e dica ao passar o mouse e tabela para leitor de tela. */
-function LineChart({ label, points, format, minMax = 4, unit = 1 }: { label: string; points: { x: string; y: number | null }[]; format: (v: number) => string; minMax?: number; unit?: number }) {
+export function LineChart({ label, points, format, minMax = 4, unit = 1 }: { label: string; points: { x: string; y: number | null }[]; format: (v: number) => string; minMax?: number; unit?: number }) {
   const box = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(600);
   const [hover, setHover] = useState<number | null>(null);

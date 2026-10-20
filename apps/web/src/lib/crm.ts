@@ -64,12 +64,18 @@ export type Lead = {
 
 export type Activity = {
   id: string; type: ActivityType; title: string; description: string | null; startsAt: string | null; endsAt: string | null;
-  allDay: boolean; status: 'open' | 'done' | 'canceled'; doneAt: string | null; priority: 'low' | 'normal' | 'high';
+  allDay: boolean; status: 'open' | 'done' | 'canceled'; doneAt: string | null; outcome?: CallOutcome | null; priority: 'low' | 'normal' | 'high';
   reminderMinutes: number | null; seriesId: string | null; seriesIndex: number | null; createdAt: string; teamId: string | null;
   overdue: boolean; owner: Ref | null; contact: Ref | null; organization: Ref | null; deal: { id: string; title: string } | null;
   lead: { id: string; title: string } | null; recurrence: { freq: string; interval: number } | null;
 };
 export type ActivityType = 'task' | 'call' | 'meeting' | 'email' | 'visit' | 'other';
+/** Resultado de ligação ou reunião concluída. */
+export type CallOutcome = 'held' | 'no_show' | 'rescheduled';
+export const OUTCOME_LABEL: Record<CallOutcome, string> = { held: 'Realizada', no_show: 'Não compareceu', rescheduled: 'Remarcada' };
+/** Corpo do pedido para concluir (com resultado) ou reabrir uma atividade. */
+export const statusBody = (a: { status: string }, outcome?: CallOutcome) =>
+  a.status === 'done' ? { status: 'open' } : { status: 'done', ...(outcome ? { outcome } : {}) };
 
 export type FieldDef = {
   id: string; entity: 'contact' | 'organization' | 'deal' | 'lead'; key: string; label: string;

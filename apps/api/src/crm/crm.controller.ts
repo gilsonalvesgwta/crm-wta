@@ -10,6 +10,7 @@ import { ActivitiesService } from './activities.service.js';
 import { CatalogService } from './catalog.service.js';
 import { ContactsService } from './contacts.service.js';
 import { OperationService } from './operation.service.js';
+import { SalesService } from './sales.service.js';
 import { DashboardService } from './dashboard.service.js';
 import { DealsService } from './deals.service.js';
 import { FilesService } from './files.service.js';
@@ -514,7 +515,8 @@ export class ActivitiesController {
   @Post('activities/:id/status')
   @HttpCode(200)
   status(@CurrentActor() a: Actor, @Param('id') v: string, @Body() b: unknown) {
-    return this.activities.setStatus(a, id(v), parse(z.object({ status: z.enum(['open', 'done', 'canceled']) }), b).status);
+    const body = parse(z.object({ status: z.enum(['open', 'done', 'canceled']), outcome: z.enum(['held', 'no_show', 'rescheduled']).optional() }), b);
+    return this.activities.setStatus(a, id(v), body.status, body.outcome);
   }
 
   @Require('tasks:manage')
@@ -689,7 +691,21 @@ export class DashboardController {
   constructor(
     @Inject(DashboardService) private readonly dashboard: DashboardService,
     @Inject(OperationService) private readonly operation: OperationService,
+    @Inject(SalesService) private readonly sales: SalesService,
   ) {}
+
+  /** Indicadores comerciais: contatos, calls, vendas na call e no follow-up. */
+  @Require('reports:view')
+  @Get('dashboard/sales')
+  salesSummary(@CurrentActor() a: Actor, @Query() q: unknown) {
+    const f = parse(z.object({
+      from: z.string().datetime({ offset: true }), to: z.string().datetime({ offset: true }),
+      ownerId: z.preprocess((v) => (v === '' ? undefined : v), S.uuid.optional()),
+      teamId: z.preprocess((v) => (v === '' ? undefined : v), S.uuid.optional()),
+    }).refine((v) => Date.parse(v.to) > Date.parse(v.from) && Date.parse(v.to) - Date.parse(v.from) <= 366 * 86_400_000,
+      { message: 'Período de até um ano.', path: ['to'] }), q);
+    return this.sales.summary(a, f);
+  }
 
   @Require('reports:view')
   @Get('dashboard/operation')
