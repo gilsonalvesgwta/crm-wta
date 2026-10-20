@@ -23,6 +23,13 @@ Atualizado em 14 de outubro de 2026.
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
 
+### Indicadores comerciais (20 out 2026)
+
+- Início › Indicadores comerciais: leads contatados, calls agendadas e realizadas (com comparecimento), vendas na call e no follow-up, conversão, tempo médio até a venda, valores, comparação com o período anterior, dia a dia e tabela por vendedor. Filtros: hoje, 7, 14, 30, 90 dias ou personalizado; vendedor; equipe.
+- Ao concluir uma ligação ou reunião, o CRM pergunta o resultado (realizada, não compareceu, remarcada). Migração 0013.
+- Venda na call = ganho no mesmo dia da call realizada (decisão do usuário); follow-up = depois. Áudio do WhatsApp com player (PR #21).
+- Testes: banco 452 verificações; API 255; ponta a ponta 39.
+
 ### Instagram e WhatsApp oficial (bloco 4 dos ajustes de 14 out 2026)
 
 | Item | Evidência |

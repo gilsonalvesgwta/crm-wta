@@ -5,7 +5,7 @@ import { CalendarClock, Check, Download, FileText, Pin, PinOff, Plus, RotateCcw,
 import { ApiError, api, apiUpload } from '@/lib/api';
 import { useLoad } from '@/lib/use-load';
 import {
-  ACTIVITY_LABEL, fileSize, fmtDateTime, relative, timelineText, type Activity, type FileItem, type Note, type TimelineEntry,
+  ACTIVITY_LABEL, OUTCOME_LABEL, fileSize, fmtDateTime, relative, statusBody, timelineText, type Activity, type CallOutcome, type FileItem, type Note, type TimelineEntry,
 } from '@/lib/crm';
 import { Panel } from '@/components/ui/panel';
 import { Button } from '@/components/ui/button';
@@ -223,26 +223,46 @@ export function FilesPanel({ kind, id, canEdit, onChange }: { kind: RecordKind; 
 
 // ---- Atividades do registro --------------------------------------------------------------
 
-export function ActivityRow({ a, onToggle, onEdit }: { a: Activity; onToggle: () => void; onEdit?: () => void }) {
+export function ActivityRow({ a, onToggle, onEdit }: { a: Activity; onToggle: (outcome?: CallOutcome) => void; onEdit?: () => void }) {
   const done = a.status === 'done';
+  const [asking, setAsking] = useState(false);
+  // Ligação e reunião: ao concluir, pergunta como foi (entra nos indicadores comerciais).
+  const isCall = a.type === 'call' || a.type === 'meeting';
+  function click() {
+    if (!done && isCall) setAsking((v) => !v);
+    else onToggle();
+  }
   return (
-    <div className="flex items-start gap-3">
-      <button type="button" onClick={onToggle} aria-label={done ? `Reabrir: ${a.title}` : `Concluir: ${a.title}`} aria-pressed={done}
-        className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border ${done ? 'border-ok bg-ok text-white' : 'border-line-strong hover:border-ok'}`}>
-        {done ? <Check size={14} aria-hidden /> : null}
-      </button>
-      <div className="min-w-0 flex-1">
-        {onEdit ? (
-          <button type="button" onClick={onEdit} className={`text-left text-sm font-medium hover:underline ${done ? 'text-muted line-through' : ''}`}>{a.title}</button>
-        ) : <p className={`text-sm font-medium ${done ? 'text-muted line-through' : ''}`}>{a.title}</p>}
-        <p className="flex flex-wrap items-center gap-x-2 text-[12px] text-muted">
-          <span>{ACTIVITY_LABEL[a.type]}</span>
-          {a.startsAt ? <span className={a.overdue ? 'font-medium text-bad' : ''}>{a.allDay ? new Date(a.startsAt).toLocaleDateString('pt-BR') : fmtDateTime.format(new Date(a.startsAt))}{a.overdue ? ' · atrasada' : ''}</span> : <span>sem data</span>}
-          {a.owner ? <span>{a.owner.name}</span> : null}
-          {a.seriesId ? <span className="inline-flex items-center gap-0.5"><RotateCcw size={11} aria-hidden />repete</span> : null}
-          {a.priority === 'high' ? <Badge tone="warn">Alta</Badge> : null}
-        </p>
+    <div className="flex flex-col gap-2">
+      <div className="flex items-start gap-3">
+        <button type="button" onClick={click} aria-label={done ? `Reabrir: ${a.title}` : `Concluir: ${a.title}`} aria-pressed={done} aria-expanded={isCall && !done ? asking : undefined}
+          className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border ${done ? 'border-ok bg-ok text-white' : 'border-line-strong hover:border-ok'}`}>
+          {done ? <Check size={14} aria-hidden /> : null}
+        </button>
+        <div className="min-w-0 flex-1">
+          {onEdit ? (
+            <button type="button" onClick={onEdit} className={`text-left text-sm font-medium hover:underline ${done ? 'text-muted line-through' : ''}`}>{a.title}</button>
+          ) : <p className={`text-sm font-medium ${done ? 'text-muted line-through' : ''}`}>{a.title}</p>}
+          <p className="flex flex-wrap items-center gap-x-2 text-[12px] text-muted">
+            <span>{ACTIVITY_LABEL[a.type]}</span>
+            {a.startsAt ? <span className={a.overdue ? 'font-medium text-bad' : ''}>{a.allDay ? new Date(a.startsAt).toLocaleDateString('pt-BR') : fmtDateTime.format(new Date(a.startsAt))}{a.overdue ? ' · atrasada' : ''}</span> : <span>sem data</span>}
+            {a.owner ? <span>{a.owner.name}</span> : null}
+            {a.seriesId ? <span className="inline-flex items-center gap-0.5"><RotateCcw size={11} aria-hidden />repete</span> : null}
+            {a.priority === 'high' ? <Badge tone="warn">Alta</Badge> : null}
+            {done && a.outcome && a.outcome !== 'held' ? <Badge tone="warn">{OUTCOME_LABEL[a.outcome]}</Badge> : null}
+          </p>
+        </div>
       </div>
+      {asking && !done ? (
+        <div role="group" aria-label={`Como foi: ${a.title}`} className="ml-9 flex flex-wrap items-center gap-1.5 rounded-[8px] border border-line bg-surface-2 p-2">
+          <span className="mr-1 text-[12px] font-medium">Como foi?</span>
+          {(['held', 'no_show', 'rescheduled'] as const).map((o) => (
+            <button key={o} type="button" onClick={() => { setAsking(false); onToggle(o); }}
+              className={`h-8 rounded-full px-3 text-[13px] font-medium ${o === 'held' ? 'bg-primary text-primary-fg' : 'border border-line-strong bg-surface hover:bg-surface-2'}`}>{OUTCOME_LABEL[o]}</button>
+          ))}
+          <button type="button" onClick={() => setAsking(false)} className="h-8 px-2 text-[13px] text-muted hover:underline">Cancelar</button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -255,8 +275,8 @@ export function ActivitiesPanel({ filter, links, canEdit, onChange }: {
   const open = (list.data ?? []).filter((a) => a.status === 'open');
   const done = (list.data ?? []).filter((a) => a.status === 'done').slice(0, 5);
 
-  async function toggle(a: Activity) {
-    await api('POST', `/api/v1/activities/${a.id}/status`, { status: a.status === 'done' ? 'open' : 'done' }).catch(() => undefined);
+  async function toggle(a: Activity, outcome?: CallOutcome) {
+    await api('POST', `/api/v1/activities/${a.id}/status`, statusBody(a, outcome)).catch(() => undefined);
     await list.reload();
     onChange?.();
   }
@@ -270,9 +290,9 @@ export function ActivitiesPanel({ filter, links, canEdit, onChange }: {
           </Empty>
         ) : (
           <div className="flex flex-col gap-3">
-            {open.map((a) => <ActivityRow key={a.id} a={a} onToggle={() => toggle(a)} onEdit={canEdit ? () => setDialog({ activity: a }) : undefined} />)}
+            {open.map((a) => <ActivityRow key={a.id} a={a} onToggle={(o) => toggle(a, o)} onEdit={canEdit ? () => setDialog({ activity: a }) : undefined} />)}
             {done.length ? <p className="mt-1 text-[12px] font-medium uppercase tracking-wide text-muted">Concluídas</p> : null}
-            {done.map((a) => <ActivityRow key={a.id} a={a} onToggle={() => toggle(a)} />)}
+            {done.map((a) => <ActivityRow key={a.id} a={a} onToggle={(o) => toggle(a, o)} />)}
           </div>
         )}
       <ActivityDialog open={!!dialog} activity={dialog?.activity} links={links} onClose={() => setDialog(null)}
