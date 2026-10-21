@@ -23,6 +23,13 @@ Atualizado em 14 de outubro de 2026.
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
 
+### KPIs fiéis (20 out 2026)
+
+- Lead = contato com a etiqueta escolhida em KPIs › Etiqueta de lead, contado na data em que recebeu a etiqueta (decisão do usuário). Sem etiqueta, aviso na tela e regra antiga.
+- "Conferir" em cada número: lista do que foi contado, link para o registro e "Não contar" (sai só dos KPIs, reversível). Ticket = valor do negócio ganho (decisão do usuário: corrigir no negócio).
+- Etiqueta guarda a data em que foi colocada; editar o contato não muda a data. Migração 0015.
+- Testes: banco 478; API 260; ponta a ponta 40.
+
 ### KPIs com investimento em anúncios (20 out 2026)
 
 - Início › KPIs (só para quem vê relatórios da empresa toda): custo por reunião realizada, conversão na reunião e reuniões por venda, ticket médio, no-show com meta de até 20%, investimento, leads e custo por lead, custo por venda, ROAS, funil e calculadora do fator de escala (meta → vendas → reuniões → investimento, por dia).

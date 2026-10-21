@@ -125,6 +125,10 @@ begin
   values (p_tenant, 'meta', t.id(p_tenant, 28), current_date - 1, current_date - 1, 15000);
   insert into ad_spend (tenant_id, platform, description, first_day, last_day, amount_cents, created_by)
   values (p_tenant, 'google', 'Pesquisa', current_date - 7, current_date - 1, 70000, p_member);
+
+  -- KPIs: etiqueta de lead e um registro fora da conta.
+  insert into kpi_settings (tenant_id, lead_tag_ids) values (p_tenant, array[t.id(p_tenant, 14)]);
+  insert into kpi_exclusions (tenant_id, kind, record_id, created_by) values (p_tenant, 'contact', t.id(p_tenant, 2), p_member);
 end
 $$;
 

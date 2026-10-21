@@ -40,6 +40,36 @@ export class KpisController {
     return this.kpis.summary(a, f);
   }
 
+  /** Os registros por trás de um número (conferência). */
+  @Require('reports:view')
+  @Get('dashboard/kpis/details')
+  details(@CurrentActor() a: Actor, @Query() q: unknown) {
+    const f = parse(z.object({ from: day, to: day, metric: z.enum(['leads', 'prospected', 'scheduled', 'held', 'no_show', 'rescheduled', 'sales']) }), q);
+    parse(range, { from: f.from, to: f.to });
+    return this.kpis.details(a, f);
+  }
+
+  /** Tirar um registro dos KPIs (ou voltar a contar). Não apaga nada do CRM. */
+  @Require('reports:export')
+  @Post('dashboard/kpis/exclusions')
+  @HttpCode(204)
+  async exclude(@CurrentActor() a: Actor, @Body() b: unknown) {
+    const x = parse(z.object({ kind: z.enum(['contact', 'activity', 'deal']), id: S.uuid, excluded: z.boolean() }), b);
+    await this.kpis.setExcluded(a, x.kind, x.id, x.excluded);
+  }
+
+  @Require('reports:view')
+  @Get('dashboard/kpis/settings')
+  settings(@CurrentActor() a: Actor) {
+    return this.kpis.settings(a);
+  }
+
+  @Require('reports:export')
+  @Patch('dashboard/kpis/settings')
+  saveSettings(@CurrentActor() a: Actor, @Body() b: unknown) {
+    return this.kpis.saveSettings(a, parse(z.object({ leadTagIds: z.array(S.uuid).max(20) }), b).leadTagIds);
+  }
+
   @Require('reports:view')
   @Get('ads/spend')
   list(@CurrentActor() a: Actor, @Query() q: unknown) {

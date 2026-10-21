@@ -336,6 +336,30 @@ test('KPIs: investimento lançado e importado da Meta, planilha por período e f
   await expect(page.getByText('R$ 2.000,00', { exact: true })).toBeVisible();
   await expectAccessible(page);
   await shot(page, '54-kpis');
+
+  // Lead pela etiqueta: aviso até escolher; depois, conferir e tirar da conta.
+  await expect(page.getByText('todo contato novo', { exact: false }).first()).toBeVisible();
+  const h = { 'x-crm-request': '1' };
+  const tag = await (await page.request.post('/api/v1/tags', { data: { name: 'Lead anúncio' }, headers: h })).json() as { id: string };
+  const lead = await (await page.request.post('/api/v1/contacts', { data: { firstName: 'Lívia', lastName: 'Anúncio', allowDuplicate: true, tagIds: [tag.id] }, headers: h })).json() as { id: string };
+  const other = await (await page.request.post('/api/v1/contacts', { data: { firstName: 'Fornecedor', lastName: 'Papelaria', allowDuplicate: true, tagIds: [tag.id] }, headers: h })).json() as { id: string };
+  expect(lead.id && other.id).toBeTruthy();
+  await page.getByRole('button', { name: 'Etiqueta de lead', exact: true }).click();
+  const st = page.getByRole('dialog', { name: 'Etiqueta de lead' });
+  await st.getByLabel('Lead anúncio').check();
+  await expectAccessible(page);
+  await st.getByRole('button', { name: 'Salvar' }).click();
+  await expect(page.getByText('todo contato novo', { exact: false })).toHaveCount(0);
+  await page.getByRole('group', { name: 'Conferir os números' }).getByRole('button', { name: 'Leads' }).click();
+  const chk = page.getByRole('dialog', { name: 'Conferir: Leads' });
+  const items = chk.getByRole('list', { name: 'Registros de Leads' });
+  await expect(items).toContainText('Lívia Anúncio');
+  await expect(items).toContainText('Fornecedor Papelaria');
+  await expectAccessible(page);
+  await chk.getByRole('button', { name: 'Não contar nos KPIs: Fornecedor Papelaria' }).click();
+  await expect(chk.getByRole('button', { name: 'Voltar a contar: Fornecedor Papelaria' })).toBeVisible();
+  await expect(chk).toContainText('1 fora dos KPIs');
+  await shot(page, '55-kpis-conferir');
 });
 
 test('ações agendadas: agendar pelo contato e pela conversa, mudar e cancelar', async ({ page }) => {

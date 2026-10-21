@@ -1,11 +1,14 @@
 'use client';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { CalendarCheck, Copy, Download, Gauge, HandCoins, Megaphone, Receipt, UserPlus, UserX } from 'lucide-react';
+import { CalendarCheck, Copy, Download, Gauge, HandCoins, Megaphone, Receipt, Tag, UserPlus, UserX } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useLoad } from '@/lib/use-load';
 import { money, moneyInput, parseMoney } from '@/lib/crm';
 import { Card } from './operation-dashboard';
 import { AdSpendPanel, PLATFORM_NAME, fmtDay } from './ad-spend';
+import { KpiDetailsDialog, KpiSettingsDialog, METRIC_NAME, type KpiMetric } from './kpi-check';
+import { useSession } from '@/components/shell/session';
+import { Alert } from '@/components/ui/alert';
 import { Panel } from '@/components/ui/panel';
 import { Badge } from '@/components/ui/badge';
 import { Field } from '@/components/ui/field';
@@ -24,6 +27,8 @@ type Kpis = {
   totals: Numbers & { spendByPlatform: { platform: string; spendCents: number }[] };
   periods: (Numbers & { from: string; to: string; days: number })[];
   targets: { noShowRateMax: number };
+  leadRule: 'tag' | 'new-contacts';
+  leadTagIds: string[];
 };
 
 const STEPS = [[1, 'Diário'], [3, 'A cada 3 dias'], [7, 'Semanal'], [14, 'Quinzenal'], [30, 'A cada 30 dias']] as const;
@@ -75,12 +80,13 @@ function sheet(k: Kpis, sep: string): string {
   return lines.map((l) => l.map((v) => (/[;\t"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)).join(sep)).join('\n');
 }
 
-function Step({ label, value, note }: { label: string; value: string; note?: ReactNode }) {
+function Step({ label, value, note, onCheck }: { label: string; value: string; note?: ReactNode; onCheck?: () => void }) {
   return (
     <li className="flex min-w-[120px] flex-1 flex-col gap-0.5 rounded-[10px] border border-line bg-surface p-3">
       <span className="text-[12px] text-muted">{label}</span>
       <span className="text-xl font-semibold tabular-nums">{value}</span>
       {note ? <span className="text-[12px] text-muted">{note}</span> : null}
+      {onCheck ? <button type="button" onClick={onCheck} className="mt-1 self-start text-[12px] font-medium text-accent underline" aria-label={`Conferir ${label}`}>Conferir</button> : null}
     </li>
   );
 }
@@ -162,6 +168,9 @@ export function KpiDashboard() {
   const [step, setStep] = useState(7);
   const [custom, setCustom] = useState({ from: addDays(today, -29), to: today });
   const [copied, setCopied] = useState(false);
+  const [check, setCheck] = useState<KpiMetric | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const { can } = useSession();
 
   const dates = useMemo(() => {
     let from: string, to = today;
@@ -196,9 +205,21 @@ export function KpiDashboard() {
       <select aria-label="Agrupar a planilha" value={step} onChange={(e) => setStep(Number(e.target.value))} className={sel}>
         {STEPS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
+      {can('reports:export') ? (
+        <button type="button" onClick={() => setSettingsOpen(true)} className="inline-flex h-10 items-center gap-1.5 rounded-[6px] border border-line-strong px-3 text-sm font-medium hover:bg-surface-2">
+          <Tag size={15} aria-hidden />Etiqueta de lead
+        </button>
+      ) : null}
       {dates ? <span className="ml-auto rounded-full border border-line bg-surface px-3 py-1 text-[12px] font-medium">{fmtDay(dates.from)} – {fmtDay(dates.to)}</span>
         : <span className="text-[13px] text-bad">A data final precisa ser depois da inicial.</span>}
     </div>
+  );
+
+  const dialogs = (
+    <>
+      {check && dates ? <KpiDetailsDialog metric={check} from={dates.from} to={dates.to} onClose={() => setCheck(null)} onChanged={() => void data.reload()} /> : null}
+      {settingsOpen ? <KpiSettingsDialog current={data.data?.leadTagIds ?? []} onClose={() => setSettingsOpen(false)} onSaved={() => { setSettingsOpen(false); void data.reload(); }} /> : null}
+    </>
   );
 
   if (data.error) return <div className="flex flex-col gap-5">{filters}<LoadError error={data.error} retry={data.reload} /></div>;
@@ -226,11 +247,24 @@ export function KpiDashboard() {
   return (
     <div className="flex flex-col gap-6">
       {filters}
+      {dialogs}
+      {k.leadRule === 'new-contacts' ? (
+        <Alert tone="warning">
+          Os leads estão contando <strong>todo contato novo</strong> (inclusive quem não é lead).{' '}
+          {can('reports:export') ? <button type="button" onClick={() => setSettingsOpen(true)} className="font-semibold underline">Escolha a etiqueta de lead</button> : 'Peça a quem administra para escolher a etiqueta de lead.'}
+        </Alert>
+      ) : null}
 
       <section aria-labelledby="kpi-chave" className="flex flex-col gap-3">
         <div>
           <h2 id="kpi-chave" className="text-lg font-semibold">Os números da escala</h2>
           <p className="text-[13px] text-muted">Custo por reunião realizada, reuniões por venda e ticket médio: com eles, a meta vira investimento.</p>
+        </div>
+        <div role="group" aria-label="Conferir os números" className="flex flex-wrap items-center gap-1.5 text-[13px]">
+          <span className="text-muted">Conferir o que foi contado:</span>
+          {(['leads', 'prospected', 'scheduled', 'held', 'no_show', 'sales'] as const).map((m) => (
+            <button key={m} type="button" onClick={() => setCheck(m)} className="h-8 rounded-full border border-line-strong px-3 font-medium hover:bg-surface-2">{METRIC_NAME[m]}</button>
+          ))}
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Card title="Custo por reunião realizada" help="Investimento em anúncios do período ÷ reuniões realizadas (sem no-show)." icon={<CalendarCheck size={18} />}
@@ -248,7 +282,7 @@ export function KpiDashboard() {
           <Card title="Investimento" help="Gasto em anúncios lançado ou importado, dividido pelos dias de cada lançamento." icon={<Megaphone size={18} />}
             badge={<Badge>{t.spendByPlatform.length ? t.spendByPlatform.map((p) => PLATFORM_NAME[p.platform] ?? p.platform).join(' + ') : 'Sem lançamento'}</Badge>}
             value={money(t.spendCents)} detail={t.spendByPlatform.map((p) => `${PLATFORM_NAME[p.platform] ?? p.platform} ${money(p.spendCents, 'BRL', true)}`).join(' · ') || 'Lance o gasto abaixo'} />
-          <Card title="Leads" help="Contatos e leads novos no período (cada pessoa uma vez)." icon={<UserPlus size={18} />}
+          <Card title="Leads" help={k.leadRule === 'tag' ? 'Contatos que receberam a etiqueta de lead no período (cada pessoa uma vez).' : 'Contatos e leads novos no período (cada pessoa uma vez). Escolha a etiqueta de lead para contar só os leads de verdade.'} icon={<UserPlus size={18} />}
             badge={<Badge tone="info">Custo por lead {cents(t.costPerLeadCents)}</Badge>} value={int(t.leads)} detail={`${int(t.prospected)} prospecções (pessoas abordadas)`} />
           <Card title="Custo por venda" help="Investimento ÷ vendas do período (CAC de mídia)." icon={<HandCoins size={18} />}
             badge={<Badge>{pl(t.sales, 'venda', 'vendas')}</Badge>} value={cents(t.costPerSaleCents)} detail={`${int(t.salesOnCall)} na reunião · ${int(t.salesFollowUp)} no follow-up`} />
@@ -260,12 +294,12 @@ export function KpiDashboard() {
 
       <Panel title="Funil do período" description="Quanto cada etapa pede da anterior.">
         <ol className="flex flex-wrap gap-2">
-          <Step label="Leads" value={int(t.leads)} note={`custo ${cents(t.costPerLeadCents)}`} />
-          <Step label="Prospecções" value={int(t.prospected)} note="pessoas abordadas" />
-          <Step label="Reuniões agendadas" value={int(t.scheduled)}
+          <Step label="Leads" value={int(t.leads)} note={`custo ${cents(t.costPerLeadCents)}`} onCheck={() => setCheck('leads')} />
+          <Step label="Prospecções" value={int(t.prospected)} note="pessoas abordadas" onCheck={() => setCheck('prospected')} />
+          <Step label="Reuniões agendadas" value={int(t.scheduled)} onCheck={() => setCheck('scheduled')}
             note={t.scheduledPerLead === null ? '—' : `${pct(t.scheduledPerLead)} dos leads${t.prospectedPerScheduled !== null ? ` · ${ratio(t.prospectedPerScheduled)} prospecções por agendada` : ''}`} />
-          <Step label="Reuniões realizadas" value={int(t.held)} note={`no-show ${pct(t.noShowRate)} (meta até 20%)`} />
-          <Step label="Vendas" value={int(t.sales)} note={`${pct(t.salesConversion)} das realizadas`} />
+          <Step label="Reuniões realizadas" value={int(t.held)} note={`no-show ${pct(t.noShowRate)} (meta até 20%)`} onCheck={() => setCheck('held')} />
+          <Step label="Vendas" value={int(t.sales)} note={`${pct(t.salesConversion)} das realizadas`} onCheck={() => setCheck('sales')} />
         </ol>
       </Panel>
 
@@ -309,8 +343,9 @@ export function KpiDashboard() {
       <details className="rounded-[10px] border border-line bg-surface p-4 text-[13px]">
         <summary className="cursor-pointer font-medium">Como os KPIs são calculados</summary>
         <ul className="mt-2 flex list-disc flex-col gap-1 pl-5 text-muted">
+          <li>Cada número tem a lista do que foi contado (botões "Conferir"). Dali dá para abrir o registro e corrigir (por exemplo, o valor de um negócio) ou tirar da conta o que não é pertinente, sem apagar nada do CRM.</li>
           <li><strong className="text-ink">Investimento</strong>: lançamentos à mão (valor e período) e o gasto importado da Meta Ads. Um lançamento de vários dias é dividido por igual entre os dias.</li>
-          <li><strong className="text-ink">Leads</strong>: contatos e leads novos no período, cada pessoa uma vez. <strong className="text-ink">Prospecções</strong>: pessoas que receberam mensagem (de alguém da equipe, campanha ou automação) ou tiveram reunião realizada.</li>
+          <li><strong className="text-ink">Leads</strong>: contatos que receberam a etiqueta de lead no período, cada pessoa uma vez (sem etiqueta escolhida, todo contato e lead novo). <strong className="text-ink">Prospecções</strong>: pessoas que receberam mensagem (de alguém da equipe, campanha ou automação) ou tiveram reunião realizada.</li>
           <li><strong className="text-ink">Reunião</strong>: atividade do tipo Ligação ou Reunião. Agendada = criada no período; realizada e no-show pelo resultado informado ao concluir.</li>
           <li><strong className="text-ink">Venda na reunião</strong>: negócio ganho no mesmo dia de uma reunião realizada com a pessoa. As outras vendas com reunião antes são de follow-up.</li>
           <li>Custos = investimento ÷ etapa. ROAS = faturamento ÷ investimento. Os KPIs são da empresa toda.</li>
