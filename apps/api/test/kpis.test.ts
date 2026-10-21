@@ -175,6 +175,61 @@ test('KPIs por período: funil, no-show, custos, ROAS e conversão', async () =>
   assert.equal((await admin.get(`/api/v1/dashboard/kpis?from=${day(0)}&to=${day(3)}&step=7`)).status, 422);
 });
 
+test('KPIs fiéis: lead pela etiqueta, conferência e tirar da conta', async () => {
+  const q = `from=${day(13)}&to=${day(0)}&step=7`;
+  const tag = (await admin.post('/api/v1/tags', { name: 'Lead anúncio' })).body;
+  const contacts = (await admin.get('/api/v1/contacts?q=&limit=50')).body.items as { id: string; name: string }[];
+  const ana = contacts.find((c) => c.name.startsWith('Ana'))!;
+  const beto = contacts.find((c) => c.name.startsWith('Beto'))!;
+  assert.equal((await admin.patch(`/api/v1/contacts/${ana.id}`, { tagIds: [tag.id] })).status, 200);
+  assert.equal((await admin.patch(`/api/v1/contacts/${beto.id}`, { tagIds: [tag.id] })).status, 200);
+
+  // Só quem gerencia relatórios escolhe a etiqueta; antes disso, todo contato novo conta.
+  assert.equal((await viewer.req('PATCH', '/api/v1/dashboard/kpis/settings', { leadTagIds: [tag.id] })).status, 403);
+  let r = await admin.get(`/api/v1/dashboard/kpis?${q}`);
+  assert.equal(r.body.leadRule, 'new-contacts');
+  assert.equal((await admin.patch('/api/v1/dashboard/kpis/settings', { leadTagIds: [tag.id] })).status, 200);
+  r = await admin.get(`/api/v1/dashboard/kpis?${q}`);
+  assert.equal(r.body.leadRule, 'tag');
+  assert.equal(r.body.totals.leads, 2, 'só Ana e Beto têm a etiqueta');
+
+  // Editar o contato não muda a data em que ele virou lead.
+  const before = (await f.admin.query('select created_at from contact_tags where contact_id = $1', [ana.id])).rows[0].created_at;
+  await admin.patch(`/api/v1/contacts/${ana.id}`, { jobTitle: 'Gerente', tagIds: [tag.id] });
+  assert.deepEqual((await f.admin.query('select created_at from contact_tags where contact_id = $1', [ana.id])).rows[0].created_at, before);
+
+  // Conferência: a lista bate com o número.
+  const leads = await admin.get(`/api/v1/dashboard/kpis/details?from=${day(13)}&to=${day(0)}&metric=leads`);
+  assert.deepEqual(leads.body.items.map((i: { title: string }) => i.title).sort(), ['Ana', 'Beto']);
+  const sales = await admin.get(`/api/v1/dashboard/kpis/details?from=${day(13)}&to=${day(0)}&metric=sales`);
+  assert.equal(sales.body.items.length, 1);
+  assert.equal(sales.body.items[0].valueCents, 300_000);
+  const held = await admin.get(`/api/v1/dashboard/kpis/details?from=${day(13)}&to=${day(0)}&metric=held`);
+  assert.equal(held.body.items.length, 2);
+
+  // Tirar da conta: o contato sai dos leads e das prospecções; o negócio sai das vendas e do ticket.
+  assert.equal((await viewer.post('/api/v1/dashboard/kpis/exclusions', { kind: 'contact', id: beto.id, excluded: true })).status, 403);
+  assert.equal((await admin.post('/api/v1/dashboard/kpis/exclusions', { kind: 'contact', id: beto.id, excluded: true })).status, 204);
+  assert.equal((await admin.post('/api/v1/dashboard/kpis/exclusions', { kind: 'deal', id: sales.body.items[0].id, excluded: true })).status, 204);
+  r = await admin.get(`/api/v1/dashboard/kpis?${q}`);
+  assert.equal(r.body.totals.leads, 1);
+  assert.equal(r.body.totals.sales, 0);
+  assert.equal(r.body.totals.averageTicketCents, null);
+  const again = await admin.get(`/api/v1/dashboard/kpis/details?from=${day(13)}&to=${day(0)}&metric=leads`);
+  assert.deepEqual(again.body.items.map((i: { title: string; excluded: boolean }) => [i.title, i.excluded]), [['Ana', false], ['Beto', true]], 'o tirado aparece marcado, para voltar');
+  // Uma reunião tirada da conta não conta como realizada.
+  assert.equal((await admin.post('/api/v1/dashboard/kpis/exclusions', { kind: 'activity', id: held.body.items[0].id, excluded: true })).status, 204);
+  assert.equal((await admin.get(`/api/v1/dashboard/kpis?${q}`)).body.totals.held, 1);
+
+  // Voltar a contar.
+  await admin.post('/api/v1/dashboard/kpis/exclusions', { kind: 'contact', id: beto.id, excluded: false });
+  await admin.post('/api/v1/dashboard/kpis/exclusions', { kind: 'deal', id: sales.body.items[0].id, excluded: false });
+  await admin.post('/api/v1/dashboard/kpis/exclusions', { kind: 'activity', id: held.body.items[0].id, excluded: false });
+  r = await admin.get(`/api/v1/dashboard/kpis?${q}`);
+  assert.deepEqual([r.body.totals.leads, r.body.totals.sales, r.body.totals.held], [2, 1, 2]);
+  assert.equal((await adminB.get('/api/v1/dashboard/kpis/settings')).body.leadTagIds.length, 0, 'configuração é de cada empresa');
+});
+
 test('desligar a conta da Meta tira o gasto importado', async () => {
   const acc = (await admin.get('/api/v1/ads/accounts')).body[0];
   assert.equal((await admin.req('DELETE', `/api/v1/ads/accounts/${acc.id}`)).status, 204);

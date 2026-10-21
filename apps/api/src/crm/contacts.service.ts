@@ -394,9 +394,11 @@ export class ContactsService {
       }
       await this.writeChannels(q, id, n.emails, n.phones);
       if (input.tagIds) {
-        await q.query('delete from contact_tags where contact_id = $1', [id]);
-        for (const t of new Set(input.tagIds)) {
-          await q.query('insert into contact_tags (tenant_id, contact_id, tag_id) values (app.tenant_id(), $1, $2)', [id, t]);
+        // Mantém a data de quem já tinha a etiqueta (os KPIs contam o lead pela data da etiqueta).
+        const keep = [...new Set(input.tagIds)];
+        await q.query('delete from contact_tags where contact_id = $1 and not (tag_id = any($2::uuid[]))', [id, keep]);
+        for (const t of keep) {
+          await q.query('insert into contact_tags (tenant_id, contact_id, tag_id) values (app.tenant_id(), $1, $2) on conflict do nothing', [id, t]);
         }
       }
       const after = (await q.query('select first_name, last_name, job_title, organization_id, tax_id, birth_day, birth_month, birth_year, address, owner_membership_id, team_id, custom from contacts where id = $1', [id])).rows[0] as Record<string, unknown>;
@@ -467,8 +469,8 @@ export class ContactsService {
          select tenant_id, $1, e164, label, false from contact_phones where contact_id = $2
          on conflict (contact_id, e164) do nothing`, [keepId, mergedId]);
       await q.query(
-        `insert into contact_tags (tenant_id, contact_id, tag_id)
-         select tenant_id, $1, tag_id from contact_tags where contact_id = $2 on conflict do nothing`, [keepId, mergedId]);
+        `insert into contact_tags (tenant_id, contact_id, tag_id, created_at)
+         select tenant_id, $1, tag_id, created_at from contact_tags where contact_id = $2 on conflict do nothing`, [keepId, mergedId]);
       for (const table of ['deals', 'leads', 'notes', 'activities', 'files', 'messages']) {
         await q.query(`update ${table} set contact_id = $1 where contact_id = $2`, [keepId, mergedId]);
       }
