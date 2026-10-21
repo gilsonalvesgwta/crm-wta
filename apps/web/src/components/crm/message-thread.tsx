@@ -35,6 +35,7 @@ function StatusIcon({ m }: { m: Message }) {
 
 function Attachment({ file, out, autoPlay = false }: { file: NonNullable<Message['file']>; out: boolean; autoPlay?: boolean }) {
   const [url, setUrl] = useState<string | null>(null);
+  const retried = useRef(0);
   const image = file.contentType.startsWith('image/');
   const audio = file.contentType.startsWith('audio/');
   useEffect(() => {
@@ -50,7 +51,24 @@ function Attachment({ file, out, autoPlay = false }: { file: NonNullable<Message
   return (
     <div className="flex flex-col gap-1.5">
       {image && url ? <img src={url} alt={file.name} className="max-h-60 max-w-full rounded-[6px] object-contain" /> : null}
-      {audio && url ? <audio controls autoPlay={autoPlay} src={url} className="max-w-full"><track kind="captions" /></audio> : null}
+      {audio && url ? (
+        <audio controls autoPlay={autoPlay} preload="metadata" src={url} className="max-w-full"
+          onError={(e) => {
+            // O endereço assinado vence em minutos: pede outro e continua do mesmo ponto.
+            const el = e.currentTarget;
+            const at = el.currentTime;
+            const playing = !el.paused;
+            if (retried.current > 2) return;
+            retried.current++;
+            api<{ url: string }>('GET', `/api/v1/files/${file.id}/url`).then((r) => {
+              el.src = r.url;
+              el.currentTime = at;
+              if (playing || at > 0) void el.play().catch(() => undefined);
+            }).catch(() => undefined);
+          }}>
+          <track kind="captions" />
+        </audio>
+      ) : null}
       <button type="button" onClick={() => void open()}
         className={`flex items-center gap-2 self-start rounded-[6px] px-2 py-1 text-[13px] ${out ? 'bg-black/10' : 'bg-surface-2'} hover:underline`}>
         <Download size={14} aria-hidden /><span className="max-w-[220px] truncate">{file.name}</span><span className="opacity-70">{fileSize(file.sizeBytes)}</span>
@@ -63,12 +81,17 @@ const MEDIA_ACTION: Record<string, string> = {
   audio: 'Ouvir áudio', image: 'Ver imagem', video: 'Ver vídeo', document: 'Abrir documento', sticker: 'Ver figurinha',
 };
 
-/** Mídia que chegou sem o arquivo: busca no WhatsApp quando alguém pede. */
-function MissingMedia({ m, out }: { m: Message; out: boolean }) {
+/**
+ * Arquivo da mensagem. Quando chegou sem ele, busca no WhatsApp ao pedir. É o
+ * mesmo componente antes e depois de o arquivo existir: a atualização da
+ * conversa não troca o player (o áudio continua tocando).
+ */
+function MessageMedia({ m, out }: { m: Message; out: boolean }) {
   const [file, setFile] = useState<Message['file']>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  if (file) return <Attachment file={file} out={out} autoPlay />;
+  const shown = file ?? m.file;
+  if (shown) return <Attachment file={shown} out={out} autoPlay={!!file} />;
   const label = KIND_LABEL[m.kind] ?? 'Mensagem';
   if (m.account?.kind !== 'whatsapp_evolution') return !m.body ? <p className="italic text-muted">{label}</p> : null;
   async function load() {
@@ -108,8 +131,7 @@ function Bubble({ m }: { m: Message }) {
           {out ? <span>· {m.automation ? `automação "${m.automation.name}"` : m.campaign ? `campanha "${m.campaign.name}"` : m.sentBy?.name ?? 'pelo celular'}</span> : null}
         </p>
         {m.subject ? <p className="font-semibold">{m.subject}</p> : null}
-        {m.file ? <Attachment file={m.file} out={out} />
-          : MEDIA_ACTION[m.kind] ? <MissingMedia m={m} out={out} />
+        {m.file || MEDIA_ACTION[m.kind] ? <MessageMedia m={m} out={out} />
           : !m.body ? <p className="italic text-muted">{KIND_LABEL[m.kind] ?? 'Mensagem'}</p> : null}
         {m.body ? <p className="whitespace-pre-wrap break-words">{m.body}</p> : null}
         {m.status === 'failed' && m.error ? <p className="text-[12px] font-medium text-bad">{m.error}</p> : null}
@@ -160,13 +182,14 @@ export function MessageThread({ contactId, contactName, conversation, target, ca
   const activity = useRef(onActivity);
   activity.current = onActivity;
 
+  const isConversation = !!conversation;
   const load = useCallback(async () => {
     try {
       const r = await api<{ items: Message[] }>('GET', `${base}/messages`);
       setItems(r.items);
       setLoadErr(null);
       if (r.items.some((m) => m.direction === 'in' && !m.seenAt)) {
-        await api('POST', conversation ? `${base}/seen` : `${base}/messages/seen`).catch(() => undefined);
+        await api('POST', isConversation ? `${base}/seen` : `${base}/messages/seen`).catch(() => undefined);
         // O menu atualiza o número de conversas não lidas.
         window.dispatchEvent(new Event('crm-unread'));
         activity.current?.();
@@ -174,7 +197,9 @@ export function MessageThread({ contactId, contactName, conversation, target, ca
     } catch (e) {
       setLoadErr(e instanceof ApiError ? e.title : 'Não foi possível carregar as mensagens.');
     }
-  }, [base, conversation]);
+    // Depende só do endereço: o objeto da conversa muda a cada atualização da tela, e recarregar do zero
+    // desmontava as mensagens (o áudio que estava tocando parava).
+  }, [base, isConversation]);
 
   useEffect(() => {
     setItems(null);

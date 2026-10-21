@@ -33,11 +33,12 @@ export class Storage {
     await rename(tmp, full);
   }
 
-  async open(key: string): Promise<{ stream: Readable; size: number } | null> {
+  /** Abre o arquivo inteiro ou um trecho (início e fim inclusivos, para Range). */
+  async open(key: string, range?: { start: number; end: number }): Promise<{ stream: Readable; size: number } | null> {
     const full = this.file(key);
     try {
       const s = await stat(full);
-      return { stream: createReadStream(full), size: s.size };
+      return { stream: createReadStream(full, range && range.start < s.size ? { start: range.start, end: Math.min(range.end, s.size - 1) } : {}), size: s.size };
     } catch {
       return null;
     }

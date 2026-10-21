@@ -254,7 +254,19 @@ describe('WhatsApp pela Evolution', () => {
     assert.equal(ok.status, 200, JSON.stringify(ok.body));
     assert.equal(ok.body.file.contentType, 'audio/ogg');
     const url = await admin.get(`/api/v1/files/${ok.body.file.id}/url`);
-    assert.deepEqual((await admin.raw(url.body.url)).body, OPUS);
+    const full = await admin.raw(url.body.url);
+    assert.deepEqual(full.body, OPUS);
+    assert.equal(full.headers['accept-ranges'], 'bytes');
+    // O player pede o arquivo por partes (duração e avançar no áudio).
+    const part = await admin.raw(url.body.url, { range: 'bytes=10-29' });
+    assert.equal(part.status, 206);
+    assert.equal(part.headers['content-range'], `bytes 10-29/${OPUS.length}`);
+    assert.deepEqual(part.body, OPUS.subarray(10, 30));
+    const open = await admin.raw(url.body.url, { range: 'bytes=40-' });
+    assert.deepEqual(open.body, OPUS.subarray(40));
+    const tail = await admin.raw(url.body.url, { range: 'bytes=-8' });
+    assert.deepEqual(tail.body, OPUS.subarray(OPUS.length - 8));
+    assert.equal((await admin.raw(url.body.url, { range: `bytes=${OPUS.length + 5}-` })).status, 416);
     // Mensagem de texto não tem arquivo para buscar.
     const txt = (await admin.post(`/api/v1/contacts/${id}/messages`, { accountId: waAccount, text: 'Recebi' })).body;
     assert.equal((await admin.post(`/api/v1/messages/${txt.id}/media`, {})).status, 422);

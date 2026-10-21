@@ -172,8 +172,8 @@ export class Browser {
   }
 
   /** GET que devolve o corpo bruto (CSV, arquivos). */
-  async raw(url: string): Promise<{ status: number; body: Buffer; headers: Record<string, unknown> }> {
-    const headers: Record<string, string> = {};
+  async raw(url: string, extra: Record<string, string> = {}): Promise<{ status: number; body: Buffer; headers: Record<string, unknown> }> {
+    const headers: Record<string, string> = { ...extra };
     if (this.cookie) headers.cookie = this.cookie;
     const r = await this.app.inject({ method: 'GET', url, headers, remoteAddress: this.ip });
     return { status: r.statusCode, body: r.rawPayload, headers: r.headers as Record<string, unknown> };
