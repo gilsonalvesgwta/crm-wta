@@ -7,6 +7,7 @@ import { useLoad } from '@/lib/use-load';
 import { useQueryState } from '@/lib/use-query-state';
 import { SalesDashboard } from '@/components/crm/sales-dashboard';
 import { KpiDashboard } from '@/components/crm/kpi-dashboard';
+import { MyProspectingCard } from '@/components/crm/prospecting';
 import { OperationDashboard } from '@/components/crm/operation-dashboard';
 import { money, statusBody, type Activity } from '@/lib/crm';
 import { useSession } from '@/components/shell/session';
@@ -189,6 +190,7 @@ function Home() {
                       : <div className="flex flex-col gap-3">{todayList.data.map((a) => <ActivityRow key={a.id} a={a} onToggle={async (o) => { await api('POST', `/api/v1/activities/${a.id}/status`, statusBody(a, o)); void todayList.reload(); void summary.reload(); }} />)}</div>}
                   </Panel>
                 ) : null}
+                {can('tasks:manage') ? <MyProspectingCard /> : null}
                 <Panel title="Segurança da conta">
                   <div className="flex items-start gap-3">
                     {me.mfa.enabled ? <ShieldCheck size={20} className="mt-0.5 shrink-0 text-ok" aria-hidden /> : <ShieldAlert size={20} className="mt-0.5 shrink-0 text-warn" aria-hidden />}

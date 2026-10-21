@@ -12,7 +12,7 @@ $$;
 -- 1 organização, 2 contato, 3 funil, 4 etapa aberta, 5 etapa ganha, 6 etapa
 -- perdida, 7 negócio, 8 lead, 9 produto, 10 motivo, 11 atividade, 12 arquivo,
 -- 13 importação, 14 etiqueta, 15 roteiro, 16 série, 17 campo, 18 conta de canal, 19 mensagem, 20 automação,
--- 28 conta de anúncios.
+-- 28 conta de anúncios, 29 funil de KPI.
 
 create function t.seed_crm(p_tenant uuid, p_member uuid, p_team uuid) returns void
 language plpgsql
@@ -129,6 +129,10 @@ begin
   -- KPIs: etiqueta de lead e um registro fora da conta.
   insert into kpi_settings (tenant_id, lead_tag_ids) values (p_tenant, array[t.id(p_tenant, 14)]);
   insert into kpi_exclusions (tenant_id, kind, record_id, created_by) values (p_tenant, 'contact', t.id(p_tenant, 2), p_member);
+  insert into kpi_funnels (id, tenant_id, name, tag_ids, manual_prospecting, created_by)
+  values (t.id(p_tenant, 29), p_tenant, 'Prospecção ativa', array[t.id(p_tenant, 14)], true, p_member);
+  insert into kpi_prospecting (tenant_id, funnel_id, membership_id, day, count)
+  values (p_tenant, t.id(p_tenant, 29), p_member, current_date, 40);
 end
 $$;
 

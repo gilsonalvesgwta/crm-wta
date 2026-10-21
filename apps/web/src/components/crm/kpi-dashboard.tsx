@@ -6,7 +6,8 @@ import { useLoad } from '@/lib/use-load';
 import { money, moneyInput, parseMoney } from '@/lib/crm';
 import { Card } from './operation-dashboard';
 import { AdSpendPanel, PLATFORM_NAME, fmtDay } from './ad-spend';
-import { KpiDetailsDialog, KpiSettingsDialog, METRIC_NAME, type KpiMetric } from './kpi-check';
+import { FunnelDialog, KpiDetailsDialog, METRIC_NAME, type KpiFunnel, type KpiMetric } from './kpi-check';
+import { ProspectingPanel } from './prospecting';
 import { useSession } from '@/components/shell/session';
 import { Alert } from '@/components/ui/alert';
 import { Panel } from '@/components/ui/panel';
@@ -15,7 +16,7 @@ import { Field } from '@/components/ui/field';
 import { LoadError, Loading } from '@/components/ui/states';
 
 type Numbers = {
-  spendCents: number; leads: number; prospected: number; scheduled: number; held: number; noShow: number; rescheduled: number;
+  spendCents: number; leads: number; prospected: number; prospectedManual: number; scheduled: number; held: number; noShow: number; rescheduled: number;
   sales: number; salesOnCall: number; salesFollowUp: number; revenueCents: number;
   noShowRate: number | null; scheduledPerLead: number | null; prospectedPerScheduled: number | null;
   onCallConversion: number | null; salesConversion: number | null; meetingsPerSale: number | null;
@@ -28,7 +29,8 @@ type Kpis = {
   periods: (Numbers & { from: string; to: string; days: number })[];
   targets: { noShowRateMax: number };
   leadRule: 'tag' | 'new-contacts';
-  leadTagIds: string[];
+  funnel: KpiFunnel | null;
+  funnels: KpiFunnel[];
 };
 
 const STEPS = [[1, 'Diário'], [3, 'A cada 3 dias'], [7, 'Semanal'], [14, 'Quinzenal'], [30, 'A cada 30 dias']] as const;
@@ -169,7 +171,8 @@ export function KpiDashboard() {
   const [custom, setCustom] = useState({ from: addDays(today, -29), to: today });
   const [copied, setCopied] = useState(false);
   const [check, setCheck] = useState<KpiMetric | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [funnelId, setFunnelId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ funnel: KpiFunnel | null } | null>(null);
   const { can } = useSession();
 
   const dates = useMemo(() => {
@@ -187,7 +190,7 @@ export function KpiDashboard() {
     return from <= to ? { from, to } : null;
   }, [range, step, custom.from, custom.to, today]);
 
-  const qs = dates ? `from=${dates.from}&to=${dates.to}&step=${step}` : '';
+  const qs = dates ? `from=${dates.from}&to=${dates.to}&step=${step}${funnelId ? `&funnelId=${funnelId}` : ''}` : '';
   const data = useLoad(() => (qs ? api<Kpis>('GET', `/api/v1/dashboard/kpis?${qs}`) : Promise.resolve(null)), [qs]);
 
   const sel = 'h-10 rounded-[6px] border border-line-strong bg-surface px-2.5 text-sm';
@@ -205,11 +208,6 @@ export function KpiDashboard() {
       <select aria-label="Agrupar a planilha" value={step} onChange={(e) => setStep(Number(e.target.value))} className={sel}>
         {STEPS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
-      {can('reports:export') ? (
-        <button type="button" onClick={() => setSettingsOpen(true)} className="inline-flex h-10 items-center gap-1.5 rounded-[6px] border border-line-strong px-3 text-sm font-medium hover:bg-surface-2">
-          <Tag size={15} aria-hidden />Etiqueta de lead
-        </button>
-      ) : null}
       {dates ? <span className="ml-auto rounded-full border border-line bg-surface px-3 py-1 text-[12px] font-medium">{fmtDay(dates.from)} – {fmtDay(dates.to)}</span>
         : <span className="text-[13px] text-bad">A data final precisa ser depois da inicial.</span>}
     </div>
@@ -217,14 +215,38 @@ export function KpiDashboard() {
 
   const dialogs = (
     <>
-      {check && dates ? <KpiDetailsDialog metric={check} from={dates.from} to={dates.to} onClose={() => setCheck(null)} onChanged={() => void data.reload()} /> : null}
-      {settingsOpen ? <KpiSettingsDialog current={data.data?.leadTagIds ?? []} onClose={() => setSettingsOpen(false)} onSaved={() => { setSettingsOpen(false); void data.reload(); }} /> : null}
+      {check && dates ? <KpiDetailsDialog metric={check} from={dates.from} to={dates.to} funnelId={data.data?.funnel?.id ?? null} onClose={() => setCheck(null)} onChanged={() => void data.reload()} /> : null}
+      {editing ? (
+        <FunnelDialog funnel={editing.funnel} onClose={() => setEditing(null)}
+          onSaved={(f) => { setEditing(null); setFunnelId(f?.id ?? null); void data.reload(); }} />
+      ) : null}
     </>
   );
 
-  if (data.error) return <div className="flex flex-col gap-5">{filters}<LoadError error={data.error} retry={data.reload} /></div>;
+  const funnels = data.data?.funnels ?? [];
+  const current = data.data?.funnel ?? null;
+  const tabs = funnels.length || can('reports:export') ? (
+    <div className="flex flex-wrap items-center gap-2">
+      <div role="tablist" aria-label="Painel do funil" className="flex flex-wrap gap-1.5">
+        {funnels.map((f) => (
+          <button key={f.id} type="button" role="tab" aria-selected={current?.id === f.id} onClick={() => setFunnelId(f.id)}
+            className={`h-9 rounded-full px-3.5 text-sm font-medium ${current?.id === f.id ? 'bg-primary text-primary-fg' : 'border border-line-strong hover:bg-surface-2'}`}>
+            {f.name}{f.receivesAdSpend ? <span className="sr-only"> (recebe o investimento)</span> : null}
+          </button>
+        ))}
+      </div>
+      {can('reports:export') ? (
+        <span className="flex gap-1.5">
+          {current ? <button type="button" onClick={() => setEditing({ funnel: current })} className="inline-flex h-9 items-center gap-1.5 rounded-[6px] px-2.5 text-[13px] font-medium text-muted hover:bg-surface-2 hover:text-ink"><Tag size={14} aria-hidden />Editar funil</button> : null}
+          <button type="button" onClick={() => setEditing({ funnel: null })} className="inline-flex h-9 items-center gap-1.5 rounded-[6px] px-2.5 text-[13px] font-medium text-accent hover:bg-surface-2">+ Novo funil</button>
+        </span>
+      ) : null}
+    </div>
+  ) : null;
+
+  if (data.error) return <div className="flex flex-col gap-5">{tabs}{filters}<LoadError error={data.error} retry={data.reload} /></div>;
   const k = data.data;
-  if (!k || !dates) return <div className="flex flex-col gap-5">{filters}{dates ? <Loading /> : null}</div>;
+  if (!k || !dates) return <div className="flex flex-col gap-5">{tabs}{filters}{dates ? <Loading /> : null}</div>;
   const t = k.totals;
   const noShowBad = (t.noShowRate ?? 0) > k.targets.noShowRateMax;
 
@@ -246,12 +268,14 @@ export function KpiDashboard() {
 
   return (
     <div className="flex flex-col gap-6">
+      {tabs}
       {filters}
       {dialogs}
       {k.leadRule === 'new-contacts' ? (
         <Alert tone="warning">
-          Os leads estão contando <strong>todo contato novo</strong> (inclusive quem não é lead).{' '}
-          {can('reports:export') ? <button type="button" onClick={() => setSettingsOpen(true)} className="font-semibold underline">Escolha a etiqueta de lead</button> : 'Peça a quem administra para escolher a etiqueta de lead.'}
+          Sem funil, os números misturam tudo: os leads contam <strong>todo contato novo</strong>.{' '}
+          {can('reports:export') ? <button type="button" onClick={() => setEditing({ funnel: null })} className="font-semibold underline">Crie o primeiro funil</button> : 'Peça a quem administra para criar os funis.'}
+          {' '}(ex.: "Tráfego pago", com a etiqueta dos leads de anúncio).
         </Alert>
       ) : null}
 
@@ -282,8 +306,8 @@ export function KpiDashboard() {
           <Card title="Investimento" help="Gasto em anúncios lançado ou importado, dividido pelos dias de cada lançamento." icon={<Megaphone size={18} />}
             badge={<Badge>{t.spendByPlatform.length ? t.spendByPlatform.map((p) => PLATFORM_NAME[p.platform] ?? p.platform).join(' + ') : 'Sem lançamento'}</Badge>}
             value={money(t.spendCents)} detail={t.spendByPlatform.map((p) => `${PLATFORM_NAME[p.platform] ?? p.platform} ${money(p.spendCents, 'BRL', true)}`).join(' · ') || 'Lance o gasto abaixo'} />
-          <Card title="Leads" help={k.leadRule === 'tag' ? 'Contatos que receberam a etiqueta de lead no período (cada pessoa uma vez).' : 'Contatos e leads novos no período (cada pessoa uma vez). Escolha a etiqueta de lead para contar só os leads de verdade.'} icon={<UserPlus size={18} />}
-            badge={<Badge tone="info">Custo por lead {cents(t.costPerLeadCents)}</Badge>} value={int(t.leads)} detail={`${int(t.prospected)} prospecções (pessoas abordadas)`} />
+          <Card title="Leads" help={k.leadRule === 'tag' ? 'Contatos que receberam a etiqueta do funil no período (cada pessoa uma vez).' : 'Contatos e leads novos no período (cada pessoa uma vez). Crie um funil para contar só os leads dele.'} icon={<UserPlus size={18} />}
+            badge={<Badge tone="info">Custo por lead {cents(t.costPerLeadCents)}</Badge>} value={int(t.leads)} detail={`${int(t.prospected)} prospecções${t.prospectedManual ? ` (${int(t.prospectedManual)} lançadas pelos vendedores)` : ' (pessoas abordadas)'}`} />
           <Card title="Custo por venda" help="Investimento ÷ vendas do período (CAC de mídia)." icon={<HandCoins size={18} />}
             badge={<Badge>{pl(t.sales, 'venda', 'vendas')}</Badge>} value={cents(t.costPerSaleCents)} detail={`${int(t.salesOnCall)} na reunião · ${int(t.salesFollowUp)} no follow-up`} />
           <Card title="ROAS" help="Faturamento ÷ investimento em anúncios." icon={<Gauge size={18} />}
@@ -295,7 +319,7 @@ export function KpiDashboard() {
       <Panel title="Funil do período" description="Quanto cada etapa pede da anterior.">
         <ol className="flex flex-wrap gap-2">
           <Step label="Leads" value={int(t.leads)} note={`custo ${cents(t.costPerLeadCents)}`} onCheck={() => setCheck('leads')} />
-          <Step label="Prospecções" value={int(t.prospected)} note="pessoas abordadas" onCheck={() => setCheck('prospected')} />
+          <Step label="Prospecções" value={int(t.prospected)} note={t.prospectedManual ? `${int(t.prospectedManual)} lançadas pelos vendedores` : 'pessoas abordadas'} onCheck={() => setCheck('prospected')} />
           <Step label="Reuniões agendadas" value={int(t.scheduled)} onCheck={() => setCheck('scheduled')}
             note={t.scheduledPerLead === null ? '—' : `${pct(t.scheduledPerLead)} dos leads${t.prospectedPerScheduled !== null ? ` · ${ratio(t.prospectedPerScheduled)} prospecções por agendada` : ''}`} />
           <Step label="Reuniões realizadas" value={int(t.held)} note={`no-show ${pct(t.noShowRate)} (meta até 20%)`} onCheck={() => setCheck('held')} />
@@ -338,7 +362,13 @@ export function KpiDashboard() {
         </div>
       </Panel>
 
-      <AdSpendPanel from={k.period.from} to={k.period.to} onChange={() => void data.reload()} />
+      {k.funnel?.manualProspecting ? <ProspectingPanel funnelId={k.funnel.id} from={k.period.from} to={k.period.to} onChange={() => void data.reload()} /> : null}
+
+      {!k.funnel || k.funnel.receivesAdSpend ? <AdSpendPanel from={k.period.from} to={k.period.to} onChange={() => void data.reload()} /> : (
+        <p className="rounded-[10px] border border-line bg-surface p-4 text-[13px] text-muted">
+          Este funil não recebe o investimento em anúncios{funnels.find((f) => f.receivesAdSpend) ? ` (vai para "${funnels.find((f) => f.receivesAdSpend)!.name}")` : ''}: os custos ficam em branco.
+        </p>
+      )}
 
       <details className="rounded-[10px] border border-line bg-surface p-4 text-[13px]">
         <summary className="cursor-pointer font-medium">Como os KPIs são calculados</summary>

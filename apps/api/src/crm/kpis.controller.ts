@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { z } from 'zod';
 import type { Actor } from '../access/actor.js';
 import { CurrentActor, Require } from '../access/decorators.js';
@@ -24,6 +24,13 @@ const spendBody = z.object({
 }).refine((v) => days(v.firstDay, v.lastDay) >= 0, { message: 'O último dia precisa ser igual ou depois do primeiro.', path: ['lastDay'] })
   .refine((v) => days(v.firstDay, v.lastDay) <= 366, { message: 'Período de até um ano.', path: ['lastDay'] });
 
+const funnelBody = z.object({
+  name: z.string().trim().min(1, { message: 'Dê um nome ao funil.' }).max(60, { message: 'Até 60 caracteres.' }),
+  tagIds: z.array(S.uuid).min(1, { message: 'Escolha ao menos uma etiqueta.' }).max(20),
+  receivesAdSpend: z.boolean().default(false),
+  manualProspecting: z.boolean().default(false),
+});
+
 /** KPIs do funil com o investimento em anúncios. */
 @Controller('v1')
 export class KpisController {
@@ -35,7 +42,7 @@ export class KpisController {
   @Require('reports:view')
   @Get('dashboard/kpis')
   summary(@CurrentActor() a: Actor, @Query() q: unknown) {
-    const f = parse(z.object({ from: day, to: day, step: z.coerce.number().int().min(1).max(366).default(7) }), q);
+    const f = parse(z.object({ from: day, to: day, step: z.coerce.number().int().min(1).max(366).default(7), funnelId: S.uuid.optional() }), q);
     parse(range, { from: f.from, to: f.to });
     return this.kpis.summary(a, f);
   }
@@ -44,7 +51,7 @@ export class KpisController {
   @Require('reports:view')
   @Get('dashboard/kpis/details')
   details(@CurrentActor() a: Actor, @Query() q: unknown) {
-    const f = parse(z.object({ from: day, to: day, metric: z.enum(['leads', 'prospected', 'scheduled', 'held', 'no_show', 'rescheduled', 'sales']) }), q);
+    const f = parse(z.object({ from: day, to: day, metric: z.enum(['leads', 'prospected', 'scheduled', 'held', 'no_show', 'rescheduled', 'sales']), funnelId: S.uuid.optional() }), q);
     parse(range, { from: f.from, to: f.to });
     return this.kpis.details(a, f);
   }
@@ -58,16 +65,50 @@ export class KpisController {
     await this.kpis.setExcluded(a, x.kind, x.id, x.excluded);
   }
 
+  // ---- Funis -------------------------------------------------------------------------
+
   @Require('reports:view')
-  @Get('dashboard/kpis/settings')
-  settings(@CurrentActor() a: Actor) {
-    return this.kpis.settings(a);
+  @Get('dashboard/kpis/funnels')
+  funnels(@CurrentActor() a: Actor) {
+    AdsService.assertCompanyView(a);
+    return this.kpis.funnels(a);
   }
 
   @Require('reports:export')
-  @Patch('dashboard/kpis/settings')
-  saveSettings(@CurrentActor() a: Actor, @Body() b: unknown) {
-    return this.kpis.saveSettings(a, parse(z.object({ leadTagIds: z.array(S.uuid).max(20) }), b).leadTagIds);
+  @Post('dashboard/kpis/funnels')
+  createFunnel(@CurrentActor() a: Actor, @Body() b: unknown) {
+    return this.kpis.saveFunnel(a, null, parse(funnelBody, b));
+  }
+
+  @Require('reports:export')
+  @Patch('dashboard/kpis/funnels/:id')
+  updateFunnel(@CurrentActor() a: Actor, @Param('id') i: string, @Body() b: unknown) {
+    return this.kpis.saveFunnel(a, id(i), parse(funnelBody, b));
+  }
+
+  @Require('reports:export')
+  @Delete('dashboard/kpis/funnels/:id')
+  @HttpCode(204)
+  async removeFunnel(@CurrentActor() a: Actor, @Param('id') i: string) {
+    await this.kpis.removeFunnel(a, id(i));
+  }
+
+  // ---- Prospecção lançada pelo vendedor -------------------------------------------------
+
+  /** Funis com prospecção manual e o que a pessoa lançou na última semana. */
+  @Require('tasks:manage')
+  @Get('dashboard/kpis/prospecting/mine')
+  myProspecting(@CurrentActor() a: Actor) {
+    return this.kpis.myProspecting(a);
+  }
+
+  @Require('tasks:manage')
+  @Put('dashboard/kpis/prospecting')
+  setProspecting(@CurrentActor() a: Actor, @Body() b: unknown) {
+    return this.kpis.setProspecting(a, parse(z.object({
+      funnelId: S.uuid, day, membershipId: S.uuid.optional(),
+      count: z.number({ message: 'Informe quantas.' }).int().min(0, { message: 'Não pode ser negativo.' }).max(10_000, { message: 'Até 10.000 por dia.' }),
+    }), b));
   }
 
   @Require('reports:view')

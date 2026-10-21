@@ -23,6 +23,14 @@ Atualizado em 14 de outubro de 2026.
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
 
+### KPIs por funil (20 out 2026)
+
+- Um painel de KPIs para cada funil (ex.: Tráfego pago, Prospecção ativa), para não misturar os números. Contato com a etiqueta do funil é dele; reuniões e vendas dessa pessoa entram só nesse painel (decisão do usuário: etiqueta por funil).
+- Só o funil marcado recebe o investimento em anúncios (decisão do usuário). A etiqueta de lead já escolhida virou o funil "Tráfego pago" (migração 0016).
+- Prospecção: o que o CRM registra mais o número lançado pelo vendedor no Início ("Prospecção do dia", até 7 dias para trás); o gestor lança ou corrige qualquer um no painel.
+- Áudio do WhatsApp toca até o fim (PR #25): a atualização da conversa não recria mais o player; download com Range.
+- Testes: banco 491; API 260; ponta a ponta 40.
+
 ### KPIs fiéis (20 out 2026)
 
 - Lead = contato com a etiqueta escolhida em KPIs › Etiqueta de lead, contado na data em que recebeu a etiqueta (decisão do usuário). Sem etiqueta, aviso na tela e regra antiga.
