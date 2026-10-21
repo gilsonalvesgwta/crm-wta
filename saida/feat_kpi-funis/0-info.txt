@@ -1,4 +1,4 @@
-commit: c4d9cf134d87fda6515575f5efa0e64fcaa63293
+commit: a595d5cd7c2132813442442af50a0082a9c4b3b1
 ramo: feat/kpi-funis
-execucao: 39532827569
-inicio: 2026-10-21T02:24:55Z
+execucao: 39534071845
+inicio: 2026-10-21T02:38:21Z
