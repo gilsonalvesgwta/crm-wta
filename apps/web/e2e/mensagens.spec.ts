@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { test, expect, type Page } from '@playwright/test';
 import { expectAccessible, loginAdmin, shot } from './util';
 
@@ -16,6 +17,8 @@ async function openSettings(page: Page, tab: string) {
 }
 
 test('WhatsApp: conectar pelo QR code, receber e responder pelas Conversas', async ({ page }) => {
+  // Inclui ouvir um áudio de 12 s até o fim.
+  test.setTimeout(90_000);
   await loginAdmin(page);
   await openSettings(page, 'Canais');
   await page.getByRole('button', { name: 'Conectar número' }).click();
@@ -82,6 +85,22 @@ test('WhatsApp: conectar pelo QR code, receber e responder pelas Conversas', asy
   await page.request.post(`${FAKE}/__fake/state`, { data: { media: { 'E2E-PTT-2': { base64: OPUS, mimetype: 'audio/ogg; codecs=opus' } } } });
   await thread.getByRole('button', { name: 'Ouvir áudio' }).click();
   await expect(thread.locator('audio')).toHaveCount(2);
+
+  // Áudio de voz real (12 s): toca até o fim, mesmo com a conversa se atualizando sozinha no meio.
+  const voz = readFileSync(new URL('./fixtures/voz.ogg', import.meta.url)).toString('base64');
+  expect((await page.request.post(hook, {
+    data: { event: 'messages.upsert', instance: inst.name,
+      data: { key: { remoteJid: '5521977776666@s.whatsapp.net', fromMe: false, id: 'E2E-PTT-REAL' }, pushName: 'Maria Cliente', messageType: 'audioMessage',
+        message: { audioMessage: { mimetype: 'audio/ogg; codecs=opus', ptt: true, seconds: 12 }, base64: voz } } },
+  })).status()).toBe(200);
+  await expect(thread.locator('audio')).toHaveCount(3, { timeout: 15_000 });
+  const player = thread.locator('audio').last();
+  await expect.poll(() => player.evaluate((a: HTMLAudioElement) => a.readyState), { timeout: 10_000 }).toBeGreaterThan(0);
+  await player.evaluate((a: HTMLAudioElement) => { a.muted = true; void a.play(); });
+  await expect.poll(() => player.evaluate((a: HTMLAudioElement) => a.ended), { timeout: 25_000, intervals: [1000] }).toBe(true);
+  const played = await player.evaluate((a: HTMLAudioElement) => ({ t: a.currentTime, d: a.duration }));
+  expect(played.t).toBeGreaterThan(11);
+  expect(Math.round(played.d)).toBe(12);
   await expectAccessible(page);
 });
 

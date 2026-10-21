@@ -152,7 +152,7 @@ export class FilesService {
   }
 
   /** Valida o endereço assinado e abre o arquivo. Endereço inválido ou vencido: 404. */
-  async openSigned(token: string): Promise<{ stream: import('node:stream').Readable; size: number; name: string; contentType: string }> {
+  async openSigned(token: string, range?: { start: number; end: number }): Promise<{ stream: import('node:stream').Readable; size: number; name: string; contentType: string }> {
     const [b64, sig] = token.split('.');
     if (!b64 || !sig || token.length > 400) throw Problem.notFound();
     const payload = Buffer.from(b64, 'base64url').toString();
@@ -165,7 +165,7 @@ export class FilesService {
       (await q.query<{ storage_key: string; original_name: string; content_type: string }>(
         'select storage_key, original_name, content_type from files where id = $1 and deleted_at is null', [id])).rows[0]);
     if (!row) throw Problem.notFound();
-    const opened = await this.storage.open(row.storage_key);
+    const opened = await this.storage.open(row.storage_key, range);
     if (!opened) throw Problem.notFound();
     return { ...opened, name: row.original_name, contentType: row.content_type };
   }

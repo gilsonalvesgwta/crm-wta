@@ -605,12 +605,30 @@ export class RecordsController {
   /** Download pelo endereço assinado. Público: o endereço é a autorização, e vence em minutos. */
   @Public()
   @Get('files/download/:token')
-  async download(@Param('token') token: string, @Res() res: FastifyReply) {
-    const f = await this.files.openSigned(token);
+  async download(@Param('token') token: string, @Req() req: FastifyRequest, @Res() res: FastifyReply) {
+    // Pedido por partes (Range): o player de áudio e vídeo usa para saber a duração e avançar.
+    const m = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? '').trim());
+    const wanted = m && (m[1] || m[2]) ? { start: m[1] ? Number(m[1]) : null, end: m[2] ? Number(m[2]) : null } : null;
+    const head = await this.files.openSigned(token, wanted ? { start: 0, end: 0 } : undefined);
+    const size = head.size;
+    let range: { start: number; end: number } | null = null;
+    if (wanted) {
+      head.stream.destroy();
+      const start = wanted.start === null ? Math.max(0, size - (wanted.end ?? 0)) : wanted.start;
+      const end = wanted.start === null ? size - 1 : Math.min(wanted.end ?? size - 1, size - 1);
+      if (start >= size || start > end) {
+        void res.status(416).header('content-range', `bytes */${size}`).send();
+        return;
+      }
+      range = { start, end };
+    }
+    const f = range ? await this.files.openSigned(token, range) : head;
     const ascii = f.name.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
+    if (range) void res.status(206).header('content-range', `bytes ${range.start}-${range.end}/${size}`);
     void res
       .header('content-type', f.contentType)
-      .header('content-length', String(f.size))
+      .header('content-length', String(range ? range.end - range.start + 1 : size))
+      .header('accept-ranges', 'bytes')
       .header('content-disposition', `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(f.name)}`)
       .header('content-security-policy', "default-src 'none'; sandbox")
       .header('cache-control', 'private, no-store')
