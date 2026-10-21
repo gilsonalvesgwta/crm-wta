@@ -23,6 +23,14 @@ Atualizado em 14 de outubro de 2026.
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
 
+### KPIs com investimento em anúncios (20 out 2026)
+
+- Início › KPIs (só para quem vê relatórios da empresa toda): custo por reunião realizada, conversão na reunião e reuniões por venda, ticket médio, no-show com meta de até 20%, investimento, leads e custo por lead, custo por venda, ROAS, funil e calculadora do fator de escala (meta → vendas → reuniões → investimento, por dia).
+- Planilha por período (diário, 3 dias, semanal de segunda a domingo, quinzenal, 30 dias), com total, "Copiar para planilha" e CSV.
+- Investimento: lançado à mão (Meta, Google, TikTok, outro; valor e período, dividido pelos dias) ou importado da Meta Ads (Marketing API, insights diários, token ads_read cifrado, a cada 6 h). Google Ads: só manual (a API exige token de desenvolvedor aprovado).
+- Migração 0014 (ad_accounts, ad_spend, app.ad_sync_due). Meta Ads validada só contra a Graph API falsa.
+- Testes: banco 467 verificações; API 259; ponta a ponta 40.
+
 ### Indicadores comerciais (20 out 2026)
 
 - Início › Indicadores comerciais: leads contatados, calls agendadas e realizadas (com comparecimento), vendas na call e no follow-up, conversão, tempo médio até a venda, valores, comparação com o período anterior, dia a dia e tabela por vendedor. Filtros: hoje, 7, 14, 30, 90 dias ou personalizado; vendedor; equipe.

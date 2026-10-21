@@ -195,6 +195,8 @@ export class FakeMeta {
   readonly media = new Map<string, { data: Buffer; type: string }>();
   readonly calls: FakeMetaSend[] = [];
   readonly refreshed: string[] = [];
+  /** Gasto da conta de anúncios falsa, por dia (AAAA-MM-DD → valor na moeda da conta). */
+  readonly adSpend = new Map<string, number>();
   failNext: { status: number; body: unknown } | null = null;
   private server!: Server;
   private n = 0;
@@ -239,6 +241,15 @@ export class FakeMeta {
         const path = u.pathname.replace(/^\/v\d+\.\d+\//, '');
         const json = (): Record<string, unknown> => { try { return JSON.parse(raw.toString('utf8') || '{}') as Record<string, unknown>; } catch { return {}; } };
         const [id, edge] = path.split('/');
+        if (req.method === 'GET' && id!.startsWith('act_')) {
+          if (!edge) return send(200, { id, name: 'Anúncios Empresa Teste', currency: 'BRL', account_status: 1 });
+          if (edge === 'insights') {
+            const r = JSON.parse(u.searchParams.get('time_range') ?? '{}') as { since: string; until: string };
+            const data = [...this.adSpend].filter(([d]) => d >= r.since && d <= r.until).sort()
+              .map(([d, v]) => ({ spend: v.toFixed(2), date_start: d, date_stop: d, account_id: id!.slice(4) }));
+            return send(200, { data, paging: { cursors: { before: 'a', after: 'b' } } });
+          }
+        }
         if (req.method === 'GET' && !edge && id!.startsWith('1000')) {
           return send(200, { id, display_phone_number: '+55 11 3333-4444', verified_name: 'Empresa Teste', quality_rating: 'GREEN' });
         }

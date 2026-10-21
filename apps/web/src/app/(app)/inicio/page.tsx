@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { useLoad } from '@/lib/use-load';
 import { useQueryState } from '@/lib/use-query-state';
 import { SalesDashboard } from '@/components/crm/sales-dashboard';
+import { KpiDashboard } from '@/components/crm/kpi-dashboard';
 import { OperationDashboard } from '@/components/crm/operation-dashboard';
 import { money, statusBody, type Activity } from '@/lib/crm';
 import { useSession } from '@/components/shell/session';
@@ -49,6 +50,9 @@ function Home() {
   const [view, setView] = useQueryState({ visao: '' });
   const operation = view.visao === 'operacao' && can('reports:view');
   const salesView = view.visao === 'indicadores' && can('reports:view');
+  // KPIs: números da empresa toda, para quem vê relatórios da empresa inteira.
+  const kpiAccess = me.permissions['reports:view'] === 'tenant';
+  const kpiView = view.visao === 'kpis' && kpiAccess;
   const { data: dir } = useDirectory();
   const { data: pipelines } = usePipelines();
   const [range, setRange] = useState('mes');
@@ -74,7 +78,7 @@ function Home() {
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">Olá, {first}</h1>
           <p className="text-muted first-letter:uppercase">{tenant ? `${tenant.name} · ` : ''}{today}</p>
         </div>
-        {me.tenantId && !operation && !salesView ? (
+        {me.tenantId && !operation && !salesView && !kpiView ? (
           <div className="flex flex-wrap gap-2">
             <select aria-label="Período" value={range} onChange={(e) => setRange(e.target.value)} className="h-10 rounded-[6px] border border-line-strong bg-surface px-2.5 text-sm">
               <option value="mes">Este mês</option><option value="30d">Últimos 30 dias</option><option value="trimestre">Este trimestre</option><option value="ano">Este ano</option>
@@ -102,8 +106,8 @@ function Home() {
       ) : null}
 
       {me.tenantId && can('reports:view') ? (
-        <div role="group" aria-label="Visão do painel" className="flex gap-1 border-b border-line">
-          {([['', 'Visão comercial'], ['indicadores', 'Indicadores comerciais'], ['operacao', 'Operação de atendimento']] as const).map(([v, label]) => (
+        <div role="group" aria-label="Visão do painel" className="flex gap-1 overflow-x-auto border-b border-line">
+          {([['', 'Visão comercial'], ['indicadores', 'Indicadores comerciais'], ['operacao', 'Operação de atendimento'], ...(kpiAccess ? [['kpis', 'KPIs']] as const : [])] as const).map(([v, label]) => (
             <button key={v} type="button" aria-pressed={view.visao === v} onClick={() => setView({ visao: v })}
               className={`h-11 border-b-2 px-3 text-sm ${view.visao === v ? 'border-primary font-semibold text-ink' : 'border-transparent font-medium text-muted hover:text-ink'}`}>{label}</button>
           ))}
@@ -112,6 +116,7 @@ function Home() {
 
       {operation ? <OperationDashboard />
         : salesView ? <SalesDashboard />
+        : kpiView ? <KpiDashboard />
         : !me.tenantId ? <Empty title="Escolha uma empresa">Entre numa empresa para ver os números.</Empty>
         : summary.error ? <LoadError error={summary.error} retry={summary.reload} />
         : !s ? <Loading />
