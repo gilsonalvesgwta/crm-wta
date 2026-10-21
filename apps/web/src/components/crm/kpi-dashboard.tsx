@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CalendarCheck, Copy, Download, Gauge, HandCoins, Megaphone, Receipt, Tag, UserPlus, UserX } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useLoad } from '@/lib/use-load';
@@ -95,19 +95,23 @@ function Step({ label, value, note, onCheck }: { label: string; value: string; n
 
 /** Calculadora do fator de escala: meta → vendas → reuniões → investimento. */
 function ScaleCalculator({ t, days }: { t: Kpis['totals']; days: number }) {
-  const defaults = useMemo(() => ({
-    ticket: moneyInput(t.averageTicketCents ?? null),
-    conv: t.onCallConversion !== null ? String(Math.round(t.onCallConversion * 1000) / 10).replace('.', ',') : '',
-    cost: moneyInput(t.costPerHeldCents ?? null),
-    noShow: t.noShowRate !== null ? String(Math.round(t.noShowRate * 1000) / 10).replace('.', ',') : '20',
-  }), [t]);
+  const ticketD = moneyInput(t.averageTicketCents ?? null);
+  const convD = t.onCallConversion !== null ? String(Math.round(t.onCallConversion * 1000) / 10).replace('.', ',') : '';
+  const costD = moneyInput(t.costPerHeldCents ?? null);
+  const noShowD = t.noShowRate !== null ? String(Math.round(t.noShowRate * 1000) / 10).replace('.', ',') : '20';
   const [goal, setGoal] = useState('');
   const [deadline, setDeadline] = useState('30');
-  const [ticket, setTicket] = useState(defaults.ticket);
-  const [conv, setConv] = useState(defaults.conv);
-  const [cost, setCost] = useState(defaults.cost);
-  const [noShow, setNoShow] = useState(defaults.noShow);
-  useEffect(() => { setTicket(defaults.ticket); setConv(defaults.conv); setCost(defaults.cost); setNoShow(defaults.noShow); }, [defaults]);
+  const [ticket, setTicket] = useState(ticketD);
+  const [conv, setConv] = useState(convD);
+  const [cost, setCost] = useState(costD);
+  const [noShow, setNoShow] = useState(noShowD);
+  // Campos que a pessoa mudou não voltam ao número do período quando o painel recarrega.
+  const edited = useRef(new Set<string>());
+  useEffect(() => { if (!edited.current.has('ticket')) setTicket(ticketD); }, [ticketD]);
+  useEffect(() => { if (!edited.current.has('conv')) setConv(convD); }, [convD]);
+  useEffect(() => { if (!edited.current.has('cost')) setCost(costD); }, [costD]);
+  useEffect(() => { if (!edited.current.has('noShow')) setNoShow(noShowD); }, [noShowD]);
+  const edit = (k: string, set: (v: string) => void) => (e: { target: { value: string } }) => { edited.current.add(k); set(e.target.value); };
 
   const n = (s: string) => { const v = Number(s.replace(/\./g, '').replace(',', '.')); return Number.isFinite(v) ? v : null; };
   const goalC = parseMoney(goal), ticketC = parseMoney(ticket), costC = parseMoney(cost);
@@ -128,10 +132,10 @@ function ScaleCalculator({ t, days }: { t: Kpis['totals']; days: number }) {
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Meta de faturamento (R$)" inputMode="decimal" value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="Ex.: 100.000,00" />
           <Field label="Prazo (dias)" inputMode="numeric" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
-          <Field label="Ticket médio (R$)" inputMode="decimal" value={ticket} onChange={(e) => setTicket(e.target.value)} hint="Do período" />
-          <Field label="Conversão na reunião (%)" inputMode="decimal" value={conv} onChange={(e) => setConv(e.target.value)} hint="Vendas na reunião ÷ realizadas" />
-          <Field label="Custo por reunião realizada (R$)" inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} hint="Investimento ÷ realizadas" />
-          <Field label="No-show (%)" inputMode="decimal" value={noShow} onChange={(e) => setNoShow(e.target.value)} hint="Meta: até 20%" />
+          <Field label="Ticket médio (R$)" inputMode="decimal" value={ticket} onChange={edit('ticket', setTicket)} hint="Do período" />
+          <Field label="Conversão na reunião (%)" inputMode="decimal" value={conv} onChange={edit('conv', setConv)} hint="Vendas na reunião ÷ realizadas" />
+          <Field label="Custo por reunião realizada (R$)" inputMode="decimal" value={cost} onChange={edit('cost', setCost)} hint="Investimento ÷ realizadas" />
+          <Field label="No-show (%)" inputMode="decimal" value={noShow} onChange={edit('noShow', setNoShow)} hint="Meta: até 20%" />
         </div>
         <div className="flex flex-col gap-3" aria-live="polite">
           {!ok ? (
