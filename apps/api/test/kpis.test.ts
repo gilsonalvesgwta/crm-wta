@@ -175,59 +175,108 @@ test('KPIs por período: funil, no-show, custos, ROAS e conversão', async () =>
   assert.equal((await admin.get(`/api/v1/dashboard/kpis?from=${day(0)}&to=${day(3)}&step=7`)).status, 422);
 });
 
-test('KPIs fiéis: lead pela etiqueta, conferência e tirar da conta', async () => {
+test('KPIs fiéis: um painel por funil, conferência e tirar da conta', async () => {
   const q = `from=${day(13)}&to=${day(0)}&step=7`;
-  const tag = (await admin.post('/api/v1/tags', { name: 'Lead anúncio' })).body;
+  const traffic = (await admin.post('/api/v1/tags', { name: 'Lead anúncio' })).body;
+  const prosp = (await admin.post('/api/v1/tags', { name: 'Prospecção' })).body;
   const contacts = (await admin.get('/api/v1/contacts?q=&limit=50')).body.items as { id: string; name: string }[];
-  const ana = contacts.find((c) => c.name.startsWith('Ana'))!;
-  const beto = contacts.find((c) => c.name.startsWith('Beto'))!;
-  assert.equal((await admin.patch(`/api/v1/contacts/${ana.id}`, { tagIds: [tag.id] })).status, 200);
-  assert.equal((await admin.patch(`/api/v1/contacts/${beto.id}`, { tagIds: [tag.id] })).status, 200);
+  const by = (n: string) => contacts.find((c) => c.name.startsWith(n))!;
+  const [ana, beto, caio] = [by('Ana'), by('Beto'), by('Caio')];
+  assert.equal((await admin.patch(`/api/v1/contacts/${ana.id}`, { tagIds: [traffic.id] })).status, 200);
+  assert.equal((await admin.patch(`/api/v1/contacts/${beto.id}`, { tagIds: [traffic.id] })).status, 200);
+  assert.equal((await admin.patch(`/api/v1/contacts/${caio.id}`, { tagIds: [prosp.id] })).status, 200);
 
-  // Só quem gerencia relatórios escolhe a etiqueta; antes disso, todo contato novo conta.
-  assert.equal((await viewer.req('PATCH', '/api/v1/dashboard/kpis/settings', { leadTagIds: [tag.id] })).status, 403);
+  // Sem funil: a empresa toda, com o aviso na tela.
   let r = await admin.get(`/api/v1/dashboard/kpis?${q}`);
   assert.equal(r.body.leadRule, 'new-contacts');
-  assert.equal((await admin.patch('/api/v1/dashboard/kpis/settings', { leadTagIds: [tag.id] })).status, 200);
+  assert.equal(r.body.funnel, null);
+
+  // Só quem gerencia relatórios cria funis; nome e etiqueta são obrigatórios.
+  assert.equal((await viewer.post('/api/v1/dashboard/kpis/funnels', { name: 'X', tagIds: [traffic.id] })).status, 403);
+  assert.equal((await admin.post('/api/v1/dashboard/kpis/funnels', { name: 'Sem etiqueta', tagIds: [] })).status, 422);
+  const paid = (await admin.post('/api/v1/dashboard/kpis/funnels', { name: 'Tráfego pago', tagIds: [traffic.id], receivesAdSpend: true })).body;
+  const active = (await admin.post('/api/v1/dashboard/kpis/funnels', { name: 'Prospecção ativa', tagIds: [prosp.id], manualProspecting: true })).body;
+  assert.equal((await admin.post('/api/v1/dashboard/kpis/funnels', { name: 'tráfego PAGO', tagIds: [prosp.id] })).status, 422, 'nome repetido');
+
+  // Tráfego pago (o primeiro, por receber o investimento): só os leads da etiqueta dele.
   r = await admin.get(`/api/v1/dashboard/kpis?${q}`);
-  assert.equal(r.body.leadRule, 'tag');
-  assert.equal(r.body.totals.leads, 2, 'só Ana e Beto têm a etiqueta');
+  assert.equal(r.body.funnel.id, paid.id);
+  assert.deepEqual(r.body.funnels.map((x: { name: string }) => x.name), ['Tráfego pago', 'Prospecção ativa']);
+  let t = r.body.totals;
+  assert.deepEqual([t.leads, t.scheduled, t.held, t.noShow, t.sales, t.revenueCents], [2, 2, 1, 1, 1, 300_000], 'Ana e Beto; a reunião do Caio não entra');
+  assert.equal(t.spendCents, 91_000, 'o investimento é do tráfego pago');
+  assert.equal(t.costPerHeldCents, 91_000);
+
+  // Prospecção ativa: o Caio, sem investimento, e a prospecção lançada pelo vendedor.
+  r = await admin.get(`/api/v1/dashboard/kpis?${q}&funnelId=${active.id}`);
+  t = r.body.totals;
+  assert.deepEqual([t.leads, t.scheduled, t.held, t.noShow, t.sales, t.spendCents], [1, 1, 1, 0, 0, 0]);
+  assert.equal(t.prospected, 1);
+  const mine = await sales.get('/api/v1/dashboard/kpis/prospecting/mine');
+  assert.deepEqual(mine.body.funnels.map((x: { name: string }) => x.name), ['Prospecção ativa'], 'só funis com prospecção lançada à mão');
+  assert.equal((await sales.req('PUT', '/api/v1/dashboard/kpis/prospecting', { funnelId: active.id, day: day(0), count: 40 })).status, 200);
+  assert.equal((await sales.req('PUT', '/api/v1/dashboard/kpis/prospecting', { funnelId: active.id, day: day(1), count: 25 })).status, 200);
+  assert.equal((await sales.req('PUT', '/api/v1/dashboard/kpis/prospecting', { funnelId: active.id, day: day(0), count: 45 })).status, 200, 'corrigir o dia troca o número');
+  assert.equal((await sales.req('PUT', '/api/v1/dashboard/kpis/prospecting', { funnelId: active.id, day: day(10), count: 5 })).status, 422, 'vendedor: até 7 dias para trás');
+  assert.equal((await sales.req('PUT', '/api/v1/dashboard/kpis/prospecting', { funnelId: paid.id, day: day(0), count: 5 })).status, 422, 'funil sem prospecção manual');
+  const adminMember = (await f.admin.query("select m.id from memberships m join users u on u.id = m.user_id where u.email = 'admin@a.test'")).rows[0].id;
+  assert.equal((await sales.req('PUT', '/api/v1/dashboard/kpis/prospecting', { funnelId: active.id, day: day(0), count: 1, membershipId: adminMember })).status, 403, 'não lança pelo outro');
+  assert.equal((await admin.req('PUT', '/api/v1/dashboard/kpis/prospecting', { funnelId: active.id, day: day(10), count: 10 })).status, 200, 'o gestor lança qualquer dia');
+  assert.deepEqual((await sales.get('/api/v1/dashboard/kpis/prospecting/mine')).body.funnels[0].entries.map((e: { count: number }) => e.count).sort(), [25, 45]);
+  r = await admin.get(`/api/v1/dashboard/kpis?${q}&funnelId=${active.id}`);
+  assert.equal(r.body.totals.prospected, 1 + 45 + 25 + 10);
+  assert.equal(r.body.totals.prospectedManual, 80);
+  const pd = await admin.get(`/api/v1/dashboard/kpis/details?from=${day(13)}&to=${day(0)}&metric=prospected&funnelId=${active.id}`);
+  assert.deepEqual(pd.body.items.map((i: { title: string }) => i.title), ['Caio']);
+  assert.equal(pd.body.manual.reduce((s: number, m: { count: number }) => s + m.count, 0), 80);
+  // E nada disso entra no tráfego pago.
+  assert.equal((await admin.get(`/api/v1/dashboard/kpis?${q}`)).body.totals.prospectedManual, 0);
 
   // Editar o contato não muda a data em que ele virou lead.
   const before = (await f.admin.query('select created_at from contact_tags where contact_id = $1', [ana.id])).rows[0].created_at;
-  await admin.patch(`/api/v1/contacts/${ana.id}`, { jobTitle: 'Gerente', tagIds: [tag.id] });
+  await admin.patch(`/api/v1/contacts/${ana.id}`, { jobTitle: 'Gerente', tagIds: [traffic.id] });
   assert.deepEqual((await f.admin.query('select created_at from contact_tags where contact_id = $1', [ana.id])).rows[0].created_at, before);
 
-  // Conferência: a lista bate com o número.
+  // Conferência: a lista bate com o número do funil.
   const leads = await admin.get(`/api/v1/dashboard/kpis/details?from=${day(13)}&to=${day(0)}&metric=leads`);
   assert.deepEqual(leads.body.items.map((i: { title: string }) => i.title).sort(), ['Ana', 'Beto']);
-  const sales = await admin.get(`/api/v1/dashboard/kpis/details?from=${day(13)}&to=${day(0)}&metric=sales`);
-  assert.equal(sales.body.items.length, 1);
-  assert.equal(sales.body.items[0].valueCents, 300_000);
+  const salesList = await admin.get(`/api/v1/dashboard/kpis/details?from=${day(13)}&to=${day(0)}&metric=sales`);
+  assert.equal(salesList.body.items.length, 1);
+  assert.equal(salesList.body.items[0].valueCents, 300_000);
   const held = await admin.get(`/api/v1/dashboard/kpis/details?from=${day(13)}&to=${day(0)}&metric=held`);
-  assert.equal(held.body.items.length, 2);
+  assert.equal(held.body.items.length, 1);
 
-  // Tirar da conta: o contato sai dos leads e das prospecções; o negócio sai das vendas e do ticket.
+  // Tirar da conta: o contato sai dos leads; o negócio sai das vendas e do ticket.
   assert.equal((await viewer.post('/api/v1/dashboard/kpis/exclusions', { kind: 'contact', id: beto.id, excluded: true })).status, 403);
   assert.equal((await admin.post('/api/v1/dashboard/kpis/exclusions', { kind: 'contact', id: beto.id, excluded: true })).status, 204);
-  assert.equal((await admin.post('/api/v1/dashboard/kpis/exclusions', { kind: 'deal', id: sales.body.items[0].id, excluded: true })).status, 204);
+  assert.equal((await admin.post('/api/v1/dashboard/kpis/exclusions', { kind: 'deal', id: salesList.body.items[0].id, excluded: true })).status, 204);
   r = await admin.get(`/api/v1/dashboard/kpis?${q}`);
   assert.equal(r.body.totals.leads, 1);
   assert.equal(r.body.totals.sales, 0);
   assert.equal(r.body.totals.averageTicketCents, null);
   const again = await admin.get(`/api/v1/dashboard/kpis/details?from=${day(13)}&to=${day(0)}&metric=leads`);
   assert.deepEqual(again.body.items.map((i: { title: string; excluded: boolean }) => [i.title, i.excluded]), [['Ana', false], ['Beto', true]], 'o tirado aparece marcado, para voltar');
-  // Uma reunião tirada da conta não conta como realizada.
   assert.equal((await admin.post('/api/v1/dashboard/kpis/exclusions', { kind: 'activity', id: held.body.items[0].id, excluded: true })).status, 204);
-  assert.equal((await admin.get(`/api/v1/dashboard/kpis?${q}`)).body.totals.held, 1);
-
-  // Voltar a contar.
+  assert.equal((await admin.get(`/api/v1/dashboard/kpis?${q}`)).body.totals.held, 0);
   await admin.post('/api/v1/dashboard/kpis/exclusions', { kind: 'contact', id: beto.id, excluded: false });
-  await admin.post('/api/v1/dashboard/kpis/exclusions', { kind: 'deal', id: sales.body.items[0].id, excluded: false });
+  await admin.post('/api/v1/dashboard/kpis/exclusions', { kind: 'deal', id: salesList.body.items[0].id, excluded: false });
   await admin.post('/api/v1/dashboard/kpis/exclusions', { kind: 'activity', id: held.body.items[0].id, excluded: false });
   r = await admin.get(`/api/v1/dashboard/kpis?${q}`);
-  assert.deepEqual([r.body.totals.leads, r.body.totals.sales, r.body.totals.held], [2, 1, 2]);
-  assert.equal((await adminB.get('/api/v1/dashboard/kpis/settings')).body.leadTagIds.length, 0, 'configuração é de cada empresa');
+  assert.deepEqual([r.body.totals.leads, r.body.totals.sales, r.body.totals.held], [2, 1, 1]);
+
+  // Só um funil recebe o investimento: marcar outro tira do primeiro.
+  const moved = await admin.patch(`/api/v1/dashboard/kpis/funnels/${active.id}`, { name: 'Prospecção ativa', tagIds: [prosp.id], manualProspecting: true, receivesAdSpend: true });
+  assert.equal(moved.body.receivesAdSpend, true);
+  assert.equal((await admin.get(`/api/v1/dashboard/kpis?${q}&funnelId=${paid.id}`)).body.totals.spendCents, 0);
+  await admin.patch(`/api/v1/dashboard/kpis/funnels/${paid.id}`, { name: 'Tráfego pago', tagIds: [traffic.id], receivesAdSpend: true });
+  assert.equal((await admin.get(`/api/v1/dashboard/kpis?${q}&funnelId=${active.id}`)).body.totals.spendCents, 0);
+
+  // Funil de outra empresa não existe aqui; apagar o funil não apaga contatos.
+  assert.equal((await adminB.get('/api/v1/dashboard/kpis/funnels')).body.length, 0);
+  assert.equal((await adminB.get(`/api/v1/dashboard/kpis?${q}&funnelId=${paid.id}`)).status, 404);
+  assert.equal((await admin.req('DELETE', `/api/v1/dashboard/kpis/funnels/${active.id}`)).status, 204);
+  assert.equal((await admin.get(`/api/v1/contacts/${caio.id}`)).status, 200);
+  assert.equal((await f.admin.query('select count(*)::int as n from kpi_prospecting where funnel_id = $1', [active.id])).rows[0].n, 0);
 });
 
 test('desligar a conta da Meta tira o gasto importado', async () => {

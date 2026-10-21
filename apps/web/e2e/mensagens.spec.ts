@@ -356,24 +356,62 @@ test('KPIs: investimento lançado e importado da Meta, planilha por período e f
   await expectAccessible(page);
   await shot(page, '54-kpis');
 
-  // Lead pela etiqueta: aviso até escolher; depois, conferir e tirar da conta.
+  // Um painel por funil: aviso até criar o primeiro; cada funil reconhece os seus pela etiqueta.
   await expect(page.getByText('todo contato novo', { exact: false }).first()).toBeVisible();
   const h = { 'x-crm-request': '1' };
   const tag = await (await page.request.post('/api/v1/tags', { data: { name: 'Lead anúncio' }, headers: h })).json() as { id: string };
-  const lead = await (await page.request.post('/api/v1/contacts', { data: { firstName: 'Lívia', lastName: 'Anúncio', allowDuplicate: true, tagIds: [tag.id] }, headers: h })).json() as { id: string };
-  const other = await (await page.request.post('/api/v1/contacts', { data: { firstName: 'Fornecedor', lastName: 'Papelaria', allowDuplicate: true, tagIds: [tag.id] }, headers: h })).json() as { id: string };
-  expect(lead.id && other.id).toBeTruthy();
-  await page.getByRole('button', { name: 'Etiqueta de lead', exact: true }).click();
-  const st = page.getByRole('dialog', { name: 'Etiqueta de lead' });
-  await st.getByLabel('Lead anúncio').check();
+  const prosp = await (await page.request.post('/api/v1/tags', { data: { name: 'Prospecção' }, headers: h })).json() as { id: string };
+  for (const [firstName, lastName, t] of [['Lívia', 'Anúncio', tag.id], ['Fornecedor', 'Papelaria', tag.id], ['Paulo', 'Prospectado', prosp.id]]) {
+    expect((await page.request.post('/api/v1/contacts', { data: { firstName, lastName, allowDuplicate: true, tagIds: [t] }, headers: h })).status()).toBe(201);
+  }
+  await page.getByRole('button', { name: '+ Novo funil' }).click();
+  let fd = page.getByRole('dialog', { name: 'Novo funil' });
+  await fd.getByLabel('Nome do funil').fill('Tráfego pago');
+  await fd.getByLabel('Lead anúncio').check();
+  await fd.getByLabel(/Recebe o investimento em anúncios/).check();
   await expectAccessible(page);
-  await st.getByRole('button', { name: 'Salvar' }).click();
+  await fd.getByRole('button', { name: 'Criar funil' }).click();
   await expect(page.getByText('todo contato novo', { exact: false })).toHaveCount(0);
+  const funis = page.getByRole('tablist', { name: 'Painel do funil' });
+  await expect(funis.getByRole('tab', { name: /Tráfego pago/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('region', { name: 'Lançamentos de investimento' })).toContainText('Google Ads');
+
+  await page.getByRole('button', { name: '+ Novo funil' }).click();
+  fd = page.getByRole('dialog', { name: 'Novo funil' });
+  await fd.getByLabel('Nome do funil').fill('Prospecção ativa');
+  await fd.getByLabel('Prospecção', { exact: true }).check();
+  await fd.getByLabel(/Prospecção lançada pelo vendedor/).check();
+  await fd.getByRole('button', { name: 'Criar funil' }).click();
+  await expect(funis.getByRole('tab', { name: 'Prospecção ativa' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByText('Este funil não recebe o investimento', { exact: false })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Prospecção lançada' })).toBeVisible();
+
+  // O vendedor lança a prospecção do dia no Início.
+  await page.getByRole('button', { name: 'Visão comercial' }).click();
+  const card = page.locator('form', { hasText: 'Prospecção ativa' });
+  await card.getByLabel('Prospecções em Prospecção ativa').fill('30');
+  await card.getByRole('button', { name: 'Salvar' }).click();
+  await expect(card.getByRole('status')).toContainText('Salvo: 30 em hoje');
+  await expectAccessible(page);
+  await shot(page, '56-prospeccao-do-dia');
+
+  await page.getByRole('button', { name: 'KPIs', exact: true }).click();
+  await funis.getByRole('tab', { name: 'Prospecção ativa' }).click();
+  await expect(page.getByText('30 lançadas pelos vendedores').first()).toBeVisible();
   await page.getByRole('group', { name: 'Conferir os números' }).getByRole('button', { name: 'Leads' }).click();
-  const chk = page.getByRole('dialog', { name: 'Conferir: Leads' });
+  let chk = page.getByRole('dialog', { name: 'Conferir: Leads' });
+  await expect(chk.getByRole('list', { name: 'Registros de Leads' })).toContainText('Paulo Prospectado');
+  await expect(chk.getByRole('list', { name: 'Registros de Leads' })).not.toContainText('Lívia');
+  await chk.getByRole('button', { name: 'Fechar' }).click();
+
+  // Tráfego pago: conferir e tirar da conta o que não é lead.
+  await funis.getByRole('tab', { name: /Tráfego pago/ }).click();
+  await page.getByRole('group', { name: 'Conferir os números' }).getByRole('button', { name: 'Leads' }).click();
+  chk = page.getByRole('dialog', { name: 'Conferir: Leads' });
   const items = chk.getByRole('list', { name: 'Registros de Leads' });
   await expect(items).toContainText('Lívia Anúncio');
   await expect(items).toContainText('Fornecedor Papelaria');
+  await expect(items).not.toContainText('Paulo');
   await expectAccessible(page);
   await chk.getByRole('button', { name: 'Não contar nos KPIs: Fornecedor Papelaria' }).click();
   await expect(chk.getByRole('button', { name: 'Voltar a contar: Fornecedor Papelaria' })).toBeVisible();
