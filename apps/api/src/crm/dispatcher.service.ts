@@ -6,6 +6,7 @@ import { ImportExportService } from './import-export.service.js';
 import { AutomationsService } from '../automations/automations.service.js';
 import { CampaignsService } from './campaigns.service.js';
 import { ScheduledService } from './scheduled.service.js';
+import { AdsService } from './ads.service.js';
 import { MetaService } from './meta.service.js';
 
 /**
@@ -30,6 +31,7 @@ export class DispatcherService implements OnApplicationBootstrap, OnApplicationS
     @Inject(CampaignsService) private readonly campaigns: CampaignsService,
     @Inject(ScheduledService) private readonly scheduled: ScheduledService,
     @Inject(MetaService) private readonly meta: MetaService,
+    @Inject(AdsService) private readonly ads: AdsService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -78,6 +80,7 @@ export class DispatcherService implements OnApplicationBootstrap, OnApplicationS
     const scheduled = await this.scheduled.dispatch(Math.max(2000, budgetMs - (Date.now() - started)));
     const campaigns = await this.campaigns.dispatch(Math.max(2000, budgetMs - (Date.now() - started)));
     await this.meta.refreshInstagramTokens().catch((err) => this.log.error(`renovação de tokens: ${String(err)}`));
+    await this.ads.dispatch().catch((err) => this.log.error(`importação de anúncios: ${String(err)}`));
     return { reminders, importBatches, seriesExtended, expired, automations, campaigns, scheduled };
   }
 

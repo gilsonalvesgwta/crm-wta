@@ -19,11 +19,11 @@ type Row = {
 };
 
 /** Ligação ou reunião realizada: concluída com resultado "realizada" (ou sem resultado, das antigas). */
-const HELD = `a.type in ('call', 'meeting') and a.status = 'done' and coalesce(a.outcome, 'held') = 'held'`;
+export const HELD = `a.type in ('call', 'meeting') and a.status = 'done' and coalesce(a.outcome, 'held') = 'held'`;
 /** Quando a call aconteceu: o horário marcado; sem horário, quando foi concluída. */
-const AT = 'coalesce(a.starts_at, a.done_at, a.created_at)';
+export const AT = 'coalesce(a.starts_at, a.done_at, a.created_at)';
 /** A call e o negócio são da mesma pessoa: o próprio negócio, o contato ou o lead. */
-const LINK = '(a.deal_id = d.id or a.contact_id = d.contact_id or a.lead_id = d.lead_id)';
+export const LINK = '(a.deal_id = d.id or a.contact_id = d.contact_id or a.lead_id = d.lead_id)';
 
 /**
  * Indicadores comerciais: leads contatados, calls agendadas e realizadas,

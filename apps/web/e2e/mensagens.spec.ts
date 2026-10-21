@@ -291,6 +291,53 @@ test('indicadores comerciais: resultado da call e números de contato, calls e v
   await shot(page, '53-indicadores-comerciais');
 });
 
+test('KPIs: investimento lançado e importado da Meta, planilha por período e fator de escala', async ({ page }) => {
+  await loginAdmin(page);
+  await page.getByRole('button', { name: 'KPIs', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Os números da escala' })).toBeVisible();
+  for (const t of ['Custo por reunião realizada', 'Conversão na reunião', 'Ticket médio', 'Taxa de no-show', 'Investimento', 'ROAS']) {
+    await expect(page.getByText(t, { exact: true }).first()).toBeVisible();
+  }
+
+  // Lançar o gasto do Google à mão.
+  await page.getByRole('button', { name: 'Lançar investimento' }).click();
+  const d = page.getByRole('dialog', { name: 'Lançar investimento' });
+  await d.getByLabel('Plataforma').selectOption('google');
+  await d.getByLabel('Descrição (opcional)').fill('Pesquisa consórcio');
+  await d.getByLabel('Valor gasto (R$)').fill('700,00');
+  await expectAccessible(page);
+  await d.getByRole('button', { name: 'Lançar' }).click();
+  const spend = page.getByRole('region', { name: 'Lançamentos de investimento' });
+  await expect(spend).toContainText('Google Ads');
+  await expect(spend).toContainText('R$ 700,00');
+  await expect(page.getByText('Google Ads R$ 700').first()).toBeVisible();
+
+  // Importar da Meta Ads.
+  await page.getByRole('button', { name: 'Importar da Meta' }).click();
+  const m = page.getByRole('dialog', { name: 'Importar gasto da Meta Ads' });
+  await m.getByLabel('Conta de anúncios').fill('act_1234567');
+  await m.getByLabel('Token de acesso (ads_read)').fill('token-e2e');
+  await m.getByRole('button', { name: 'Ligar e importar' }).click();
+  const accs = page.getByRole('list', { name: 'Contas da Meta Ads ligadas' });
+  await expect(accs).toContainText('Anúncios Empresa Teste');
+  await expect(accs).toContainText('Importando');
+
+  // Planilha diária e fator de escala.
+  await page.getByLabel('Agrupar a planilha').selectOption('1');
+  const sheet = page.getByRole('region', { name: 'Planilha de KPIs por período' });
+  await expect(sheet).toContainText('Total');
+  await expect(sheet).toContainText('R$ 700,00');
+  await page.getByLabel('Meta de faturamento (R$)').fill('100.000,00');
+  await page.getByLabel('Ticket médio (R$)').fill('10.000,00');
+  await page.getByLabel('Conversão na reunião (%)').fill('25');
+  await page.getByLabel('Custo por reunião realizada (R$)').fill('50,00');
+  await page.getByLabel('No-show (%)').fill('20');
+  await expect(page.getByText('4. Investimento necessário')).toBeVisible();
+  await expect(page.getByText('R$ 2.000,00', { exact: true })).toBeVisible();
+  await expectAccessible(page);
+  await shot(page, '54-kpis');
+});
+
 test('ações agendadas: agendar pelo contato e pela conversa, mudar e cancelar', async ({ page }) => {
   await loginAdmin(page);
   await page.getByRole('navigation', { name: 'Menu principal' }).getByRole('link', { name: 'Contatos' }).click();

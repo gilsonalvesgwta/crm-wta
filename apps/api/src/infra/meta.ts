@@ -66,6 +66,32 @@ export class Meta {
     return data as T;
   }
 
+  // ---- Meta Ads (gasto das contas de anúncios) ---------------------------------------
+
+  /** Dados da conta de anúncios (id numérico, sem "act_"). Precisa de ads_read. */
+  adAccount(accountId: string, token: string) {
+    return this.call<{ id: string; name?: string; currency?: string; account_status?: number }>(
+      'GET', 'facebook', `act_${accountId}?fields=name,currency,account_status`, token);
+  }
+
+  /** Gasto por dia entre duas datas (AAAA-MM-DD), em unidades da moeda da conta. Dias sem veiculação não vêm. */
+  async adSpendByDay(accountId: string, token: string, since: string, until: string): Promise<{ day: string; spend: number }[]> {
+    const out: { day: string; spend: number }[] = [];
+    let after: string | null = null;
+    for (let page = 0; page < 20; page++) {
+      const range = encodeURIComponent(JSON.stringify({ since, until }));
+      const r: { data?: { spend?: string; date_start?: string }[]; paging?: { cursors?: { after?: string }; next?: string } } = await this.call(
+        'GET', 'facebook', `act_${accountId}/insights?fields=spend&level=account&time_increment=1&time_range=${range}&limit=100${after ? `&after=${encodeURIComponent(after)}` : ''}`, token, undefined, 60_000);
+      for (const d of r.data ?? []) {
+        const spend = Number(d.spend ?? 0);
+        if (d.date_start && /^\d{4}-\d{2}-\d{2}$/.test(d.date_start) && Number.isFinite(spend)) out.push({ day: d.date_start, spend });
+      }
+      after = r.paging?.next ? r.paging.cursors?.after ?? null : null;
+      if (!after) break;
+    }
+    return out;
+  }
+
   // ---- WhatsApp (Cloud API) ---------------------------------------------------------
 
   phoneInfo(phoneNumberId: string, token: string) {

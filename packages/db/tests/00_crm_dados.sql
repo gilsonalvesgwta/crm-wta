@@ -11,7 +11,8 @@ $$;
 -- Identificadores fixos: t.id(empresa, n), com n por tipo de registro.
 -- 1 organização, 2 contato, 3 funil, 4 etapa aberta, 5 etapa ganha, 6 etapa
 -- perdida, 7 negócio, 8 lead, 9 produto, 10 motivo, 11 atividade, 12 arquivo,
--- 13 importação, 14 etiqueta, 15 roteiro, 16 série, 17 campo, 18 conta de canal, 19 mensagem, 20 automação.
+-- 13 importação, 14 etiqueta, 15 roteiro, 16 série, 17 campo, 18 conta de canal, 19 mensagem, 20 automação,
+-- 28 conta de anúncios.
 
 create function t.seed_crm(p_tenant uuid, p_member uuid, p_team uuid) returns void
 language plpgsql
@@ -116,6 +117,14 @@ begin
   values (p_tenant, t.id(p_tenant, 25), 'boas_vindas', 'pt_BR', 'UTILITY', 'Olá {{1}}!');
   insert into contact_handles (tenant_id, contact_id, kind, value, username)
   values (p_tenant, t.id(p_tenant, 2), 'instagram', case when p_tenant = t.a() then '17841400000001' else '17841400000002' end, 'jose.silva');
+
+  -- Anúncios: conta da Meta com um dia importado e um lançamento manual.
+  insert into ad_accounts (id, tenant_id, platform, external_id, name, secret, created_by)
+  values (t.id(p_tenant, 28), p_tenant, 'meta', case when p_tenant = t.a() then '1000001' else '1000002' end, 'Conta de anúncios', '\x00', p_member);
+  insert into ad_spend (tenant_id, platform, ad_account_id, first_day, last_day, amount_cents)
+  values (p_tenant, 'meta', t.id(p_tenant, 28), current_date - 1, current_date - 1, 15000);
+  insert into ad_spend (tenant_id, platform, description, first_day, last_day, amount_cents, created_by)
+  values (p_tenant, 'google', 'Pesquisa', current_date - 7, current_date - 1, 70000, p_member);
 end
 $$;
 
