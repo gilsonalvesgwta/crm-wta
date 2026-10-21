@@ -21,38 +21,42 @@ aarch64
 #4 extracting sha256:6e230fe0035dc5b9d8d5e65513d1f11ae3b25d14362031fb540a4c23bf862933 0.1s done
 #4 DONE 0.2s
 
-#5 [auth] library/node:pull token for registry-1.docker.io
-#5 DONE 0.0s
+#5 [internal] load metadata for docker.io/library/node:24-slim
+#5 ...
 
-#6 [internal] load metadata for docker.io/library/node:24-slim
-#6 DONE 0.3s
+#6 [auth] library/node:pull token for registry-1.docker.io
+#6 DONE 0.0s
+
+#5 [internal] load metadata for docker.io/library/node:24-slim
+#5 DONE 0.3s
 
 #7 [internal] load .dockerignore
 #7 transferring context: 156B done
 #7 DONE 0.0s
 
 #8 [internal] load build context
-#8 transferring context: 2.87MB 0.0s done
+#8 transferring context: 2.91MB 0.0s done
 #8 DONE 0.0s
 
 #9 [base 1/3] FROM docker.io/library/node:24-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5
 #9 resolve docker.io/library/node:24-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5 done
-#9 sha256:f8951e871b2569bbd90a0461aadc9526beb7da501769f25e02a0c921ed819c80 0B / 1.71MB 0.1s
 #9 sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5 3.93kB / 3.93kB done
 #9 sha256:156e9bc7a0a267cc6ca77b4283e32b123479342df684ce297455d7b95ff5a6b5 1.93kB / 1.93kB done
 #9 sha256:b3b84798a1d94a7e155f059b3a2f125725578d0738e404fd6d976cf2dcd11912 6.73kB / 6.73kB done
-#9 sha256:c75f989a229d12b2d2613a5997de9ff3546f664c22da9248720033a2410220f6 11.53MB / 28.14MB 0.1s
+#9 sha256:c75f989a229d12b2d2613a5997de9ff3546f664c22da9248720033a2410220f6 19.92MB / 28.14MB 0.1s
 #9 sha256:f3b7fa076fe63b12118c87ec7c84133db790c4942081273fd6f71f91598d297d 3.31kB / 3.31kB 0.1s done
-#9 sha256:0c847615531065f69ea6ddc554bb40067455e42aa9274e29bf1245dc03140888 1.05MB / 51.02MB 0.1s
-#9 sha256:f8951e871b2569bbd90a0461aadc9526beb7da501769f25e02a0c921ed819c80 1.71MB / 1.71MB 0.1s done
+#9 sha256:0c847615531065f69ea6ddc554bb40067455e42aa9274e29bf1245dc03140888 0B / 51.02MB 0.1s
+#9 sha256:f8951e871b2569bbd90a0461aadc9526beb7da501769f25e02a0c921ed819c80 0B / 1.71MB 0.1s
 #9 sha256:c75f989a229d12b2d2613a5997de9ff3546f664c22da9248720033a2410220f6 28.14MB / 28.14MB 0.2s
-#9 sha256:0c847615531065f69ea6ddc554bb40067455e42aa9274e29bf1245dc03140888 44.04MB / 51.02MB 0.2s
-#9 sha256:66095d3064d1b18399d076b3b93108d12a0f352ade634c55c11fc1770d14dd5d 448B / 448B 0.2s
+#9 sha256:0c847615531065f69ea6ddc554bb40067455e42aa9274e29bf1245dc03140888 40.89MB / 51.02MB 0.2s
+#9 sha256:f8951e871b2569bbd90a0461aadc9526beb7da501769f25e02a0c921ed819c80 1.71MB / 1.71MB 0.2s
 #9 sha256:c75f989a229d12b2d2613a5997de9ff3546f664c22da9248720033a2410220f6 28.14MB / 28.14MB 0.2s done
 #9 sha256:0c847615531065f69ea6ddc554bb40067455e42aa9274e29bf1245dc03140888 51.02MB / 51.02MB 0.3s
-#9 sha256:66095d3064d1b18399d076b3b93108d12a0f352ade634c55c11fc1770d14dd5d 448B / 448B 0.2s done
+#9 sha256:f8951e871b2569bbd90a0461aadc9526beb7da501769f25e02a0c921ed819c80 1.71MB / 1.71MB 0.2s done
 #9 extracting sha256:c75f989a229d12b2d2613a5997de9ff3546f664c22da9248720033a2410220f6 0.1s
+#9 sha256:66095d3064d1b18399d076b3b93108d12a0f352ade634c55c11fc1770d14dd5d 448B / 448B 0.3s
 #9 sha256:0c847615531065f69ea6ddc554bb40067455e42aa9274e29bf1245dc03140888 51.02MB / 51.02MB 0.4s done
+#9 sha256:66095d3064d1b18399d076b3b93108d12a0f352ade634c55c11fc1770d14dd5d 448B / 448B 0.4s done
 #9 extracting sha256:c75f989a229d12b2d2613a5997de9ff3546f664c22da9248720033a2410220f6 0.9s done
 #9 extracting sha256:f3b7fa076fe63b12118c87ec7c84133db790c4942081273fd6f71f91598d297d done
 #9 extracting sha256:0c847615531065f69ea6ddc554bb40067455e42aa9274e29bf1245dc03140888
@@ -65,416 +69,419 @@ aarch64
 #10 [base 2/3] RUN corepack enable
 #10 DONE 0.2s
 
-#11 [base 3/3] WORKDIR /repo
-#11 DONE 0.0s
+#11 [api  2/10] RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl     && install -d /usr/share/postgresql-common/pgdg     && curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc     && . /etc/os-release     && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list     && apt-get update && apt-get install -y --no-install-recommends postgresql-client-18     && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+#11 ...
 
-#12 [deps 1/4] COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+#12 [base 3/3] WORKDIR /repo
 #12 DONE 0.0s
 
-#13 [deps 2/4] COPY apps/api/package.json apps/api/
+#13 [deps 1/4] COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 #13 DONE 0.0s
 
-#14 [deps 3/4] COPY apps/web/package.json apps/web/
+#14 [deps 2/4] COPY apps/api/package.json apps/api/
 #14 DONE 0.0s
 
-#15 [api  2/10] RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl     && install -d /usr/share/postgresql-common/pgdg     && curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc     && . /etc/os-release     && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list     && apt-get update && apt-get install -y --no-install-recommends postgresql-client-18     && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
-#15 0.177 Get:1 http://deb.debian.org/debian bookworm InRelease [151 kB]
-#15 0.195 Get:2 http://deb.debian.org/debian bookworm-updates InRelease [55.4 kB]
-#15 0.210 Get:3 http://deb.debian.org/debian-security bookworm-security InRelease [34.8 kB]
-#15 0.267 Get:4 http://deb.debian.org/debian bookworm/main arm64 Packages [8689 kB]
-#15 0.360 Get:5 http://deb.debian.org/debian bookworm-updates/main arm64 Packages [6936 B]
-#15 0.369 Get:6 http://deb.debian.org/debian-security bookworm-security/main arm64 Packages [352 kB]
-#15 1.005 Fetched 9290 kB in 1s (11.0 MB/s)
-#15 1.005 Reading package lists...
-#15 1.460 Reading package lists...
-#15 1.932 Building dependency tree...
-#15 2.099 Reading state information...
-#15 2.288 The following additional packages will be installed:
-#15 2.288   libbrotli1 libcurl4 libgssapi-krb5-2 libk5crypto3 libkeyutils1 libkrb5-3
-#15 2.288   libkrb5support0 libldap-2.5-0 libnghttp2-14 libpsl5 librtmp1 libsasl2-2
-#15 2.288   libsasl2-modules-db libssh2-1 libssl3 openssl
-#15 2.288 Suggested packages:
-#15 2.288   krb5-doc krb5-user
-#15 2.288 Recommended packages:
-#15 2.288   krb5-locales libldap-common publicsuffix libsasl2-modules
-#15 2.381 The following NEW packages will be installed:
-#15 2.381   ca-certificates curl libbrotli1 libcurl4 libgssapi-krb5-2 libk5crypto3
-#15 2.381   libkeyutils1 libkrb5-3 libkrb5support0 libldap-2.5-0 libnghttp2-14 libpsl5
-#15 2.382   librtmp1 libsasl2-2 libsasl2-modules-db libssh2-1 libssl3 openssl
-#15 2.437 0 upgraded, 18 newly installed, 0 to remove and 1 not upgraded.
-#15 2.437 Need to get 5512 kB of archives.
-#15 2.437 After this operation, 15.1 MB of additional disk space will be used.
-#15 2.437 Get:1 http://deb.debian.org/debian-security bookworm-security/main arm64 libssl3 arm64 3.0.22-1~deb12u1 [1828 kB]
-#15 2.492 Get:2 http://deb.debian.org/debian-security bookworm-security/main arm64 openssl arm64 3.0.22-1~deb12u1 [1410 kB]
-#15 2.500 Get:3 http://deb.debian.org/debian-security bookworm-security/main arm64 ca-certificates all 20250419~deb12u2 [161 kB]
-#15 2.500 Get:4 http://deb.debian.org/debian bookworm/main arm64 libbrotli1 arm64 1.0.9-2+b6 [269 kB]
-#15 2.505 Get:5 http://deb.debian.org/debian bookworm/main arm64 libkrb5support0 arm64 1.20.1-2+deb12u5 [32.6 kB]
-#15 2.510 Get:6 http://deb.debian.org/debian bookworm/main arm64 libk5crypto3 arm64 1.20.1-2+deb12u5 [79.9 kB]
-#15 2.526 Get:7 http://deb.debian.org/debian bookworm/main arm64 libkeyutils1 arm64 1.6.3-2 [8844 B]
-#15 2.527 Get:8 http://deb.debian.org/debian bookworm/main arm64 libkrb5-3 arm64 1.20.1-2+deb12u5 [316 kB]
-#15 2.538 Get:9 http://deb.debian.org/debian bookworm/main arm64 libgssapi-krb5-2 arm64 1.20.1-2+deb12u5 [124 kB]
-#15 2.539 Get:10 http://deb.debian.org/debian bookworm/main arm64 libsasl2-modules-db arm64 2.1.28+dfsg-10 [20.8 kB]
-#15 2.539 Get:11 http://deb.debian.org/debian bookworm/main arm64 libsasl2-2 arm64 2.1.28+dfsg-10 [58.0 kB]
-#15 2.542 Get:12 http://deb.debian.org/debian bookworm/main arm64 libldap-2.5-0 arm64 2.5.13+dfsg-5 [171 kB]
-#15 2.543 Get:13 http://deb.debian.org/debian bookworm/main arm64 libnghttp2-14 arm64 1.52.0-1+deb12u3 [69.0 kB]
-#15 2.544 Get:14 http://deb.debian.org/debian bookworm/main arm64 libpsl5 arm64 0.21.2-1 [58.6 kB]
-#15 2.550 Get:15 http://deb.debian.org/debian bookworm/main arm64 librtmp1 arm64 2.4+20151223.gitfa8646d.1-2+b2 [59.4 kB]
-#15 2.550 Get:16 http://deb.debian.org/debian-security bookworm-security/main arm64 libssh2-1 arm64 1.10.0-3+deb12u1 [169 kB]
-#15 2.550 Get:17 http://deb.debian.org/debian bookworm/main arm64 libcurl4 arm64 7.88.1-10+deb12u15 [367 kB]
-#15 2.550 Get:18 http://deb.debian.org/debian bookworm/main arm64 curl arm64 7.88.1-10+deb12u15 [310 kB]
-#15 2.671 debconf: delaying package configuration, since apt-utils is not installed
-#15 2.712 Fetched 5512 kB in 0s (34.3 MB/s)
-#15 2.737 Selecting previously unselected package libssl3:arm64.
-#15 2.737 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 6090 files and directories currently installed.)
-#15 2.740 Preparing to unpack .../00-libssl3_3.0.22-1~deb12u1_arm64.deb ...
-#15 2.745 Unpacking libssl3:arm64 (3.0.22-1~deb12u1) ...
-#15 2.853 Selecting previously unselected package openssl.
-#15 2.855 Preparing to unpack .../01-openssl_3.0.22-1~deb12u1_arm64.deb ...
-#15 2.857 Unpacking openssl (3.0.22-1~deb12u1) ...
-#15 2.944 Selecting previously unselected package ca-certificates.
-#15 2.946 Preparing to unpack .../02-ca-certificates_20250419~deb12u2_all.deb ...
-#15 2.950 Unpacking ca-certificates (20250419~deb12u2) ...
-#15 2.997 Selecting previously unselected package libbrotli1:arm64.
-#15 2.999 Preparing to unpack .../03-libbrotli1_1.0.9-2+b6_arm64.deb ...
-#15 3.001 Unpacking libbrotli1:arm64 (1.0.9-2+b6) ...
-#15 3.039 Selecting previously unselected package libkrb5support0:arm64.
-#15 3.041 Preparing to unpack .../04-libkrb5support0_1.20.1-2+deb12u5_arm64.deb ...
-#15 3.042 Unpacking libkrb5support0:arm64 (1.20.1-2+deb12u5) ...
-#15 3.057 Selecting previously unselected package libk5crypto3:arm64.
-#15 3.059 Preparing to unpack .../05-libk5crypto3_1.20.1-2+deb12u5_arm64.deb ...
-#15 3.060 Unpacking libk5crypto3:arm64 (1.20.1-2+deb12u5) ...
-#15 3.081 Selecting previously unselected package libkeyutils1:arm64.
-#15 3.082 Preparing to unpack .../06-libkeyutils1_1.6.3-2_arm64.deb ...
-#15 3.084 Unpacking libkeyutils1:arm64 (1.6.3-2) ...
-#15 3.096 Selecting previously unselected package libkrb5-3:arm64.
-#15 3.098 Preparing to unpack .../07-libkrb5-3_1.20.1-2+deb12u5_arm64.deb ...
-#15 3.099 Unpacking libkrb5-3:arm64 (1.20.1-2+deb12u5) ...
-#15 3.129 Selecting previously unselected package libgssapi-krb5-2:arm64.
-#15 3.131 Preparing to unpack .../08-libgssapi-krb5-2_1.20.1-2+deb12u5_arm64.deb ...
-#15 3.133 Unpacking libgssapi-krb5-2:arm64 (1.20.1-2+deb12u5) ...
-#15 3.154 Selecting previously unselected package libsasl2-modules-db:arm64.
-#15 3.156 Preparing to unpack .../09-libsasl2-modules-db_2.1.28+dfsg-10_arm64.deb ...
-#15 3.158 Unpacking libsasl2-modules-db:arm64 (2.1.28+dfsg-10) ...
-#15 3.178 Selecting previously unselected package libsasl2-2:arm64.
-#15 3.179 Preparing to unpack .../10-libsasl2-2_2.1.28+dfsg-10_arm64.deb ...
-#15 3.184 Unpacking libsasl2-2:arm64 (2.1.28+dfsg-10) ...
-#15 3.206 Selecting previously unselected package libldap-2.5-0:arm64.
-#15 3.208 Preparing to unpack .../11-libldap-2.5-0_2.5.13+dfsg-5_arm64.deb ...
-#15 3.209 Unpacking libldap-2.5-0:arm64 (2.5.13+dfsg-5) ...
-#15 3.243 Selecting previously unselected package libnghttp2-14:arm64.
-#15 3.245 Preparing to unpack .../12-libnghttp2-14_1.52.0-1+deb12u3_arm64.deb ...
-#15 3.245 Unpacking libnghttp2-14:arm64 (1.52.0-1+deb12u3) ...
-#15 3.261 Selecting previously unselected package libpsl5:arm64.
-#15 3.262 Preparing to unpack .../13-libpsl5_0.21.2-1_arm64.deb ...
-#15 3.263 Unpacking libpsl5:arm64 (0.21.2-1) ...
-#15 3.292 Selecting previously unselected package librtmp1:arm64.
-#15 3.294 Preparing to unpack .../14-librtmp1_2.4+20151223.gitfa8646d.1-2+b2_arm64.deb ...
-#15 3.297 Unpacking librtmp1:arm64 (2.4+20151223.gitfa8646d.1-2+b2) ...
-#15 3.324 Selecting previously unselected package libssh2-1:arm64.
-#15 3.326 Preparing to unpack .../15-libssh2-1_1.10.0-3+deb12u1_arm64.deb ...
-#15 3.327 Unpacking libssh2-1:arm64 (1.10.0-3+deb12u1) ...
-#15 3.349 Selecting previously unselected package libcurl4:arm64.
-#15 3.349 Preparing to unpack .../16-libcurl4_7.88.1-10+deb12u15_arm64.deb ...
-#15 3.353 Unpacking libcurl4:arm64 (7.88.1-10+deb12u15) ...
-#15 3.392 Selecting previously unselected package curl.
-#15 3.394 Preparing to unpack .../17-curl_7.88.1-10+deb12u15_arm64.deb ...
-#15 3.395 Unpacking curl (7.88.1-10+deb12u15) ...
-#15 3.438 Setting up libkeyutils1:arm64 (1.6.3-2) ...
-#15 3.448 Setting up libpsl5:arm64 (0.21.2-1) ...
-#15 3.450 Setting up libbrotli1:arm64 (1.0.9-2+b6) ...
-#15 3.453 Setting up libssl3:arm64 (3.0.22-1~deb12u1) ...
-#15 3.454 Setting up libnghttp2-14:arm64 (1.52.0-1+deb12u3) ...
-#15 3.456 Setting up libkrb5support0:arm64 (1.20.1-2+deb12u5) ...
-#15 3.458 Setting up libsasl2-modules-db:arm64 (2.1.28+dfsg-10) ...
-#15 3.461 Setting up librtmp1:arm64 (2.4+20151223.gitfa8646d.1-2+b2) ...
-#15 3.464 Setting up libk5crypto3:arm64 (1.20.1-2+deb12u5) ...
-#15 3.466 Setting up libsasl2-2:arm64 (2.1.28+dfsg-10) ...
-#15 3.470 Setting up libssh2-1:arm64 (1.10.0-3+deb12u1) ...
-#15 3.473 Setting up libkrb5-3:arm64 (1.20.1-2+deb12u5) ...
-#15 3.476 Setting up openssl (3.0.22-1~deb12u1) ...
-#15 3.480 Setting up libldap-2.5-0:arm64 (2.5.13+dfsg-5) ...
-#15 3.482 Setting up ca-certificates (20250419~deb12u2) ...
-#15 3.541 debconf: unable to initialize frontend: Dialog
-#15 3.541 debconf: (TERM is not set, so the dialog frontend is not usable.)
-#15 3.541 debconf: falling back to frontend: Readline
-#15 3.541 debconf: unable to initialize frontend: Readline
-#15 3.541 debconf: (Can't locate Term/ReadLine.pm in @INC (you may need to install the Term::ReadLine module) (@INC contains: /etc/perl /usr/local/lib/aarch64-linux-gnu/perl/5.36.0 /usr/local/share/perl/5.36.0 /usr/lib/aarch64-linux-gnu/perl5/5.36 /usr/share/perl5 /usr/lib/aarch64-linux-gnu/perl-base /usr/lib/aarch64-linux-gnu/perl/5.36 /usr/share/perl/5.36 /usr/local/lib/site_perl) at /usr/share/perl5/Debconf/FrontEnd/Readline.pm line 7.)
-#15 3.541 debconf: falling back to frontend: Teletype
-#15 3.926 Updating certificates in /etc/ssl/certs...
-#15 4.575 148 added, 0 removed; done.
-#15 4.637 Setting up libgssapi-krb5-2:arm64 (1.20.1-2+deb12u5) ...
-#15 4.641 Setting up libcurl4:arm64 (7.88.1-10+deb12u15) ...
-#15 4.647 Setting up curl (7.88.1-10+deb12u15) ...
-#15 4.651 Processing triggers for libc-bin (2.36-9+deb12u14) ...
-#15 4.659 Processing triggers for ca-certificates (20250419~deb12u2) ...
-#15 4.670 Updating certificates in /etc/ssl/certs...
-#15 5.084 0 added, 0 removed; done.
-#15 5.084 Running hooks in /etc/ca-certificates/update.d...
-#15 5.085 done.
-#15 6.059 Hit:1 http://deb.debian.org/debian bookworm InRelease
-#15 6.059 Hit:2 http://deb.debian.org/debian bookworm-updates InRelease
-#15 6.065 Hit:3 http://deb.debian.org/debian-security bookworm-security InRelease
-#15 6.178 Get:4 https://apt.postgresql.org/pub/repos/apt bookworm-pgdg InRelease [189 kB]
-#15 6.382 Get:5 https://apt.postgresql.org/pub/repos/apt bookworm-pgdg/main arm64 Packages [890 kB]
-#15 6.686 Fetched 1079 kB in 1s (1623 kB/s)
-#15 6.686 Reading package lists...
-#15 7.176 Reading package lists...
-#15 7.660 Building dependency tree...
-#15 7.839 Reading state information...
-#15 8.036 The following additional packages will be installed:
-#15 8.036   libgdbm-compat4 libgdbm6 libperl5.36 libpq5 libreadline8 netbase perl
-#15 8.037   perl-base perl-modules-5.36 postgresql-client-common readline-common
-#15 8.037   sensible-utils
-#15 8.038 Suggested packages:
-#15 8.038   gdbm-l10n libpq-oauth perl-doc libterm-readline-gnu-perl
-#15 8.038   | libterm-readline-perl-perl make libtap-harness-archive-perl postgresql-18
-#15 8.038   postgresql-doc-18 readline-doc
-#15 8.094 The following NEW packages will be installed:
-#15 8.095   libgdbm-compat4 libgdbm6 libperl5.36 libpq5 libreadline8 netbase perl
-#15 8.095   perl-modules-5.36 postgresql-client-18 postgresql-client-common
-#15 8.095   readline-common sensible-utils
-#15 8.096 The following packages will be upgraded:
-#15 8.096   perl-base
-#15 8.192 1 upgraded, 12 newly installed, 0 to remove and 0 not upgraded.
-#15 8.192 Need to get 11.3 MB of archives.
-#15 8.192 After this operation, 64.8 MB of additional disk space will be used.
-#15 8.192 Get:1 http://deb.debian.org/debian-security bookworm-security/main arm64 perl-base arm64 5.36.0-7+deb12u4 [1478 kB]
-#15 8.252 Get:2 https://apt.postgresql.org/pub/repos/apt bookworm-pgdg/main arm64 libpq5 arm64 18.6-1.pgdg12+2 [256 kB]
-#15 8.379 Get:3 https://apt.postgresql.org/pub/repos/apt bookworm-pgdg/main arm64 postgresql-client-common all 293.pgdg12+1 [49.5 kB]
-#15 8.389 Get:4 https://apt.postgresql.org/pub/repos/apt bookworm-pgdg/main arm64 postgresql-client-18 arm64 18.6-1.pgdg12+2 [2079 kB]
-#15 8.485 Get:5 http://deb.debian.org/debian-security bookworm-security/main arm64 perl-modules-5.36 all 5.36.0-7+deb12u4 [2817 kB]
-#15 8.628 Get:6 http://deb.debian.org/debian bookworm/main arm64 libgdbm6 arm64 1.23-3 [70.9 kB]
-#15 8.629 Get:7 http://deb.debian.org/debian bookworm/main arm64 libgdbm-compat4 arm64 1.23-3 [48.0 kB]
-#15 8.629 Get:8 http://deb.debian.org/debian-security bookworm-security/main arm64 libperl5.36 arm64 5.36.0-7+deb12u4 [4002 kB]
-#15 8.734 Get:9 http://deb.debian.org/debian-security bookworm-security/main arm64 perl arm64 5.36.0-7+deb12u4 [239 kB]
-#15 8.768 Get:10 http://deb.debian.org/debian bookworm/main arm64 netbase all 6.4 [12.8 kB]
-#15 8.779 Get:11 http://deb.debian.org/debian bookworm/main arm64 readline-common all 8.2-1.3 [69.0 kB]
-#15 8.779 Get:12 http://deb.debian.org/debian bookworm/main arm64 sensible-utils all 0.0.17+nmu1 [19.0 kB]
-#15 8.779 Get:13 http://deb.debian.org/debian bookworm/main arm64 libreadline8 arm64 8.2-1.3 [155 kB]
-#15 8.869 debconf: delaying package configuration, since apt-utils is not installed
-#15 8.897 Fetched 11.3 MB in 1s (16.7 MB/s)
-#15 8.921 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 6701 files and directories currently installed.)
-#15 8.924 Preparing to unpack .../perl-base_5.36.0-7+deb12u4_arm64.deb ...
-#15 8.942 Unpacking perl-base (5.36.0-7+deb12u4) over (5.36.0-7+deb12u3) ...
-#15 ...
+#15 [deps 3/4] COPY apps/web/package.json apps/web/
+#15 DONE 0.0s
+
+#11 [api  2/10] RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl     && install -d /usr/share/postgresql-common/pgdg     && curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc     && . /etc/os-release     && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list     && apt-get update && apt-get install -y --no-install-recommends postgresql-client-18     && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+#11 0.220 Get:1 http://deb.debian.org/debian bookworm InRelease [151 kB]
+#11 0.329 Get:2 http://deb.debian.org/debian bookworm-updates InRelease [55.4 kB]
+#11 0.376 Get:3 http://deb.debian.org/debian-security bookworm-security InRelease [34.8 kB]
+#11 0.415 Get:4 http://deb.debian.org/debian bookworm/main arm64 Packages [8689 kB]
+#11 0.652 Get:5 http://deb.debian.org/debian bookworm-updates/main arm64 Packages [6936 B]
+#11 0.653 Get:6 http://deb.debian.org/debian-security bookworm-security/main arm64 Packages [352 kB]
+#11 1.232 Fetched 9290 kB in 1s (8388 kB/s)
+#11 1.232 Reading package lists...
+#11 1.652 Reading package lists...
+#11 2.055 Building dependency tree...
+#11 2.180 Reading state information...
+#11 2.337 The following additional packages will be installed:
+#11 2.337   libbrotli1 libcurl4 libgssapi-krb5-2 libk5crypto3 libkeyutils1 libkrb5-3
+#11 2.338   libkrb5support0 libldap-2.5-0 libnghttp2-14 libpsl5 librtmp1 libsasl2-2
+#11 2.338   libsasl2-modules-db libssh2-1 libssl3 openssl
+#11 2.339 Suggested packages:
+#11 2.339   krb5-doc krb5-user
+#11 2.339 Recommended packages:
+#11 2.339   krb5-locales libldap-common publicsuffix libsasl2-modules
+#11 2.413 The following NEW packages will be installed:
+#11 2.414   ca-certificates curl libbrotli1 libcurl4 libgssapi-krb5-2 libk5crypto3
+#11 2.414   libkeyutils1 libkrb5-3 libkrb5support0 libldap-2.5-0 libnghttp2-14 libpsl5
+#11 2.414   librtmp1 libsasl2-2 libsasl2-modules-db libssh2-1 libssl3 openssl
+#11 2.468 0 upgraded, 18 newly installed, 0 to remove and 1 not upgraded.
+#11 2.468 Need to get 5512 kB of archives.
+#11 2.468 After this operation, 15.1 MB of additional disk space will be used.
+#11 2.468 Get:1 http://deb.debian.org/debian-security bookworm-security/main arm64 libssl3 arm64 3.0.22-1~deb12u1 [1828 kB]
+#11 2.555 Get:2 http://deb.debian.org/debian-security bookworm-security/main arm64 openssl arm64 3.0.22-1~deb12u1 [1410 kB]
+#11 2.561 Get:3 http://deb.debian.org/debian-security bookworm-security/main arm64 ca-certificates all 20250419~deb12u2 [161 kB]
+#11 2.563 Get:4 http://deb.debian.org/debian bookworm/main arm64 libbrotli1 arm64 1.0.9-2+b6 [269 kB]
+#11 2.563 Get:5 http://deb.debian.org/debian bookworm/main arm64 libkrb5support0 arm64 1.20.1-2+deb12u5 [32.6 kB]
+#11 2.572 Get:6 http://deb.debian.org/debian bookworm/main arm64 libk5crypto3 arm64 1.20.1-2+deb12u5 [79.9 kB]
+#11 2.572 Get:7 http://deb.debian.org/debian bookworm/main arm64 libkeyutils1 arm64 1.6.3-2 [8844 B]
+#11 2.572 Get:8 http://deb.debian.org/debian bookworm/main arm64 libkrb5-3 arm64 1.20.1-2+deb12u5 [316 kB]
+#11 2.572 Get:9 http://deb.debian.org/debian bookworm/main arm64 libgssapi-krb5-2 arm64 1.20.1-2+deb12u5 [124 kB]
+#11 2.572 Get:10 http://deb.debian.org/debian bookworm/main arm64 libsasl2-modules-db arm64 2.1.28+dfsg-10 [20.8 kB]
+#11 2.572 Get:11 http://deb.debian.org/debian bookworm/main arm64 libsasl2-2 arm64 2.1.28+dfsg-10 [58.0 kB]
+#11 2.578 Get:12 http://deb.debian.org/debian bookworm/main arm64 libldap-2.5-0 arm64 2.5.13+dfsg-5 [171 kB]
+#11 2.578 Get:13 http://deb.debian.org/debian bookworm/main arm64 libnghttp2-14 arm64 1.52.0-1+deb12u3 [69.0 kB]
+#11 2.578 Get:14 http://deb.debian.org/debian bookworm/main arm64 libpsl5 arm64 0.21.2-1 [58.6 kB]
+#11 2.588 Get:15 http://deb.debian.org/debian bookworm/main arm64 librtmp1 arm64 2.4+20151223.gitfa8646d.1-2+b2 [59.4 kB]
+#11 2.602 Get:16 http://deb.debian.org/debian-security bookworm-security/main arm64 libssh2-1 arm64 1.10.0-3+deb12u1 [169 kB]
+#11 2.604 Get:17 http://deb.debian.org/debian bookworm/main arm64 libcurl4 arm64 7.88.1-10+deb12u15 [367 kB]
+#11 2.616 Get:18 http://deb.debian.org/debian bookworm/main arm64 curl arm64 7.88.1-10+deb12u15 [310 kB]
+#11 2.735 debconf: delaying package configuration, since apt-utils is not installed
+#11 2.770 Fetched 5512 kB in 0s (28.1 MB/s)
+#11 2.798 Selecting previously unselected package libssl3:arm64.
+#11 2.798 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 6090 files and directories currently installed.)
+#11 2.800 Preparing to unpack .../00-libssl3_3.0.22-1~deb12u1_arm64.deb ...
+#11 2.810 Unpacking libssl3:arm64 (3.0.22-1~deb12u1) ...
+#11 2.919 Selecting previously unselected package openssl.
+#11 2.922 Preparing to unpack .../01-openssl_3.0.22-1~deb12u1_arm64.deb ...
+#11 2.924 Unpacking openssl (3.0.22-1~deb12u1) ...
+#11 3.015 Selecting previously unselected package ca-certificates.
+#11 3.016 Preparing to unpack .../02-ca-certificates_20250419~deb12u2_all.deb ...
+#11 3.017 Unpacking ca-certificates (20250419~deb12u2) ...
+#11 3.051 Selecting previously unselected package libbrotli1:arm64.
+#11 3.052 Preparing to unpack .../03-libbrotli1_1.0.9-2+b6_arm64.deb ...
+#11 3.056 Unpacking libbrotli1:arm64 (1.0.9-2+b6) ...
+#11 3.088 Selecting previously unselected package libkrb5support0:arm64.
+#11 3.089 Preparing to unpack .../04-libkrb5support0_1.20.1-2+deb12u5_arm64.deb ...
+#11 3.091 Unpacking libkrb5support0:arm64 (1.20.1-2+deb12u5) ...
+#11 3.107 Selecting previously unselected package libk5crypto3:arm64.
+#11 3.108 Preparing to unpack .../05-libk5crypto3_1.20.1-2+deb12u5_arm64.deb ...
+#11 3.109 Unpacking libk5crypto3:arm64 (1.20.1-2+deb12u5) ...
+#11 3.131 Selecting previously unselected package libkeyutils1:arm64.
+#11 3.132 Preparing to unpack .../06-libkeyutils1_1.6.3-2_arm64.deb ...
+#11 3.134 Unpacking libkeyutils1:arm64 (1.6.3-2) ...
+#11 3.149 Selecting previously unselected package libkrb5-3:arm64.
+#11 3.150 Preparing to unpack .../07-libkrb5-3_1.20.1-2+deb12u5_arm64.deb ...
+#11 3.151 Unpacking libkrb5-3:arm64 (1.20.1-2+deb12u5) ...
+#11 3.185 Selecting previously unselected package libgssapi-krb5-2:arm64.
+#11 3.186 Preparing to unpack .../08-libgssapi-krb5-2_1.20.1-2+deb12u5_arm64.deb ...
+#11 3.188 Unpacking libgssapi-krb5-2:arm64 (1.20.1-2+deb12u5) ...
+#11 3.208 Selecting previously unselected package libsasl2-modules-db:arm64.
+#11 3.209 Preparing to unpack .../09-libsasl2-modules-db_2.1.28+dfsg-10_arm64.deb ...
+#11 3.211 Unpacking libsasl2-modules-db:arm64 (2.1.28+dfsg-10) ...
+#11 3.230 Selecting previously unselected package libsasl2-2:arm64.
+#11 3.231 Preparing to unpack .../10-libsasl2-2_2.1.28+dfsg-10_arm64.deb ...
+#11 3.232 Unpacking libsasl2-2:arm64 (2.1.28+dfsg-10) ...
+#11 3.257 Selecting previously unselected package libldap-2.5-0:arm64.
+#11 3.258 Preparing to unpack .../11-libldap-2.5-0_2.5.13+dfsg-5_arm64.deb ...
+#11 3.260 Unpacking libldap-2.5-0:arm64 (2.5.13+dfsg-5) ...
+#11 3.291 Selecting previously unselected package libnghttp2-14:arm64.
+#11 3.291 Preparing to unpack .../12-libnghttp2-14_1.52.0-1+deb12u3_arm64.deb ...
+#11 3.293 Unpacking libnghttp2-14:arm64 (1.52.0-1+deb12u3) ...
+#11 3.386 Selecting previously unselected package libpsl5:arm64.
+#11 3.386 Preparing to unpack .../13-libpsl5_0.21.2-1_arm64.deb ...
+#11 3.390 Unpacking libpsl5:arm64 (0.21.2-1) ...
+#11 3.408 Selecting previously unselected package librtmp1:arm64.
+#11 3.410 Preparing to unpack .../14-librtmp1_2.4+20151223.gitfa8646d.1-2+b2_arm64.deb ...
+#11 3.411 Unpacking librtmp1:arm64 (2.4+20151223.gitfa8646d.1-2+b2) ...
+#11 3.431 Selecting previously unselected package libssh2-1:arm64.
+#11 3.432 Preparing to unpack .../15-libssh2-1_1.10.0-3+deb12u1_arm64.deb ...
+#11 3.438 Unpacking libssh2-1:arm64 (1.10.0-3+deb12u1) ...
+#11 3.534 Selecting previously unselected package libcurl4:arm64.
+#11 3.535 Preparing to unpack .../16-libcurl4_7.88.1-10+deb12u15_arm64.deb ...
+#11 3.536 Unpacking libcurl4:arm64 (7.88.1-10+deb12u15) ...
+#11 3.588 Selecting previously unselected package curl.
+#11 3.589 Preparing to unpack .../17-curl_7.88.1-10+deb12u15_arm64.deb ...
+#11 3.590 Unpacking curl (7.88.1-10+deb12u15) ...
+#11 3.647 Setting up libkeyutils1:arm64 (1.6.3-2) ...
+#11 3.656 Setting up libpsl5:arm64 (0.21.2-1) ...
+#11 3.663 Setting up libbrotli1:arm64 (1.0.9-2+b6) ...
+#11 3.667 Setting up libssl3:arm64 (3.0.22-1~deb12u1) ...
+#11 3.671 Setting up libnghttp2-14:arm64 (1.52.0-1+deb12u3) ...
+#11 3.675 Setting up libkrb5support0:arm64 (1.20.1-2+deb12u5) ...
+#11 3.678 Setting up libsasl2-modules-db:arm64 (2.1.28+dfsg-10) ...
+#11 3.681 Setting up librtmp1:arm64 (2.4+20151223.gitfa8646d.1-2+b2) ...
+#11 3.684 Setting up libk5crypto3:arm64 (1.20.1-2+deb12u5) ...
+#11 3.690 Setting up libsasl2-2:arm64 (2.1.28+dfsg-10) ...
+#11 3.696 Setting up libssh2-1:arm64 (1.10.0-3+deb12u1) ...
+#11 3.700 Setting up libkrb5-3:arm64 (1.20.1-2+deb12u5) ...
+#11 3.704 Setting up openssl (3.0.22-1~deb12u1) ...
+#11 3.710 Setting up libldap-2.5-0:arm64 (2.5.13+dfsg-5) ...
+#11 3.712 Setting up ca-certificates (20250419~deb12u2) ...
+#11 3.768 debconf: unable to initialize frontend: Dialog
+#11 3.768 debconf: (TERM is not set, so the dialog frontend is not usable.)
+#11 3.768 debconf: falling back to frontend: Readline
+#11 3.768 debconf: unable to initialize frontend: Readline
+#11 3.768 debconf: (Can't locate Term/ReadLine.pm in @INC (you may need to install the Term::ReadLine module) (@INC contains: /etc/perl /usr/local/lib/aarch64-linux-gnu/perl/5.36.0 /usr/local/share/perl/5.36.0 /usr/lib/aarch64-linux-gnu/perl5/5.36 /usr/share/perl5 /usr/lib/aarch64-linux-gnu/perl-base /usr/lib/aarch64-linux-gnu/perl/5.36 /usr/share/perl/5.36 /usr/local/lib/site_perl) at /usr/share/perl5/Debconf/FrontEnd/Readline.pm line 7.)
+#11 3.768 debconf: falling back to frontend: Teletype
+#11 4.321 Updating certificates in /etc/ssl/certs...
+#11 4.988 148 added, 0 removed; done.
+#11 5.043 Setting up libgssapi-krb5-2:arm64 (1.20.1-2+deb12u5) ...
+#11 5.051 Setting up libcurl4:arm64 (7.88.1-10+deb12u15) ...
+#11 5.056 Setting up curl (7.88.1-10+deb12u15) ...
+#11 5.060 Processing triggers for libc-bin (2.36-9+deb12u14) ...
+#11 5.376 Processing triggers for ca-certificates (20250419~deb12u2) ...
+#11 5.389 Updating certificates in /etc/ssl/certs...
+#11 5.804 0 added, 0 removed; done.
+#11 5.804 Running hooks in /etc/ca-certificates/update.d...
+#11 5.805 done.
+#11 6.342 Hit:1 http://deb.debian.org/debian bookworm InRelease
+#11 6.344 Hit:2 http://deb.debian.org/debian bookworm-updates InRelease
+#11 6.352 Hit:3 http://deb.debian.org/debian-security bookworm-security InRelease
+#11 6.430 Get:4 https://apt.postgresql.org/pub/repos/apt bookworm-pgdg InRelease [189 kB]
+#11 6.580 Get:5 https://apt.postgresql.org/pub/repos/apt bookworm-pgdg/main arm64 Packages [890 kB]
+#11 6.815 Fetched 1079 kB in 0s (2172 kB/s)
+#11 6.815 Reading package lists...
+#11 7.246 Reading package lists...
+#11 7.685 Building dependency tree...
+#11 7.800 Reading state information...
+#11 7.947 The following additional packages will be installed:
+#11 7.947   libgdbm-compat4 libgdbm6 libperl5.36 libpq5 libreadline8 netbase perl
+#11 7.948   perl-base perl-modules-5.36 postgresql-client-common readline-common
+#11 7.948   sensible-utils
+#11 7.948 Suggested packages:
+#11 7.948   gdbm-l10n libpq-oauth perl-doc libterm-readline-gnu-perl
+#11 7.948   | libterm-readline-perl-perl make libtap-harness-archive-perl postgresql-18
+#11 7.948   postgresql-doc-18 readline-doc
+#11 8.005 The following NEW packages will be installed:
+#11 8.005   libgdbm-compat4 libgdbm6 libperl5.36 libpq5 libreadline8 netbase perl
+#11 8.006   perl-modules-5.36 postgresql-client-18 postgresql-client-common
+#11 ...
 
 #16 [deps 4/4] RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
-#16 0.156 ! Corepack is about to download https://registry.npmjs.org/pnpm/-/pnpm-10.28.0.tgz
-#16 1.359 Scope: all 3 workspace projects
-#16 1.398 Lockfile is up to date, resolution step is skipped
-#16 1.426 Progress: resolved 1, reused 0, downloaded 0, added 0
-#16 1.459 Packages: +198
-#16 1.459 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-#16 1.706 
-#16 1.706    ╭───────────────────────────────────────────────╮
-#16 1.706    │                                               │
-#16 1.706    │     Update available! 10.28.0 → 12.14.0.      │
-#16 1.706    │     Changelog: https://pnpm.io/v/12.14.0      │
-#16 1.706    │   To update, run: corepack use pnpm@12.14.0   │
-#16 1.706    │                                               │
-#16 1.706    ╰───────────────────────────────────────────────╯
-#16 1.706 
-#16 2.427 Progress: resolved 198, reused 0, downloaded 105, added 46
-#16 3.427 Progress: resolved 198, reused 0, downloaded 160, added 77
-#16 4.429 Progress: resolved 198, reused 0, downloaded 192, added 85
-#16 5.428 Progress: resolved 198, reused 0, downloaded 198, added 166
-#16 6.429 Progress: resolved 198, reused 0, downloaded 198, added 196
-#16 7.430 Progress: resolved 198, reused 0, downloaded 198, added 197
-#16 8.162 Progress: resolved 198, reused 0, downloaded 198, added 198, done
-#16 8.334 
-#16 8.355 Done in 7.2s using pnpm v10.28.0
-#16 DONE 11.0s
+#16 0.116 ! Corepack is about to download https://registry.npmjs.org/pnpm/-/pnpm-10.28.0.tgz
+#16 1.169 Scope: all 3 workspace projects
+#16 1.203 Lockfile is up to date, resolution step is skipped
+#16 1.226 Progress: resolved 1, reused 0, downloaded 0, added 0
+#16 1.262 Packages: +198
+#16 1.262 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#16 1.512 
+#16 1.512    ╭───────────────────────────────────────────────╮
+#16 1.512    │                                               │
+#16 1.512    │     Update available! 10.28.0 → 12.14.0.      │
+#16 1.512    │     Changelog: https://pnpm.io/v/12.14.0      │
+#16 1.512    │   To update, run: corepack use pnpm@12.14.0   │
+#16 1.512    │                                               │
+#16 1.512    ╰───────────────────────────────────────────────╯
+#16 1.512 
+#16 2.230 Progress: resolved 198, reused 0, downloaded 112, added 51
+#16 3.230 Progress: resolved 198, reused 0, downloaded 145, added 66
+#16 4.231 Progress: resolved 198, reused 0, downloaded 197, added 112
+#16 5.231 Progress: resolved 198, reused 0, downloaded 198, added 184
+#16 6.232 Progress: resolved 198, reused 0, downloaded 198, added 196
+#16 7.232 Progress: resolved 198, reused 0, downloaded 198, added 197
+#16 7.518 Progress: resolved 198, reused 0, downloaded 198, added 198, done
+#16 7.676 
+#16 7.713 Done in 6.8s using pnpm v10.28.0
+#16 DONE 7.8s
 
-#15 [api  2/10] RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl     && install -d /usr/share/postgresql-common/pgdg     && curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc     && . /etc/os-release     && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list     && apt-get update && apt-get install -y --no-install-recommends postgresql-client-18     && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
-#15 ...
+#11 [api  2/10] RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl     && install -d /usr/share/postgresql-common/pgdg     && curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc     && . /etc/os-release     && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list     && apt-get update && apt-get install -y --no-install-recommends postgresql-client-18     && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+#11 8.006   readline-common sensible-utils
+#11 8.008 The following packages will be upgraded:
+#11 8.008   perl-base
+#11 8.128 1 upgraded, 12 newly installed, 0 to remove and 0 not upgraded.
+#11 8.128 Need to get 11.3 MB of archives.
+#11 8.128 After this operation, 64.8 MB of additional disk space will be used.
+#11 8.128 Get:1 http://deb.debian.org/debian-security bookworm-security/main arm64 perl-base arm64 5.36.0-7+deb12u4 [1478 kB]
+#11 ...
 
 #17 [build 1/3] COPY . .
-#17 DONE 0.1s
+#17 DONE 2.7s
+
+#11 [api  2/10] RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl     && install -d /usr/share/postgresql-common/pgdg     && curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc     && . /etc/os-release     && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list     && apt-get update && apt-get install -y --no-install-recommends postgresql-client-18     && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+#11 8.349 Get:2 http://deb.debian.org/debian-security bookworm-security/main arm64 perl-modules-5.36 all 5.36.0-7+deb12u4 [2817 kB]
+#11 8.415 Get:3 http://deb.debian.org/debian bookworm/main arm64 libgdbm6 arm64 1.23-3 [70.9 kB]
+#11 8.415 Get:4 http://deb.debian.org/debian bookworm/main arm64 libgdbm-compat4 arm64 1.23-3 [48.0 kB]
+#11 8.424 Get:5 http://deb.debian.org/debian-security bookworm-security/main arm64 libperl5.36 arm64 5.36.0-7+deb12u4 [4002 kB]
+#11 9.090 Get:6 https://apt.postgresql.org/pub/repos/apt bookworm-pgdg/main arm64 libpq5 arm64 18.6-1.pgdg12+2 [256 kB]
+#11 9.159 Get:7 http://deb.debian.org/debian-security bookworm-security/main arm64 perl arm64 5.36.0-7+deb12u4 [239 kB]
+#11 9.172 Get:8 http://deb.debian.org/debian bookworm/main arm64 netbase all 6.4 [12.8 kB]
+#11 9.193 Get:9 https://apt.postgresql.org/pub/repos/apt bookworm-pgdg/main arm64 postgresql-client-common all 293.pgdg12+1 [49.5 kB]
+#11 9.242 Get:10 http://deb.debian.org/debian bookworm/main arm64 readline-common all 8.2-1.3 [69.0 kB]
+#11 9.242 Get:11 https://apt.postgresql.org/pub/repos/apt bookworm-pgdg/main arm64 postgresql-client-18 arm64 18.6-1.pgdg12+2 [2079 kB]
+#11 9.242 Get:12 http://deb.debian.org/debian bookworm/main arm64 sensible-utils all 0.0.17+nmu1 [19.0 kB]
+#11 9.286 Get:13 http://deb.debian.org/debian bookworm/main arm64 libreadline8 arm64 8.2-1.3 [155 kB]
+#11 9.422 debconf: delaying package configuration, since apt-utils is not installed
+#11 9.443 Fetched 11.3 MB in 1s (8524 kB/s)
+#11 9.625 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 6701 files and directories currently installed.)
+#11 9.629 Preparing to unpack .../perl-base_5.36.0-7+deb12u4_arm64.deb ...
+#11 9.712 Unpacking perl-base (5.36.0-7+deb12u4) over (5.36.0-7+deb12u3) ...
+#11 11.11 Setting up perl-base (5.36.0-7+deb12u4) ...
+#11 11.13 Selecting previously unselected package perl-modules-5.36.
+#11 11.13 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 6701 files and directories currently installed.)
+#11 11.13 Preparing to unpack .../00-perl-modules-5.36_5.36.0-7+deb12u4_all.deb ...
+#11 11.13 Unpacking perl-modules-5.36 (5.36.0-7+deb12u4) ...
+#11 11.33 Selecting previously unselected package libgdbm6:arm64.
+#11 11.33 Preparing to unpack .../01-libgdbm6_1.23-3_arm64.deb ...
+#11 11.33 Unpacking libgdbm6:arm64 (1.23-3) ...
+#11 11.35 Selecting previously unselected package libgdbm-compat4:arm64.
+#11 11.35 Preparing to unpack .../02-libgdbm-compat4_1.23-3_arm64.deb ...
+#11 11.35 Unpacking libgdbm-compat4:arm64 (1.23-3) ...
+#11 11.37 Selecting previously unselected package libperl5.36:arm64.
+#11 11.37 Preparing to unpack .../03-libperl5.36_5.36.0-7+deb12u4_arm64.deb ...
+#11 11.37 Unpacking libperl5.36:arm64 (5.36.0-7+deb12u4) ...
+#11 11.61 Selecting previously unselected package perl.
+#11 11.61 Preparing to unpack .../04-perl_5.36.0-7+deb12u4_arm64.deb ...
+#11 11.62 Unpacking perl (5.36.0-7+deb12u4) ...
+#11 11.64 Selecting previously unselected package netbase.
+#11 11.64 Preparing to unpack .../05-netbase_6.4_all.deb ...
+#11 11.64 Unpacking netbase (6.4) ...
+#11 11.66 Selecting previously unselected package readline-common.
+#11 11.66 Preparing to unpack .../06-readline-common_8.2-1.3_all.deb ...
+#11 11.66 Unpacking readline-common (8.2-1.3) ...
+#11 11.68 Selecting previously unselected package sensible-utils.
+#11 11.68 Preparing to unpack .../07-sensible-utils_0.0.17+nmu1_all.deb ...
+#11 11.68 Unpacking sensible-utils (0.0.17+nmu1) ...
+#11 11.69 Selecting previously unselected package libpq5:arm64.
+#11 11.69 Preparing to unpack .../08-libpq5_18.6-1.pgdg12+2_arm64.deb ...
+#11 11.70 Unpacking libpq5:arm64 (18.6-1.pgdg12+2) ...
+#11 11.72 Selecting previously unselected package libreadline8:arm64.
+#11 11.72 Preparing to unpack .../09-libreadline8_8.2-1.3_arm64.deb ...
+#11 11.72 Unpacking libreadline8:arm64 (8.2-1.3) ...
+#11 11.75 Selecting previously unselected package postgresql-client-common.
+#11 11.75 Preparing to unpack .../10-postgresql-client-common_293.pgdg12+1_all.deb ...
+#11 11.75 Unpacking postgresql-client-common (293.pgdg12+1) ...
+#11 11.77 Selecting previously unselected package postgresql-client-18.
+#11 11.77 Preparing to unpack .../11-postgresql-client-18_18.6-1.pgdg12+2_arm64.deb ...
+#11 11.77 Unpacking postgresql-client-18 (18.6-1.pgdg12+2) ...
+#11 11.90 Setting up libpq5:arm64 (18.6-1.pgdg12+2) ...
+#11 11.90 Setting up perl-modules-5.36 (5.36.0-7+deb12u4) ...
+#11 11.90 Setting up sensible-utils (0.0.17+nmu1) ...
+#11 11.90 Setting up netbase (6.4) ...
+#11 11.91 Setting up readline-common (8.2-1.3) ...
+#11 11.92 Setting up libgdbm6:arm64 (1.23-3) ...
+#11 11.92 Setting up libreadline8:arm64 (8.2-1.3) ...
+#11 11.92 Setting up libgdbm-compat4:arm64 (1.23-3) ...
+#11 11.92 Setting up libperl5.36:arm64 (5.36.0-7+deb12u4) ...
+#11 11.93 Setting up perl (5.36.0-7+deb12u4) ...
+#11 11.94 Setting up postgresql-client-common (293.pgdg12+1) ...
+#11 11.96 Setting up postgresql-client-18 (18.6-1.pgdg12+2) ...
+#11 12.28 update-alternatives: using /usr/share/postgresql/18/man/man1/psql.1.gz to provide /usr/share/man/man1/psql.1.gz (psql.1.gz) in auto mode
+#11 12.30 Processing triggers for libc-bin (2.36-9+deb12u14) ...
+#11 12.32 Reading package lists...
+#11 12.75 Building dependency tree...
+#11 12.86 Reading state information...
+#11 13.01 The following packages were automatically installed and are no longer required:
+#11 13.01   libbrotli1 libcurl4 libnghttp2-14 libpsl5 librtmp1 libssh2-1
+#11 13.01 Use 'apt autoremove' to remove them.
+#11 13.02 The following packages will be REMOVED:
+#11 13.03   curl*
+#11 13.14 0 upgraded, 0 newly installed, 1 to remove and 0 not upgraded.
+#11 13.14 After this operation, 550 kB disk space will be freed.
+#11 13.15 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 9227 files and directories currently installed.)
+#11 13.15 Removing curl (7.88.1-10+deb12u15) ...
+#11 13.19 Reading package lists...
+#11 13.61 Building dependency tree...
+#11 13.72 Reading state information...
+#11 13.87 The following packages will be REMOVED:
+#11 13.87   libbrotli1 libcurl4 libnghttp2-14 libpsl5 librtmp1 libssh2-1
+#11 13.98 0 upgraded, 0 newly installed, 6 to remove and 0 not upgraded.
+#11 13.98 After this operation, 2598 kB disk space will be freed.
+#11 13.99 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 9218 files and directories currently installed.)
+#11 13.99 Removing libcurl4:arm64 (7.88.1-10+deb12u15) ...
+#11 14.00 Removing libbrotli1:arm64 (1.0.9-2+b6) ...
+#11 14.01 Removing libnghttp2-14:arm64 (1.52.0-1+deb12u3) ...
+#11 14.02 Removing libpsl5:arm64 (0.21.2-1) ...
+#11 14.03 Removing librtmp1:arm64 (2.4+20151223.gitfa8646d.1-2+b2) ...
+#11 14.04 Removing libssh2-1:arm64 (1.10.0-3+deb12u1) ...
+#11 14.05 Processing triggers for libc-bin (2.36-9+deb12u14) ...
+#11 DONE 14.3s
 
 #18 [build 2/3] RUN pnpm --filter @crm/api build && pnpm --filter @crm/web build
-#18 0.367 
-#18 0.367 > @crm/api@ build /repo/apps/api
-#18 0.367 > tsc -p tsconfig.build.json
-#18 0.367 
+#18 0.379 
+#18 0.379 > @crm/api@ build /repo/apps/api
+#18 0.379 > tsc -p tsconfig.build.json
+#18 0.379 
 #18 ...
-
-#15 [api  2/10] RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl     && install -d /usr/share/postgresql-common/pgdg     && curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc     && . /etc/os-release     && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list     && apt-get update && apt-get install -y --no-install-recommends postgresql-client-18     && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
-#15 11.68 Setting up perl-base (5.36.0-7+deb12u4) ...
-#15 11.70 Selecting previously unselected package perl-modules-5.36.
-#15 11.70 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 6701 files and directories currently installed.)
-#15 11.71 Preparing to unpack .../00-perl-modules-5.36_5.36.0-7+deb12u4_all.deb ...
-#15 11.71 Unpacking perl-modules-5.36 (5.36.0-7+deb12u4) ...
-#15 11.90 Selecting previously unselected package libgdbm6:arm64.
-#15 11.90 Preparing to unpack .../01-libgdbm6_1.23-3_arm64.deb ...
-#15 11.90 Unpacking libgdbm6:arm64 (1.23-3) ...
-#15 11.92 Selecting previously unselected package libgdbm-compat4:arm64.
-#15 11.92 Preparing to unpack .../02-libgdbm-compat4_1.23-3_arm64.deb ...
-#15 11.93 Unpacking libgdbm-compat4:arm64 (1.23-3) ...
-#15 11.94 Selecting previously unselected package libperl5.36:arm64.
-#15 11.94 Preparing to unpack .../03-libperl5.36_5.36.0-7+deb12u4_arm64.deb ...
-#15 11.94 Unpacking libperl5.36:arm64 (5.36.0-7+deb12u4) ...
-#15 12.17 Selecting previously unselected package perl.
-#15 12.17 Preparing to unpack .../04-perl_5.36.0-7+deb12u4_arm64.deb ...
-#15 12.18 Unpacking perl (5.36.0-7+deb12u4) ...
-#15 12.21 Selecting previously unselected package netbase.
-#15 12.21 Preparing to unpack .../05-netbase_6.4_all.deb ...
-#15 12.21 Unpacking netbase (6.4) ...
-#15 12.23 Selecting previously unselected package readline-common.
-#15 12.23 Preparing to unpack .../06-readline-common_8.2-1.3_all.deb ...
-#15 12.23 Unpacking readline-common (8.2-1.3) ...
-#15 12.25 Selecting previously unselected package sensible-utils.
-#15 12.25 Preparing to unpack .../07-sensible-utils_0.0.17+nmu1_all.deb ...
-#15 12.25 Unpacking sensible-utils (0.0.17+nmu1) ...
-#15 12.27 Selecting previously unselected package libpq5:arm64.
-#15 12.27 Preparing to unpack .../08-libpq5_18.6-1.pgdg12+2_arm64.deb ...
-#15 12.27 Unpacking libpq5:arm64 (18.6-1.pgdg12+2) ...
-#15 12.31 Selecting previously unselected package libreadline8:arm64.
-#15 12.31 Preparing to unpack .../09-libreadline8_8.2-1.3_arm64.deb ...
-#15 12.31 Unpacking libreadline8:arm64 (8.2-1.3) ...
-#15 12.33 Selecting previously unselected package postgresql-client-common.
-#15 12.33 Preparing to unpack .../10-postgresql-client-common_293.pgdg12+1_all.deb ...
-#15 12.34 Unpacking postgresql-client-common (293.pgdg12+1) ...
-#15 12.36 Selecting previously unselected package postgresql-client-18.
-#15 12.36 Preparing to unpack .../11-postgresql-client-18_18.6-1.pgdg12+2_arm64.deb ...
-#15 12.36 Unpacking postgresql-client-18 (18.6-1.pgdg12+2) ...
-#15 12.48 Setting up libpq5:arm64 (18.6-1.pgdg12+2) ...
-#15 12.49 Setting up perl-modules-5.36 (5.36.0-7+deb12u4) ...
-#15 12.49 Setting up sensible-utils (0.0.17+nmu1) ...
-#15 12.49 Setting up netbase (6.4) ...
-#15 12.50 Setting up readline-common (8.2-1.3) ...
-#15 12.50 Setting up libgdbm6:arm64 (1.23-3) ...
-#15 12.51 Setting up libreadline8:arm64 (8.2-1.3) ...
-#15 12.51 Setting up libgdbm-compat4:arm64 (1.23-3) ...
-#15 12.51 Setting up libperl5.36:arm64 (5.36.0-7+deb12u4) ...
-#15 12.52 Setting up perl (5.36.0-7+deb12u4) ...
-#15 12.53 Setting up postgresql-client-common (293.pgdg12+1) ...
-#15 12.53 Setting up postgresql-client-18 (18.6-1.pgdg12+2) ...
-#15 12.88 update-alternatives: using /usr/share/postgresql/18/man/man1/psql.1.gz to provide /usr/share/man/man1/psql.1.gz (psql.1.gz) in auto mode
-#15 12.90 Processing triggers for libc-bin (2.36-9+deb12u14) ...
-#15 12.92 Reading package lists...
-#15 13.42 Building dependency tree...
-#15 13.60 Reading state information...
-#15 13.82 The following packages were automatically installed and are no longer required:
-#15 13.83   libbrotli1 libcurl4 libnghttp2-14 libpsl5 librtmp1 libssh2-1
-#15 13.83 Use 'apt autoremove' to remove them.
-#15 13.84 The following packages will be REMOVED:
-#15 13.84   curl*
-#15 13.98 0 upgraded, 0 newly installed, 1 to remove and 0 not upgraded.
-#15 13.98 After this operation, 550 kB disk space will be freed.
-#15 13.99 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 9227 files and directories currently installed.)
-#15 14.00 Removing curl (7.88.1-10+deb12u15) ...
-#15 14.03 Reading package lists...
-#15 14.53 Building dependency tree...
-#15 14.71 Reading state information...
-#15 14.96 The following packages will be REMOVED:
-#15 14.96   libbrotli1 libcurl4 libnghttp2-14 libpsl5 librtmp1 libssh2-1
-#15 15.10 0 upgraded, 0 newly installed, 6 to remove and 0 not upgraded.
-#15 15.10 After this operation, 2598 kB disk space will be freed.
-#15 15.10 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 9218 files and directories currently installed.)
-#15 15.11 Removing libcurl4:arm64 (7.88.1-10+deb12u15) ...
-#15 15.12 Removing libbrotli1:arm64 (1.0.9-2+b6) ...
-#15 15.12 Removing libnghttp2-14:arm64 (1.52.0-1+deb12u3) ...
-#15 15.13 Removing libpsl5:arm64 (0.21.2-1) ...
-#15 15.14 Removing librtmp1:arm64 (2.4+20151223.gitfa8646d.1-2+b2) ...
-#15 15.15 Removing libssh2-1:arm64 (1.10.0-3+deb12u1) ...
-#15 15.17 Processing triggers for libc-bin (2.36-9+deb12u14) ...
-#15 DONE 15.5s
 
 #19 [api  3/10] WORKDIR /app
 #19 DONE 0.0s
 
 #18 [build 2/3] RUN pnpm --filter @crm/api build && pnpm --filter @crm/web build
-#18 5.437 
-#18 5.437 > @crm/web@ build /repo/apps/web
-#18 5.437 > next build
-#18 5.437 
-#18 5.828 ▲ Next.js 16.4.0 (Turbopack)
-#18 5.854 ✓ Running next.config.ts took 26ms
-#18 5.867 
-#18 5.898   Creating an optimized production build ...
-#18 11.18 ✓ Compiled successfully in 5.3s
-#18 11.19   Running TypeScript ...
-#18 20.46   Finished TypeScript in 9.3s ...
-#18 20.46   Collecting page data using 3 workers ...
-#18 21.01   Generating static pages using 3 workers (0/45) ...
-#18 21.16   Generating static pages using 3 workers (11/45) 
-#18 21.22   Generating static pages using 3 workers (22/45) 
-#18 21.28   Generating static pages using 3 workers (33/45) 
-#18 21.33 ✓ Generating static pages using 3 workers (45/45) in 323ms
-#18 21.35   Finalizing page optimization ...
-#18 21.78 
-#18 21.79 Route (app)
-#18 21.79 ┌ ƒ /
-#18 21.79 ├ ƒ /_not-found
-#18 21.79 ├ ƒ /agenda
-#18 21.79 ├ ƒ /automacoes
-#18 21.79 ├ ƒ /campanhas
-#18 21.79 ├ ƒ /campanhas/[id]
-#18 21.79 ├ ƒ /campanhas/nova
-#18 21.79 ├ ƒ /configuracoes
-#18 21.79 ├ ƒ /configuracoes/auditoria
-#18 21.79 ├ ƒ /configuracoes/automacoes
-#18 21.79 ├ ƒ /configuracoes/backup
-#18 21.79 ├ ƒ /configuracoes/campos
-#18 21.79 ├ ƒ /configuracoes/canais
-#18 21.79 ├ ƒ /configuracoes/canais/guia
-#18 21.79 ├ ƒ /configuracoes/canais/modelos
-#18 21.79 ├ ƒ /configuracoes/distribuicao
-#18 21.79 ├ ƒ /configuracoes/dominio
-#18 21.79 ├ ƒ /configuracoes/empresa
-#18 21.79 ├ ƒ /configuracoes/equipes
-#18 21.79 ├ ƒ /configuracoes/etiquetas
-#18 21.79 ├ ƒ /configuracoes/funis
-#18 21.79 ├ ƒ /configuracoes/identidade-visual
-#18 21.79 ├ ƒ /configuracoes/integracoes
-#18 21.79 ├ ƒ /configuracoes/motivos
-#18 21.79 ├ ƒ /configuracoes/perfis
-#18 21.79 ├ ƒ /configuracoes/produtos
-#18 21.79 ├ ƒ /configuracoes/usuarios
-#18 21.79 ├ ƒ /conta
-#18 21.79 ├ ƒ /contatos
-#18 21.79 ├ ƒ /contatos/[id]
-#18 21.79 ├ ƒ /contatos/agendadas
-#18 21.79 ├ ƒ /contatos/importar
-#18 21.79 ├ ƒ /conversas
-#18 21.79 ├ ƒ /conversas/respostas
-#18 21.79 ├ ƒ /convite
-#18 21.79 ├ ƒ /entrar
-#18 21.79 ├ ƒ /entrar/empresa
-#18 21.79 ├ ƒ /entrar/verificacao
-#18 21.79 ├ ○ /icon.svg
-#18 21.79 ├ ƒ /inicio
-#18 21.79 ├ ƒ /leads
-#18 21.79 ├ ƒ /leads/[id]
-#18 21.79 ├ ƒ /negocios
-#18 21.79 ├ ƒ /negocios/[id]
-#18 21.79 ├ ƒ /organizacoes
-#18 21.79 ├ ƒ /organizacoes/[id]
-#18 21.79 ├ ƒ /plataforma
-#18 21.79 ├ ƒ /recuperar-senha
-#18 21.79 └ ƒ /redefinir-senha
-#18 21.79 
-#18 21.79 
-#18 21.79 ○  (Static)   prerendered as static content
-#18 21.79 ƒ  (Dynamic)  server-rendered on demand
-#18 21.79 
-#18 DONE 22.0s
+#18 5.151 
+#18 5.151 > @crm/web@ build /repo/apps/web
+#18 5.151 > next build
+#18 5.151 
+#18 5.524 ▲ Next.js 16.4.0 (Turbopack)
+#18 5.547 ✓ Running next.config.ts took 22ms
+#18 5.559 
+#18 5.588   Creating an optimized production build ...
+#18 9.947 ✓ Compiled successfully in 4.4s
+#18 9.951   Running TypeScript ...
+#18 18.48   Finished TypeScript in 8.5s ...
+#18 18.49   Collecting page data using 3 workers ...
+#18 18.99   Generating static pages using 3 workers (0/45) ...
+#18 19.13   Generating static pages using 3 workers (11/45) 
+#18 19.19   Generating static pages using 3 workers (22/45) 
+#18 19.25   Generating static pages using 3 workers (33/45) 
+#18 19.28 ✓ Generating static pages using 3 workers (45/45) in 292ms
+#18 19.29   Finalizing page optimization ...
+#18 19.85 
+#18 19.85 Route (app)
+#18 19.85 ┌ ƒ /
+#18 19.85 ├ ƒ /_not-found
+#18 19.85 ├ ƒ /agenda
+#18 19.85 ├ ƒ /automacoes
+#18 19.85 ├ ƒ /campanhas
+#18 19.85 ├ ƒ /campanhas/[id]
+#18 19.85 ├ ƒ /campanhas/nova
+#18 19.85 ├ ƒ /configuracoes
+#18 19.85 ├ ƒ /configuracoes/auditoria
+#18 19.85 ├ ƒ /configuracoes/automacoes
+#18 19.85 ├ ƒ /configuracoes/backup
+#18 19.85 ├ ƒ /configuracoes/campos
+#18 19.85 ├ ƒ /configuracoes/canais
+#18 19.85 ├ ƒ /configuracoes/canais/guia
+#18 19.85 ├ ƒ /configuracoes/canais/modelos
+#18 19.85 ├ ƒ /configuracoes/distribuicao
+#18 19.85 ├ ƒ /configuracoes/dominio
+#18 19.85 ├ ƒ /configuracoes/empresa
+#18 19.85 ├ ƒ /configuracoes/equipes
+#18 19.85 ├ ƒ /configuracoes/etiquetas
+#18 19.85 ├ ƒ /configuracoes/funis
+#18 19.85 ├ ƒ /configuracoes/identidade-visual
+#18 19.85 ├ ƒ /configuracoes/integracoes
+#18 19.85 ├ ƒ /configuracoes/motivos
+#18 19.85 ├ ƒ /configuracoes/perfis
+#18 19.85 ├ ƒ /configuracoes/produtos
+#18 19.85 ├ ƒ /configuracoes/usuarios
+#18 19.85 ├ ƒ /conta
+#18 19.85 ├ ƒ /contatos
+#18 19.85 ├ ƒ /contatos/[id]
+#18 19.85 ├ ƒ /contatos/agendadas
+#18 19.85 ├ ƒ /contatos/importar
+#18 19.85 ├ ƒ /conversas
+#18 19.85 ├ ƒ /conversas/respostas
+#18 19.85 ├ ƒ /convite
+#18 19.85 ├ ƒ /entrar
+#18 19.85 ├ ƒ /entrar/empresa
+#18 19.85 ├ ƒ /entrar/verificacao
+#18 19.85 ├ ○ /icon.svg
+#18 19.85 ├ ƒ /inicio
+#18 19.85 ├ ƒ /leads
+#18 19.85 ├ ƒ /leads/[id]
+#18 19.85 ├ ƒ /negocios
+#18 19.85 ├ ƒ /negocios/[id]
+#18 19.85 ├ ƒ /organizacoes
+#18 19.85 ├ ƒ /organizacoes/[id]
+#18 19.85 ├ ƒ /plataforma
+#18 19.85 ├ ƒ /recuperar-senha
+#18 19.85 └ ƒ /redefinir-senha
+#18 19.85 
+#18 19.85 
+#18 19.85 ○  (Static)   prerendered as static content
+#18 19.85 ƒ  (Dynamic)  server-rendered on demand
+#18 19.85 
+#18 DONE 20.1s
 
 #20 [build 3/3] RUN pnpm --filter @crm/api deploy --legacy --prod /out/api
-#20 0.505  WARN  Shared workspace lockfile detected but configuration forces legacy deploy implementation.
-#20 0.532 Packages are copied from the content-addressable store to the virtual store.
-#20 0.532   Content-addressable store is at: /pnpm/store/v10
-#20 0.532   Virtual store is at:             ../out/api/node_modules/.pnpm
-#20 0.722 Progress: resolved 1, reused 0, downloaded 0, added 0
-#20 1.723 Progress: resolved 52, reused 0, downloaded 0, added 0
-#20 2.723 Progress: resolved 216, reused 0, downloaded 0, added 0
-#20 3.112 Progress: resolved 257, reused 0, downloaded 0, added 0, done
-#20 3.114  WARN  Issues with peer dependencies found
-#20 3.114 apps/api
-#20 3.114 └─┬ @nestjs/platform-fastify 12.1.2
-#20 3.114   └── ✕ unmet peer @fastify/multipart@^10.1.0: found 9.4.0
-#20 3.138 .                                        | +106 +++++++++++
-#20 DONE 4.8s
+#20 0.467  WARN  Shared workspace lockfile detected but configuration forces legacy deploy implementation.
+#20 0.491 Packages are copied from the content-addressable store to the virtual store.
+#20 0.491   Content-addressable store is at: /pnpm/store/v10
+#20 0.491   Virtual store is at:             ../out/api/node_modules/.pnpm
+#20 0.662 Progress: resolved 1, reused 0, downloaded 0, added 0
+#20 1.663 Progress: resolved 59, reused 0, downloaded 0, added 0
+#20 2.662 Progress: resolved 252, reused 0, downloaded 0, added 0
+#20 2.836 Progress: resolved 257, reused 0, downloaded 0, added 0, done
+#20 2.838  WARN  Issues with peer dependencies found
+#20 2.838 apps/api
+#20 2.838 └─┬ @nestjs/platform-fastify 12.1.2
+#20 2.838   └── ✕ unmet peer @fastify/multipart@^10.1.0: found 9.4.0
+#20 2.860 .                                        | +106 +++++++++++
+#20 DONE 4.4s
 
 #21 [api  4/10] COPY --from=build /out/api/node_modules ./node_modules
 #21 DONE 0.7s
@@ -499,10 +506,10 @@ aarch64
 
 #28 exporting to image
 #28 exporting layers
-#28 exporting layers 1.6s done
-#28 writing image sha256:1ed390f6047e16f18e0d822751799c83bbf1ad316b30b1b44b396bd47b535679 done
+#28 exporting layers 1.5s done
+#28 writing image sha256:63875fd572aff3fa2ccabfb033d59c59fe8d90c4e28997f2d99f2e2c9cff8193 done
 #28 naming to docker.io/library/crmwta-api:teste done
-#28 DONE 1.6s
+#28 DONE 1.5s
 #0 building with "default" instance using docker driver
 
 #1 [internal] load build definition from Dockerfile
@@ -529,31 +536,31 @@ aarch64
 #7 DONE 0.0s
 
 #8 [internal] load build context
-#8 transferring context: 21.12kB 0.0s done
+#8 transferring context: 21.30kB 0.0s done
 #8 DONE 0.0s
 
-#9 [base 3/3] WORKDIR /repo
+#9 [base 2/3] RUN corepack enable
 #9 CACHED
 
-#10 [deps 2/4] COPY apps/api/package.json apps/api/
+#10 [deps 4/4] RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 #10 CACHED
 
-#11 [build 2/3] RUN pnpm --filter @crm/api build && pnpm --filter @crm/web build
+#11 [build 1/3] COPY . .
 #11 CACHED
 
-#12 [deps 1/4] COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+#12 [build 2/3] RUN pnpm --filter @crm/api build && pnpm --filter @crm/web build
 #12 CACHED
 
-#13 [deps 4/4] RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+#13 [base 3/3] WORKDIR /repo
 #13 CACHED
 
-#14 [deps 3/4] COPY apps/web/package.json apps/web/
+#14 [deps 1/4] COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 #14 CACHED
 
-#15 [base 2/3] RUN corepack enable
+#15 [deps 2/4] COPY apps/api/package.json apps/api/
 #15 CACHED
 
-#16 [build 1/3] COPY . .
+#16 [deps 3/4] COPY apps/web/package.json apps/web/
 #16 CACHED
 
 #17 [build 3/3] RUN pnpm --filter @crm/api deploy --legacy --prod /out/api
@@ -570,7 +577,7 @@ aarch64
 
 #21 exporting to image
 #21 exporting layers
-#21 exporting layers 0.5s done
-#21 writing image sha256:fc8ed9449d7f56d15ba9ccc0cbf39aa622b756b65f68df2c3f3dd9fcda138688 done
+#21 exporting layers 0.6s done
+#21 writing image sha256:2484c2bbf00ddba733fa939a82b18f7f86e9fb75aeddca6c038f174e037f8c56 done
 #21 naming to docker.io/library/crmwta-web:teste done
-#21 DONE 0.5s
+#21 DONE 0.6s
