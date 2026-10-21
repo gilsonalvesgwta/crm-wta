@@ -1,0 +1,60 @@
+Creating network crmwta_interna
+Creating service crmwta_api
+Creating service crmwta_web
+Creating service crmwta_backup
+Creating service crmwta_db
+Creating service crmwta_migrate
+aguardando os serviços...
+crmwta_api 1/1
+crmwta_backup 1/1
+crmwta_db 1/1
+crmwta_migrate 0/1
+crmwta_web 1/1
+traefik-teste 1/1
+OK   API pronta atrás do Traefik
+OK   interface responde
+OK   login do superadministrador criado na configuração inicial
+OK   cookie de sessão
+OK   cookie marcado como Secure
+OK   sessão válida pela interface pública
+OK   página interna renderiza
+OK   arquivo gravado no volume e baixado pelo endereço assinado
+OK   nenhuma porta da stack publicada
+OK   reimplantar não duplica a configuração inicial
+backup: crm-20261020-212704.dump (448K)
+OK   cópia do banco
+restaurado em crm_restaurado: 14 migrações, 1 empresas
+OK   restauração em banco novo
+OK   dados conferidos depois de restaurar
+OK   restauração recusa banco com dados
+OK   agente de cópias ativo, visto pela API
+OK   cópia pedida pela API (banco e arquivos)
+OK   restauração de uma empresa
+OK   restauração do banco inteiro
+OK   a API não reiniciou com a troca do banco
+OK   a API segue no ar e os dados conferem depois das restaurações
+crmwta_api 1/1
+crmwta_backup 1/1
+crmwta_db 1/1
+crmwta_migrate 0/1
+crmwta_web 1/1
+traefik-teste 1/1
+OK   serviço db em 1/1
+OK   serviço api em 1/1
+OK   serviço web em 1/1
+OK   serviço backup em 1/1
+migrate| crmwta_migrate.1.yrvprtztsaaz@runnervm8k3b6    | aplicando 0004_crm
+migrate| crmwta_migrate.1.yrvprtztsaaz@runnervm8k3b6    | aplicando 0005_plataforma
+migrate| crmwta_migrate.1.yrvprtztsaaz@runnervm8k3b6    | aplicando 0006_canais
+migrate| crmwta_migrate.1.yrvprtztsaaz@runnervm8k3b6    | aplicando 0007_automacoes
+migrate| crmwta_migrate.1.yrvprtztsaaz@runnervm8k3b6    | aplicando 0008_conversas
+migrate| crmwta_migrate.1.yrvprtztsaaz@runnervm8k3b6    | aplicando 0009_campanhas
+migrate| crmwta_migrate.1.yrvprtztsaaz@runnervm8k3b6    | aplicando 0010_agendamentos
+migrate| crmwta_migrate.1.yrvprtztsaaz@runnervm8k3b6    | aplicando 0011_meta
+migrate| crmwta_migrate.1.yrvprtztsaaz@runnervm8k3b6    | aplicando 0012_meta_tokens
+migrate| crmwta_migrate.1.yrvprtztsaaz@runnervm8k3b6    | aplicando 0013_resultado_das_calls
+migrate| crmwta_migrate.1.yrvprtztsaaz@runnervm8k3b6    | aplicando 0014_anuncios
+migrate| crmwta_migrate.1.yrvprtztsaaz@runnervm8k3b6    | migrações aplicadas agora: 14
+migrate| crmwta_migrate.1.yrvprtztsaaz@runnervm8k3b6    | papel crm_api pronto
+migrate| crmwta_migrate.1.yrvprtztsaaz@runnervm8k3b6    | pronto: empresa e6e37023-2411-4545-a947-b319d53f85b7, superadministrador f4393cb5-20cd-4924-a0e0-ede6f1d285c4
+migrate| crmwta_migrate.1.yrvprtztsaaz@runnervm8k3b6    | migrate: concluído
