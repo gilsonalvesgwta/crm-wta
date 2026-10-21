@@ -1,9 +1,9 @@
 Creating network crmwta_interna
-Creating service crmwta_migrate
-Creating service crmwta_api
 Creating service crmwta_web
 Creating service crmwta_backup
 Creating service crmwta_db
+Creating service crmwta_migrate
+Creating service crmwta_api
 aguardando os serviços...
 crmwta_api 1/1
 crmwta_backup 1/1
@@ -21,7 +21,7 @@ OK   página interna renderiza
 OK   arquivo gravado no volume e baixado pelo endereço assinado
 OK   nenhuma porta da stack publicada
 OK   reimplantar não duplica a configuração inicial
-backup: crm-20261020-232620.dump (464K)
+backup: crm-20261020-233943.dump (464K)
 OK   cópia do banco
 restaurado em crm_restaurado: 16 migrações, 1 empresas
 OK   restauração em banco novo
@@ -43,18 +43,18 @@ OK   serviço db em 1/1
 OK   serviço api em 1/1
 OK   serviço web em 1/1
 OK   serviço backup em 1/1
-migrate| crmwta_migrate.1.o8u3thtv1ykh@runnervmidgih    | aplicando 0006_canais
-migrate| crmwta_migrate.1.o8u3thtv1ykh@runnervmidgih    | aplicando 0007_automacoes
-migrate| crmwta_migrate.1.o8u3thtv1ykh@runnervmidgih    | aplicando 0008_conversas
-migrate| crmwta_migrate.1.o8u3thtv1ykh@runnervmidgih    | aplicando 0009_campanhas
-migrate| crmwta_migrate.1.o8u3thtv1ykh@runnervmidgih    | aplicando 0010_agendamentos
-migrate| crmwta_migrate.1.o8u3thtv1ykh@runnervmidgih    | aplicando 0011_meta
-migrate| crmwta_migrate.1.o8u3thtv1ykh@runnervmidgih    | aplicando 0012_meta_tokens
-migrate| crmwta_migrate.1.o8u3thtv1ykh@runnervmidgih    | aplicando 0013_resultado_das_calls
-migrate| crmwta_migrate.1.o8u3thtv1ykh@runnervmidgih    | aplicando 0014_anuncios
-migrate| crmwta_migrate.1.o8u3thtv1ykh@runnervmidgih    | aplicando 0015_kpis_fieis
-migrate| crmwta_migrate.1.o8u3thtv1ykh@runnervmidgih    | aplicando 0016_kpi_funis
-migrate| crmwta_migrate.1.o8u3thtv1ykh@runnervmidgih    | migrações aplicadas agora: 16
-migrate| crmwta_migrate.1.o8u3thtv1ykh@runnervmidgih    | papel crm_api pronto
-migrate| crmwta_migrate.1.o8u3thtv1ykh@runnervmidgih    | pronto: empresa 380d3681-35cc-49b8-9883-bc6caa4ce1c2, superadministrador c5ea642a-6957-4835-a101-b496d9b7de82
-migrate| crmwta_migrate.1.o8u3thtv1ykh@runnervmidgih    | migrate: concluído
+migrate| crmwta_migrate.1.mc2wks7tbab3@runnervm05w4h    | aplicando 0006_canais
+migrate| crmwta_migrate.1.mc2wks7tbab3@runnervm05w4h    | aplicando 0007_automacoes
+migrate| crmwta_migrate.1.mc2wks7tbab3@runnervm05w4h    | aplicando 0008_conversas
+migrate| crmwta_migrate.1.mc2wks7tbab3@runnervm05w4h    | aplicando 0009_campanhas
+migrate| crmwta_migrate.1.mc2wks7tbab3@runnervm05w4h    | aplicando 0010_agendamentos
+migrate| crmwta_migrate.1.mc2wks7tbab3@runnervm05w4h    | aplicando 0011_meta
+migrate| crmwta_migrate.1.mc2wks7tbab3@runnervm05w4h    | aplicando 0012_meta_tokens
+migrate| crmwta_migrate.1.mc2wks7tbab3@runnervm05w4h    | aplicando 0013_resultado_das_calls
+migrate| crmwta_migrate.1.mc2wks7tbab3@runnervm05w4h    | aplicando 0014_anuncios
+migrate| crmwta_migrate.1.mc2wks7tbab3@runnervm05w4h    | aplicando 0015_kpis_fieis
+migrate| crmwta_migrate.1.mc2wks7tbab3@runnervm05w4h    | aplicando 0016_kpi_funis
+migrate| crmwta_migrate.1.mc2wks7tbab3@runnervm05w4h    | migrações aplicadas agora: 16
+migrate| crmwta_migrate.1.mc2wks7tbab3@runnervm05w4h    | papel crm_api pronto
+migrate| crmwta_migrate.1.mc2wks7tbab3@runnervm05w4h    | pronto: empresa 113b879f-c070-48f5-a911-70a90f833fc1, superadministrador b97685ad-94c6-4a4d-9353-c74772fd021e
+migrate| crmwta_migrate.1.mc2wks7tbab3@runnervm05w4h    | migrate: concluído
