@@ -1,9 +1,9 @@
-backup: cópia diária às 03:30 (UTC); próxima em Wed Oct 21 2026 03:30:00 GMT+0000 (Coordinated Universal Time)
+backup: cópia diária às 03:30 (UTC); próxima em Thu Oct 22 2026 03:30:00 GMT+0000 (Coordinated Universal Time)
 backup: copiando o banco
 backup: copiando os arquivos
-backup: cópia pronta: crm-20261021-025330-manual.tar
+backup: cópia pronta: crm-20261022-005116-manual.tar
 backup: fazendo uma cópia do estado atual antes de restaurar
-backup: cópia de segurança: crm-20261021-025336-antes-de-restaurar.tar
+backup: cópia de segurança: crm-20261022-005119-antes-de-restaurar.tar
 backup: restaurando a cópia num banco temporário
 backup: conferindo donos e permissões
 backup: aplicando as migrações desta versão
@@ -13,9 +13,9 @@ backup: restaurando os arquivos da empresa
 backup: empresa "WTA Gestão e Automações" restaurada
 backup: copiando os dados da empresa
 backup: copiando os arquivos
-backup: cópia pronta: crm-20261021-025342-empresa.tar
+backup: cópia pronta: crm-20261022-005127-empresa.tar
 backup: fazendo uma cópia do estado atual antes de restaurar
-backup: cópia de segurança: crm-20261021-025346-empresa.tar
+backup: cópia de segurança: crm-20261022-005131-empresa.tar
 backup: gravando os dados da cópia
 backup: restaurando os arquivos
 backup: empresa restaurada
