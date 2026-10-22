@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Building, Building2, CalendarDays, ChevronDown, Handshake, House, Inbox, LogOut, Menu, MessagesSquare, Settings, ShieldCheck, UserRound, Megaphone, Users, X, Zap } from 'lucide-react';
 import { Notifications } from './notifications';
+import { NewVersionBanner } from './new-version';
 import { api } from '@/lib/api';
 import { useSession } from './session';
 
@@ -81,11 +82,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           {me.user.isPlatformAdmin ? link({ href: '/plataforma', label: 'Plataforma', icon: <Building2 size={18} strokeWidth={1.75} aria-hidden /> }) : null}
           {admin && me.tenantId ? link({ href: '/configuracoes', label: 'Configurações', icon: <Settings size={18} strokeWidth={1.75} aria-hidden /> }) : null}
           {link({ href: '/conta', label: 'Minha conta', icon: <UserRound size={18} strokeWidth={1.75} aria-hidden /> })}
+          <p className="px-3 pt-2 text-[11px] text-side-muted" title="Versão instalada">versão {process.env.NEXT_PUBLIC_VERSAO ?? 'dev'}</p>
         </div>
       </nav>
       {open ? <button type="button" aria-label="Fechar menu" className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={() => setOpen(false)} /> : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
+        <NewVersionBanner />
         <header className="flex flex-wrap items-center gap-3 border-b border-line bg-surface px-4 py-3 sm:px-6">
           <button type="button" className="flex size-10 items-center justify-center rounded-[6px] border border-line lg:hidden" aria-label="Abrir menu" onClick={() => setOpen(true)}>
             <Menu size={18} />

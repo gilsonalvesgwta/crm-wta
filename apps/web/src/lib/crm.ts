@@ -124,10 +124,23 @@ export function moneyInput(cents: number | null | undefined): string {
   return (cents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export const fmtDate = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
-export const fmtDateShort = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
-export const fmtDateTime = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-export const fmtTime = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
+/**
+ * Formatador de data que nunca derruba a tela: data inválida (ou ausente) vira
+ * texto vazio em vez de lançar RangeError ("Invalid time value").
+ */
+export function safeFormat(f: Intl.DateTimeFormat): { format: (d: Date | number | string | null | undefined) => string } {
+  return {
+    format(d) {
+      if (d === null || d === undefined || d === '') return '';
+      const v = d instanceof Date ? d : new Date(d);
+      return Number.isNaN(v.getTime()) ? '' : f.format(v);
+    },
+  };
+}
+export const fmtDate = safeFormat(new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }));
+export const fmtDateShort = safeFormat(new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }));
+export const fmtDateTime = safeFormat(new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }));
+export const fmtTime = safeFormat(new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }));
 
 /** Data AAAA-MM-DD (sem fuso) para exibição. */
 /** Data sem hora (AAAA-MM-DD). Aceita também data com hora; o que não for data aparece como veio, sem quebrar a tela. */

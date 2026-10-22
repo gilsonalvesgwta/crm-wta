@@ -75,13 +75,13 @@ export function customDisplay(d: FieldDef, v: unknown): string {
   if (v === undefined || v === null || v === '') return '';
   switch (d.type) {
     case 'select': return d.options.find((o) => o.value === v)?.label ?? String(v);
-    case 'multi_select': return (v as string[]).map((x) => d.options.find((o) => o.value === x)?.label ?? x).join(', ');
+    case 'multi_select': return (Array.isArray(v) ? v : [v]).map((x) => d.options.find((o) => o.value === x)?.label ?? String(x)).join(', ');
     case 'boolean': return v ? 'Sim' : 'Não';
-    case 'currency': return money(Number(v));
+    case 'currency': return Number.isFinite(Number(v)) ? money(Number(v)) : String(v);
     case 'date': return fmtIsoDate(String(v));
     case 'phone': return phone(String(v));
-    case 'number': return Number(v).toLocaleString('pt-BR');
-    default: return String(v);
+    case 'number': return Number.isFinite(Number(v)) ? Number(v).toLocaleString('pt-BR') : String(v);
+    default: return typeof v === 'object' ? JSON.stringify(v) : String(v);
   }
 }
 
