@@ -68,7 +68,7 @@ function Home() {
   const pipe = pipelineId || activePipes[0]?.id || '';
   const qs = new URLSearchParams({ from: p.from.toISOString(), to: p.to.toISOString(), ...(pipe ? { pipelineId: pipe } : {}), ...(owner ? { ownerId: owner } : {}) });
   const summary = useLoad(() => (me.tenantId ? api<Summary>('GET', `/api/v1/dashboard?${qs}`) : Promise.resolve(null)), [qs.toString()]);
-  const todayList = useLoad(() => (can('tasks:manage') && me.tenantId ? api<Activity[]>('GET', `/api/v1/activities?status=open&due=today&limit=8&ownerId=${dir?.me ?? ''}`) : Promise.resolve([])), [dir?.me]);
+  const todayList = useLoad(() => (can('tasks:manage') && me.tenantId && dir?.me ? api<Activity[]>('GET', `/api/v1/activities?status=open&due=today&limit=8&ownerId=${dir?.me ?? ''}`) : Promise.resolve([])), [dir?.me]);
   const s = summary.data;
   const teamView = Object.values(me.permissions).some((x) => x !== 'own');
 

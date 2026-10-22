@@ -101,8 +101,15 @@ test('negócios: funil padrão, quadro, regras de etapa, ganho e perda', async (
   await expect(page.getByText(/exige campos que faltam.*Informe o valor/)).toBeVisible();
   await page.getByRole('button', { name: 'Editar' }).click();
   await page.getByRole('dialog', { name: 'Editar negócio' }).getByLabel(/^Valor/).fill('18.500,00');
+  // Com previsão de fechamento: a página continua abrindo (antes a data quebrava a tela).
+  await page.getByRole('dialog', { name: 'Editar negócio' }).getByLabel('Previsão de fechamento').fill('2026-11-15');
   await page.getByRole('dialog', { name: 'Editar negócio' }).getByRole('button', { name: 'Salvar' }).click();
   await expect(page.getByText('R$ 18.500,00').first()).toBeVisible();
+  await expect(page.getByText('15 de nov. de 2026')).toBeVisible();
+  // Editar de novo mantém a data no formulário.
+  await page.getByRole('button', { name: 'Editar' }).click();
+  await expect(page.getByRole('dialog', { name: 'Editar negócio' }).getByLabel('Previsão de fechamento')).toHaveValue('2026-11-15');
+  await page.getByRole('dialog', { name: 'Editar negócio' }).getByRole('button', { name: 'Cancelar' }).click();
   await page.getByRole('navigation', { name: 'Etapas do funil' }).getByRole('button', { name: 'Proposta' }).click();
   await expect(page.getByRole('button', { name: 'Proposta' })).toHaveAttribute('aria-current', 'step');
   await expect(page.getByText('Qualificação → Proposta')).toBeVisible();
@@ -129,8 +136,9 @@ test('negócios: funil padrão, quadro, regras de etapa, ganho e perda', async (
   await expectAccessible(page);
   await shot(page, '23-quadro');
 
-  // Perdido pede o motivo; depois reabre e ganha.
+  // Perdido pede o motivo; depois reabre e ganha. Abrir pelo quadro mostra o negócio (com a previsão).
   await page.getByRole('link', { name: /Implantação do CRM/ }).click();
+  await expect(page.getByText('15 de nov. de 2026')).toBeVisible();
   await page.getByRole('button', { name: 'Perdido' }).click();
   const lost = page.getByRole('dialog', { name: 'Marcar como perdido' });
   await expect(lost.getByRole('button', { name: 'Marcar como perdido' })).toBeDisabled();

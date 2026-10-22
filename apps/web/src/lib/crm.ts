@@ -130,10 +130,13 @@ export const fmtDateTime = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', mo
 export const fmtTime = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
 /** Data AAAA-MM-DD (sem fuso) para exibição. */
+/** Data sem hora (AAAA-MM-DD). Aceita também data com hora; o que não for data aparece como veio, sem quebrar a tela. */
 export function fmtIsoDate(s: string | null | undefined): string {
   if (!s) return '';
-  const [y, m, d] = s.split('-').map(Number);
-  return fmtDate.format(new Date(y!, m! - 1, d!));
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s));
+  if (!m) return String(s);
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return Number.isNaN(d.getTime()) ? String(s) : fmtDate.format(d);
 }
 
 const rtf = new Intl.RelativeTimeFormat('pt-BR', { numeric: 'auto' });
