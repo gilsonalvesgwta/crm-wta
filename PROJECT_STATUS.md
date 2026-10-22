@@ -23,6 +23,15 @@ Atualizado em 14 de outubro de 2026.
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
 
+### Telas blindadas e versão visível (21 out 2026)
+
+- Depois da atualização, o usuário ainda via "This page couldn't load". A versão #27 já mostrava um aviso em português nesses casos, então a interface nova não estava rodando no navegador (aba aberta antes da atualização) ou no servidor.
+- Versão (data-commit) gravada nas imagens: aparece no rodapé do menu e em /api/healthz.
+- Aviso "O CRM foi atualizado… Recarregar" quando a versão do servidor muda.
+- Todos os formatadores de data passam a ignorar datas inválidas (sem RangeError). Campos personalizados tolerantes.
+- Avisos de erro mostram a mensagem técnica, a versão e o endereço; global-error.tsx cobre erros fora das telas internas.
+- Testes: API 261; ponta a ponta 41.
+
 ### Correção: negócio com previsão de fechamento (21 out 2026)
 
 - Sintoma: "This page couldn't load" ao abrir ou mover um negócio com previsão de fechamento.

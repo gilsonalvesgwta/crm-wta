@@ -151,6 +151,34 @@ test('negócios: funil padrão, quadro, regras de etapa, ganho e perda', async (
   await expect(page.getByText(/^Ganho em/)).toBeVisible();
 });
 
+test('dado inesperado num negócio mostra um aviso, sem derrubar o CRM', async ({ page }) => {
+  await loginAdmin(page);
+  const list = await (await page.request.get(`/api/v1/deals?q=${encodeURIComponent('Implantação do CRM')}&status=all`)).json() as { items: { id: string }[] };
+  const href = `/negocios/${list.items[0]!.id}`;
+  // Datas inválidas não quebram mais a tela.
+  await page.route(/\/api\/v1\/deals\/[0-9a-f-]{36}$/, async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    await route.fulfill({ response: res, json: { ...body, expectedCloseDate: '2026-11-15T00:00:00.000Z', stageEnteredAt: 'data-quebrada', closedAt: 'x' } });
+  });
+  await page.goto(href!);
+  await expect(page.getByRole('heading', { name: /Implantação do CRM/ })).toBeVisible();
+  await expect(page.getByText('15 de nov. de 2026')).toBeVisible();
+  await page.unroute(/\/api\/v1\/deals\/[0-9a-f-]{36}$/);
+  // Qualquer outro erro de tela: aviso em português, com a mensagem, e o menu continua.
+  await page.route(/\/api\/v1\/deals\/[0-9a-f-]{36}$/, async (route) => {
+    const res = await route.fetch();
+    await route.fulfill({ response: res, json: { ...(await res.json()), participants: null } });
+  });
+  await page.goto(href!);
+  await expect(page.getByRole('heading', { name: 'Não foi possível mostrar esta tela' })).toBeVisible();
+  await expect(page.getByText(/versão: /)).toBeVisible();
+  await expect(page.getByRole('navigation').getByRole('link', { name: 'Negócios' })).toBeVisible();
+  await expect(page.getByText(/^versão /)).toBeVisible();
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
+  await expectAccessible(page);
+});
+
 test('leads: cadastrar e qualificar em negócio', async ({ page }) => {
   await loginAdmin(page);
   await nav(page, 'Leads');

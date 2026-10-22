@@ -16,12 +16,15 @@ FROM deps AS build
 # Em produção o Traefik manda /api para a API; este endereço só vale para a
 # regra de reserva da interface, dentro da rede da stack.
 ARG API_INTERNAL_URL=http://api:3001
-ENV API_INTERNAL_URL=$API_INTERNAL_URL NEXT_TELEMETRY_DISABLED=1
+# Versão publicada (data e commit), mostrada na interface e na verificação de saúde.
+ARG VERSAO=dev
+ENV API_INTERNAL_URL=$API_INTERNAL_URL NEXT_TELEMETRY_DISABLED=1 NEXT_PUBLIC_VERSAO=$VERSAO
 COPY . .
 RUN pnpm --filter @crm/api build && pnpm --filter @crm/web build
 RUN pnpm --filter @crm/api deploy --legacy --prod /out/api
 
 FROM node:24-slim AS api
+ARG VERSAO=dev
 # Cliente do PostgreSQL 18 (repositório oficial do PostgreSQL): migrações, cópia e restauração.
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
     && install -d /usr/share/postgresql-common/pgdg \
@@ -30,7 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
     && apt-get update && apt-get install -y --no-install-recommends postgresql-client-18 \
     && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
-ENV NODE_ENV=production
+ENV NODE_ENV=production VERSAO=$VERSAO
 WORKDIR /app
 COPY --from=build /out/api/node_modules ./node_modules
 COPY --from=build /out/api/package.json ./package.json

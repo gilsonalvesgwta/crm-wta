@@ -55,7 +55,7 @@ export class HealthController {
   async health() {
     const missing = await this.pending();
     if (missing.length) throw new Problem(503, `Aguardando as migrações: ${missing.join(', ')}.`, 'migrations-pending');
-    return { status: 'ok' };
+    return { status: 'ok', version: process.env.VERSAO ?? 'dev' };
   }
 
   @Public()
@@ -68,6 +68,6 @@ export class HealthController {
     }
     const missing = await this.pending();
     if (missing.length) throw new Problem(503, `Aguardando as migrações: ${missing.join(', ')}.`, 'migrations-pending');
-    return { status: 'ok', database: 'ok' };
+    return { status: 'ok', database: 'ok', version: process.env.VERSAO ?? 'dev' };
   }
 }

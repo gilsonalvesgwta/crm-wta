@@ -266,7 +266,7 @@ jobs:
           versao="$(git show -s --format=%cd --date=format:%Y.%m.%d HEAD)-$(git rev-parse --short HEAD)"
           for alvo in api web; do
             img="ghcr.io/${GITHUB_REPOSITORY}-${alvo}"
-            docker build --target "$alvo" -t "$img:$versao-${{ matrix.arch }}" .
+            docker build --target "$alvo" --build-arg VERSAO="$versao" -t "$img:$versao-${{ matrix.arch }}" .
             docker push "$img:$versao-${{ matrix.arch }}"
           done
 

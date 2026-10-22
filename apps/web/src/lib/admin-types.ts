@@ -1,3 +1,4 @@
+import { safeFormat } from './crm';
 export type RoleRef = { id: string; name: string };
 export type Member = {
   membershipId: string; userId: string; name: string; email: string; status: 'active' | 'disabled' | 'invited';
@@ -11,5 +12,5 @@ export type Team = { id: string; name: string; members: { membershipId: string; 
 
 export const SCOPE_LABEL: Record<Scope, string> = { own: 'Próprios', team: 'Equipe', tenant: 'Toda a empresa' };
 
-export const dateTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-export const dateOnly = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' });
+export const dateTime = safeFormat(new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }));
+export const dateOnly = safeFormat(new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }));
