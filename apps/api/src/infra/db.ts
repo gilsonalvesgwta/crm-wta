@@ -8,6 +8,11 @@ export type Q = {
 
 export type TenantCtx = { tenantId: string | null; userId: string | null };
 
+// Coluna "date" (sem hora) volta como texto AAAA-MM-DD. Sem isto, o driver cria
+// um Date à meia-noite do fuso do servidor e o JSON vira "2026-11-15T00:00:00.000Z",
+// que a interface não reconhece como data (e que pode até mudar de dia em outro fuso).
+pg.types.setTypeParser(pg.types.builtins.DATE, (v: string) => v);
+
 /**
  * Toda transação troca para um papel sem privilégio de dono (crm_app ou
  * crm_platform) e define o contexto. O papel de login, crm_api, não tem acesso

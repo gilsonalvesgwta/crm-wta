@@ -267,6 +267,19 @@ describe('funis e negócios', () => {
     assert.equal(r.body.owner.id, m['vendas1@a.test']);
   });
 
+  test('previsão de fechamento volta como data simples (AAAA-MM-DD) em todo lugar', async () => {
+    const r = await sales1.post('/api/v1/deals', { pipelineId: pipeline.id, title: 'Com previsão', expectedCloseDate: '2026-11-15', valueCents: 75_000_000 });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    assert.equal(r.body.expectedCloseDate, '2026-11-15');
+    assert.equal((await sales1.get(`/api/v1/deals/${r.body.id}`)).body.expectedCloseDate, '2026-11-15');
+    const up = await sales1.patch(`/api/v1/deals/${r.body.id}`, { expectedCloseDate: '2026-12-01' });
+    assert.equal(up.body.expectedCloseDate, '2026-12-01');
+    const list = await sales1.get(`/api/v1/deals?pipelineId=${pipeline.id}&q=${encodeURIComponent('Com previsão')}`);
+    const item = (list.body.items ?? list.body).find((d: { id: string }) => d.id === r.body.id);
+    assert.equal(item.expectedCloseDate, '2026-12-01');
+    assert.equal((await admin.req('DELETE', `/api/v1/deals/${r.body.id}`)).status, 204);
+  });
+
   test('etapa com campo obrigatório barra a mudança e diz o que falta', async () => {
     const r = await sales1.post(`/api/v1/deals/${deal}/move`, { stageId: stage('Proposta') });
     assert.equal(r.status, 422);

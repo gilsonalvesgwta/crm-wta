@@ -23,6 +23,15 @@ Atualizado em 14 de outubro de 2026.
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
 
+### Correção: negócio com previsão de fechamento (21 out 2026)
+
+- Sintoma: "This page couldn't load" ao abrir ou mover um negócio com previsão de fechamento.
+- Causa: o driver do banco devolvia a coluna `date` como data com hora ("2026-11-15T00:00:00.000Z"). A interface esperava "2026-11-15", a data virava inválida e a página quebrava.
+- Correção: colunas `date` voltam como texto AAAA-MM-DD; a formatação de datas não quebra mais com valor inesperado; o formulário mantém a data ao editar.
+- Telas internas ganharam um aviso de erro (error.tsx), em vez de a página inteira cair.
+- A agenda de hoje no Início não faz mais o pedido antes de saber quem é a pessoa (o pedido devolvia 422).
+- Testes: API 261; ponta a ponta 40, com o caminho editar → previsão → mudar de etapa → abrir pelo quadro.
+
 ### KPIs por funil (20 out 2026)
 
 - Um painel de KPIs para cada funil (ex.: Tráfego pago, Prospecção ativa), para não misturar os números. Contato com a etiqueta do funil é dele; reuniões e vendas dessa pessoa entram só nesse painel (decisão do usuário: etiqueta por funil).

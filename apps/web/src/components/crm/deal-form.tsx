@@ -38,7 +38,7 @@ function DealForm({ deal, pipelineId, stageId, contact, organization, onSaved, o
   const [c, setC] = useState<Ref | null>(deal?.contact ?? contact);
   const [o, setO] = useState<Ref | null>(deal?.organization ?? organization);
   const [owner, setOwner] = useState<string | null | undefined>(deal ? deal.owner?.id ?? null : undefined);
-  const [close, setClose] = useState(deal?.expectedCloseDate ?? '');
+  const [close, setClose] = useState((deal?.expectedCloseDate ?? '').slice(0, 10));
   const [tags, setTags] = useState<string[]>(deal?.tags.map((t) => t.id) ?? []);
   const [custom, setCustom] = useState<Record<string, unknown>>(deal?.custom ?? {});
   const [busy, setBusy] = useState(false);
