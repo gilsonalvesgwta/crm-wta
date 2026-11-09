@@ -6,6 +6,7 @@ import { fileSize, fmtDateTime, phone } from '@/lib/crm';
 import { CHANNEL_NAME, KIND_LABEL, KIND_NAME, STATUS_LABEL, channelOfKind, fillTemplate, renderTemplate, templateVariables, type Channel, type Message, type QuickReply, type SendAccount, type WaTemplate } from '@/lib/messages';
 import { useSession } from '@/components/shell/session';
 import { ScheduleDialog } from './schedule-dialog';
+import { MediaPreview, VoiceRecorder } from './media';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
@@ -33,50 +34,6 @@ function StatusIcon({ m }: { m: Message }) {
   return icon ? <span className="inline-flex items-center gap-1" title={label}>{icon}<span className="sr-only">{label}</span></span> : null;
 }
 
-function Attachment({ file, out, autoPlay = false }: { file: NonNullable<Message['file']>; out: boolean; autoPlay?: boolean }) {
-  const [url, setUrl] = useState<string | null>(null);
-  const retried = useRef(0);
-  const image = file.contentType.startsWith('image/');
-  const audio = file.contentType.startsWith('audio/');
-  useEffect(() => {
-    if (!image && !audio) return;
-    let alive = true;
-    api<{ url: string }>('GET', `/api/v1/files/${file.id}/url`).then((r) => { if (alive) setUrl(r.url); }).catch(() => undefined);
-    return () => { alive = false; };
-  }, [file.id, image, audio]);
-  async function open() {
-    const r = await api<{ url: string }>('GET', `/api/v1/files/${file.id}/url`);
-    window.open(r.url, '_blank', 'noopener');
-  }
-  return (
-    <div className="flex flex-col gap-1.5">
-      {image && url ? <img src={url} alt={file.name} className="max-h-60 max-w-full rounded-[6px] object-contain" /> : null}
-      {audio && url ? (
-        <audio controls autoPlay={autoPlay} preload="metadata" src={url} className="max-w-full"
-          onError={(e) => {
-            // O endereço assinado vence em minutos: pede outro e continua do mesmo ponto.
-            const el = e.currentTarget;
-            const at = el.currentTime;
-            const playing = !el.paused;
-            if (retried.current > 2) return;
-            retried.current++;
-            api<{ url: string }>('GET', `/api/v1/files/${file.id}/url`).then((r) => {
-              el.src = r.url;
-              el.currentTime = at;
-              if (playing || at > 0) void el.play().catch(() => undefined);
-            }).catch(() => undefined);
-          }}>
-          <track kind="captions" />
-        </audio>
-      ) : null}
-      <button type="button" onClick={() => void open()}
-        className={`flex items-center gap-2 self-start rounded-[6px] px-2 py-1 text-[13px] ${out ? 'bg-black/10' : 'bg-surface-2'} hover:underline`}>
-        <Download size={14} aria-hidden /><span className="max-w-[220px] truncate">{file.name}</span><span className="opacity-70">{fileSize(file.sizeBytes)}</span>
-      </button>
-    </div>
-  );
-}
-
 const MEDIA_ACTION: Record<string, string> = {
   audio: 'Ouvir áudio', image: 'Ver imagem', video: 'Ver vídeo', document: 'Abrir documento', sticker: 'Ver figurinha',
 };
@@ -91,9 +48,9 @@ function MessageMedia({ m, out }: { m: Message; out: boolean }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const shown = file ?? m.file;
-  if (shown) return <Attachment file={shown} out={out} autoPlay={!!file} />;
+  if (shown) return <MediaPreview file={shown} kind={m.kind} out={out} autoPlay={!!file && m.kind === 'audio'} />;
   const label = KIND_LABEL[m.kind] ?? 'Mensagem';
-  if (m.account?.kind !== 'whatsapp_evolution') return !m.body ? <p className="italic text-muted">{label}</p> : null;
+  if (m.account?.kind !== 'whatsapp_evolution' && m.account?.kind !== 'instagram') return !m.body ? <p className="italic text-muted">{label}</p> : null;
   async function load() {
     setBusy(true);
     setErr(null);
@@ -166,6 +123,9 @@ export function MessageThread({ contactId, contactName, conversation, target, ca
   const [subject, setSubject] = useState('');
   const [text, setText] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  // Áudio gravado no CRM (vai como mensagem de voz).
+  const [voice, setVoice] = useState<File | null>(null);
+  const [voiceUrl, setVoiceUrl] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState<ApiError | null>(null);
   const [replies, setReplies] = useState<QuickReply[] | null>(null);
@@ -263,6 +223,12 @@ export function MessageThread({ contactId, contactName, conversation, target, ca
     if (m) { setPicker({ query: m[1] ?? '', viaButton: false }); setActive(0); } else if (picker && !picker.viaButton) setPicker(null);
   }
 
+  function keepVoice(f: File | null) {
+    setVoice(f);
+    setVoiceUrl((old) => { if (old) URL.revokeObjectURL(old); return f ? URL.createObjectURL(f) : null; });
+    if (f) setFile(null);
+  }
+
   async function submit(e?: FormEvent) {
     e?.preventDefault();
     if (!account || sending) return;
@@ -272,11 +238,12 @@ export function MessageThread({ contactId, contactName, conversation, target, ca
       const fields = { accountId, to: isInstagram ? '' : to || options[0] || '', text, subject: isEmail ? subject : '' };
       const m = tpl && isCloud
         ? await api<Message>('POST', `${base}/messages`, { accountId, to: fields.to || null, templateId: tpl.t.id, templateParams: tpl.params.slice(0, tplVars) })
+        : voice ? await sendWithFile(base, { ...fields, voice: '1' }, voice)
         : file ? await sendWithFile(base, fields, file)
         : await api<Message>('POST', `${base}/messages`, { accountId, to: fields.to || null, text, subject: isEmail ? subject : null });
       setItems((cur) => [...(cur ?? []), m]);
       if (m.status === 'failed') setErr(new ApiError(0, 'send-failed', m.error ?? 'A mensagem não foi enviada.'));
-      else { setText(''); setSubject(''); setFile(null); setTpl(null); setTplOpen(false); }
+      else { setText(''); setSubject(''); setFile(null); keepVoice(null); setTpl(null); setTplOpen(false); }
       activity.current?.();
     } catch (e2) {
       const er = e2 instanceof ApiError ? e2 : new ApiError(0, 'error', 'Não foi possível enviar.');
@@ -438,10 +405,18 @@ export function MessageThread({ contactId, contactName, conversation, target, ca
               className="resize-y rounded-[6px] border border-line-strong bg-surface px-3 py-2 text-sm" />
             <span id={`dica-${contactId}`} className="sr-only">Digite barra para buscar uma resposta pronta; use as setas e Enter para escolher.</span>
             <input ref={fileInput} type="file" className="sr-only" tabIndex={-1} aria-label="Anexar arquivo à mensagem"
-              onChange={(e) => { setFile(e.target.files?.[0] ?? null); e.target.value = ''; }} />
+              onChange={(e) => { setFile(e.target.files?.[0] ?? null); keepVoice(null); e.target.value = ''; }} />
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-2">
-                {!isInstagram ? <Button type="button" variant="ghost" onClick={() => fileInput.current?.click()}><Paperclip size={16} aria-hidden />Anexar</Button> : null}
+                {!voice ? <Button type="button" variant="ghost" onClick={() => fileInput.current?.click()}><Paperclip size={16} aria-hidden />Anexar</Button> : null}
+                {!isEmail && !voice && !file && !tpl ? <VoiceRecorder disabled={!account || options.length === 0} onRecorded={keepVoice}
+                  onError={(msg) => setErr(new ApiError(0, 'voice', msg))} /> : null}
+                {voice && voiceUrl ? (
+                  <span className="flex min-w-0 items-center gap-1 rounded-[6px] bg-surface-2 px-2 py-1 text-[13px]">
+                    <audio controls src={voiceUrl} className="h-8 max-w-[220px]" aria-label="Ouvir a gravação antes de enviar"><track kind="captions" /></audio>
+                    <button type="button" aria-label="Descartar a gravação" onClick={() => keepVoice(null)}><X size={14} aria-hidden /></button>
+                  </span>
+                ) : null}
                 {isCloud ? <Button type="button" variant="ghost" aria-expanded={tplOpen} onClick={() => (tplOpen ? (setTplOpen(false), setTpl(null)) : void openTemplates())}><FileText size={16} aria-hidden />Modelo</Button> : null}
                 <Button type="button" variant="ghost" aria-expanded={!!picker} aria-controls={picker ? pickerId : undefined}
                   onClick={() => { setPicker(picker ? null : { query: '', viaButton: true }); setActive(0); }}>
@@ -455,11 +430,11 @@ export function MessageThread({ contactId, contactName, conversation, target, ca
                 ) : null}
               </div>
               <div className="flex gap-2">
-                {can('scheduled:manage') && !file ? (
+                {can('scheduled:manage') && !file && !voice ? (
                   <Button type="button" variant="secondary" disabled={!account || options.length === 0 || !text.trim() || (isEmail && !subject.trim())}
                     onClick={() => setScheduling(true)}><CalendarClock size={16} aria-hidden />Agendar</Button>
                 ) : null}
-                <Button type="submit" loading={sending} disabled={!account || options.length === 0 || (tpl ? !tplReady : (!text.trim() && !file) || (isEmail && !subject.trim()))}>
+                <Button type="submit" loading={sending} disabled={!account || options.length === 0 || (tpl ? !tplReady : (!text.trim() && !file && !voice) || (isEmail && !subject.trim()))}>
                   <Send size={16} aria-hidden />Enviar
                 </Button>
               </div>

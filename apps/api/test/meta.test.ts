@@ -1,6 +1,10 @@
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { base32Decode, totpAt } from '../src/domain/totp.js';
 import { DispatcherService } from '../src/crm/dispatcher.service.js';
@@ -9,6 +13,14 @@ import { FakeMeta } from './fakes.js';
 
 const TOKEN = 'EAAG-token-de-teste';
 const SECRET = 'segredo-do-app-de-teste';
+/** Áudio curto gerado pelo ffmpeg (WebM/Opus como o do navegador, ou M4A). */
+function audioFixture(kind: 'webm' | 'm4a'): Buffer {
+  const out = path.join(tmpdir(), `crm-teste-${process.pid}-${kind}.${kind}`);
+  const codec = kind === 'webm' ? ['-c:a', 'libopus', '-f', 'webm'] : ['-c:a', 'aac', '-f', 'ipod'];
+  const r = spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1', ...codec, out]);
+  assert.equal(r.status, 0, String(r.stderr));
+  return readFileSync(out);
+}
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==', 'base64');
 
 let f: Fixture;
@@ -319,6 +331,52 @@ describe('Instagram', () => {
       { sender: { id: '912345678901' }, recipient: { id: '17841400000099' }, timestamp: Date.now(), message: { mid: 'mid.IN2', text: 'Outra' } }] }] };
     assert.equal((await hook(igHook, body, 'chave-do-app-do-instagram')).status, 200);
     assert.equal((await hook(igHook, body, 'chave-errada')).status, 403);
+  });
+
+  test('mídia do direct: áudio, arquivo buscado de novo, reels; responder com áudio gravado', async () => {
+    const at = Date.now();
+    const att = (mid: string, type: string, url: string) => ({ object: 'instagram', entry: [{ id: '17841400000099', time: at, messaging: [
+      { sender: { id: '912345678901' }, recipient: { id: '17841400000099' }, timestamp: at, message: { mid, attachments: [{ type, payload: { url } }] } }] }] });
+    const m4a = audioFixture('m4a');
+    meta.media.set('media-aud1', { data: m4a, type: 'audio/mp4' });
+    assert.equal((await hook(igHook, att('mid.AUD1', 'audio', `${meta.url}/media-file/media-aud1`))).body.handled, 1);
+    const PDF = Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n');
+    // O arquivo ainda não está no endereço: a mensagem fica com o endereço para buscar depois.
+    await hook(igHook, att('mid.PDF1', 'file', `${meta.url}/media-file/media-pdf1`));
+    meta.media.set('media-reel', { data: PNG, type: 'image/png' });
+    await hook(igHook, att('mid.SHARE1', 'share', `${meta.url}/media-file/media-reel`));
+    const rows = (await f.admin.query<{ external_id: string; kind: string; file_id: string | null; media_url: string | null; id: string }>(
+      "select id, external_id, kind, file_id, media_url from messages where external_id in ('mid.AUD1', 'mid.PDF1', 'mid.SHARE1')")).rows;
+    const by = (x: string) => rows.find((r) => r.external_id === x)!;
+    assert.equal(by('mid.AUD1').kind, 'audio');
+    assert.ok(by('mid.AUD1').file_id, 'o áudio fica guardado para tocar no CRM');
+    assert.equal(by('mid.SHARE1').kind, 'image', 'publicação compartilhada aparece como imagem');
+    assert.equal(by('mid.PDF1').file_id, null);
+    assert.match(by('mid.PDF1').media_url!, /media-pdf1$/);
+    meta.media.set('media-pdf1', { data: PDF, type: 'application/pdf' });
+    const got = await admin.post(`/api/v1/messages/${by('mid.PDF1').id}/media`);
+    assert.equal(got.status, 200, JSON.stringify(got.body));
+    assert.equal(got.body.kind, 'document');
+    assert.equal(got.body.file.contentType, 'application/pdf');
+
+    // Responder com áudio gravado no navegador (WebM): vai como M4A pelo link assinado.
+    const conv = (await admin.get('/api/v1/conversations?channel=instagram')).body.items[0].id;
+    const boundary = '----crmvoz';
+    const body = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="accountId"\r\n\r\n${ig}\r\n`),
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="voice"\r\n\r\n1\r\n`),
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="gravacao.webm"\r\nContent-Type: audio/webm\r\n\r\n`),
+      audioFixture('webm'), Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+    const r = await admin.req('POST', `/api/v1/conversations/${conv}/messages/file`, body, { 'content-type': `multipart/form-data; boundary=${boundary}`, 'x-crm-request': '1' });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    assert.equal(r.body.kind, 'audio');
+    assert.match(r.body.file.name, /\.m4a$/);
+    const out = meta.sent.at(-1)!.body as { message: { attachment: { type: string; payload: { url: string } } } };
+    assert.equal(out.message.attachment.type, 'audio');
+    const file = await app.inject({ method: 'GET', url: new URL(out.message.attachment.payload.url).pathname });
+    assert.equal(file.statusCode, 200, 'o Instagram consegue buscar o áudio');
+    assert.equal(file.rawPayload.subarray(4, 8).toString(), 'ftyp', 'áudio em MP4/M4A');
   });
 
   test('o token do Instagram é renovado sozinho antes dos 60 dias', async () => {

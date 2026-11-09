@@ -23,6 +23,13 @@ Atualizado em 9 de novembro de 2026.
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
 
+### Mídia nas conversas e áudio gravado (9 nov 2026)
+
+- Imagem abre ampliada numa janela; vídeo e áudio tocam no CRM; PDF abre no leitor, sem baixar.
+- Instagram: áudio, vídeo, arquivo, reels e publicação compartilhados são reconhecidos; o endereço da mídia fica guardado e o arquivo pode ser buscado de novo ("Abrir documento"). Mensagens antigas que chegaram sem arquivo não têm o endereço guardado.
+- Botão "Gravar áudio" no WhatsApp (Evolution e oficial, como mensagem de voz) e no Instagram; envio de imagem, vídeo e PDF pelo Instagram.
+- Imagem da API ganha o ffmpeg. Migração 0019 só acrescenta `messages.media_url`.
+
 ### Instagram estilo Manychat e modelos do WhatsApp com mídia (9 nov 2026)
 
 - Menu novo **Instagram**: Fluxos, Resultados, Mídias, Contatos e Diagnóstico. Nada do que já existia mudou.

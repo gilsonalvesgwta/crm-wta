@@ -277,3 +277,45 @@ test('modelo do WhatsApp oficial com imagem, rodapé e botões de link e telefon
   expect(tpl.components[0]!.format).toBe('IMAGE');
   expect(tpl.components.at(-1)!.buttons!.map((b) => b.type)).toEqual(['URL', 'PHONE_NUMBER']);
 });
+
+test('mídia do direct no CRM: imagem ampliada, PDF e vídeo na janela, áudio no player; gravar e mandar áudio', async ({ page }) => {
+  await loginAdmin(page);
+  const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
+  const fake = async (id: string, base64: string, type: string) =>
+    ((await (await page.request.post(`${FAKE}/__fake/media`, { data: { id, base64, type } })).json()) as { url: string }).url;
+  const PDF = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n').toString('base64');
+  const urls = { img: await fake('e2e-img', PNG, 'image/png'), pdf: await fake('e2e-pdf', PDF, 'application/pdf') };
+  let n = 0;
+  for (const [type, url] of [['image', urls.img], ['file', urls.pdf]] as const) {
+    await hook(page, igHook, { object: 'instagram', entry: [{ id: '17841400000777', time: Date.now(), messaging: [
+      { sender: { id: '955500011122' }, recipient: { id: '17841400000777' }, timestamp: Date.now() + ++n, message: { mid: `mid.E2EMEDIA${n}`, attachments: [{ type, payload: { url } }] } }] }] });
+  }
+  await page.goto('/conversas?st=all');
+  await page.getByRole('group', { name: 'Canal' }).getByRole('button', { name: 'Instagram' }).click();
+  await page.getByRole('region', { name: 'Lista de conversas' }).getByRole('button', { name: /Cliente Insta/ }).click();
+  const thread = page.getByRole('list', { name: 'Mensagens' });
+
+  await thread.getByRole('button', { name: /Ampliar a imagem/ }).click();
+  const viewer = page.getByRole('dialog', { name: /^Ver / });
+  await expect(viewer.locator('img')).toBeVisible();
+  await shot(page, '77-imagem-ampliada');
+  await viewer.getByRole('button', { name: 'Fechar' }).click();
+  await thread.getByRole('button', { name: /Ver documento/ }).click();
+  await expect(page.getByRole('dialog', { name: /^Ver / }).locator('iframe')).toBeVisible();
+  await shot(page, '78-pdf-no-crm');
+  await page.getByRole('dialog', { name: /^Ver / }).getByRole('button', { name: 'Fechar' }).click();
+
+  // Gravar áudio (microfone falso do navegador) e mandar pelo Instagram.
+  await page.getByRole('button', { name: 'Gravar áudio' }).click();
+  await expect(page.getByText(/Gravando/)).toBeVisible();
+  await page.waitForTimeout(1500);
+  await page.getByRole('button', { name: 'Parar a gravação' }).click();
+  await expect(page.getByLabel('Ouvir a gravação antes de enviar')).toBeVisible();
+  await expectAccessible(page);
+  await shot(page, '79-gravacao-pronta');
+  await page.getByRole('button', { name: 'Enviar', exact: true }).click();
+  await expect(thread.locator('audio').last()).toBeVisible();
+  const last = (await sent(page)).at(-1)!;
+  expect((last.body.message as { attachment: { type: string } }).attachment.type).toBe('audio');
+  await expectAccessible(page);
+});

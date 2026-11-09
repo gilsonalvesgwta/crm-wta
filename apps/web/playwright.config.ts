@@ -14,8 +14,12 @@ export default defineConfig({
     timezoneId: 'America/Sao_Paulo',
     trace: 'off',
     screenshot: 'only-on-failure',
-    // Ambiente de desenvolvimento: Chromium já instalado fora do Playwright.
-    ...(process.env.PW_CHROMIUM ? { launchOptions: { executablePath: process.env.PW_CHROMIUM } } : {}),
+    // Microfone falso (gravar áudio nas conversas); no desenvolvimento, o Chromium já instalado fora do Playwright.
+    launchOptions: {
+      args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
+      ...(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {}),
+    },
+    permissions: ['microphone'],
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 });

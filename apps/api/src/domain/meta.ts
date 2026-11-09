@@ -165,8 +165,7 @@ export function readInstagramWebhook(body: unknown): IgMessage[] {
       const id = str(message?.mid);
       if (!message || !sender || !recipient || !id || message.is_deleted) continue;
       const attachments = arr(message.attachments).map((a) => ({ type: str(obj(a)?.type) ?? 'file', url: str(obj(obj(a)?.payload)?.url) ?? '' })).filter((a) => a.url);
-      const kind = message.text ? 'text' : attachments[0]?.type === 'image' ? 'image' : attachments[0]?.type === 'video' ? 'video'
-        : attachments[0]?.type === 'audio' ? 'audio' : attachments.length ? 'document' : 'other';
+      const kind = message.text ? 'text' : attachments.length ? igKind(attachments[0]!.type) : 'other';
       const ts = Number(m?.timestamp);
       const story = obj(obj(message.reply_to)?.story);
       const mention = arr(message.attachments).map(obj).find((a) => a?.type === 'story_mention');
@@ -178,6 +177,27 @@ export function readInstagramWebhook(body: unknown): IgMessage[] {
     }
   }
   return out;
+}
+
+/**
+ * Tipo da mensagem do Instagram pelo anexo: reels compartilhado é vídeo;
+ * publicação compartilhada e menção em story são imagem; arquivo é documento.
+ */
+export function igKind(type: string): 'image' | 'video' | 'audio' | 'document' {
+  if (type === 'image' || type === 'share' || type === 'ig_post' || type === 'story_mention' || type === 'animated_image') return 'image';
+  if (type === 'video' || type === 'ig_reel' || type === 'reel') return 'video';
+  if (type === 'audio') return 'audio';
+  return 'document';
+}
+
+/** Tipo da mensagem corrigido pelo arquivo que chegou (o anexo às vezes vem com outro nome). */
+export function kindFromContent(kind: string, contentType: string): string {
+  const t = contentType.split(';')[0]!.trim();
+  if (kind === 'audio' && (t.startsWith('audio/') || t === 'video/mp4')) return 'audio';
+  if (t.startsWith('image/')) return 'image';
+  if (t.startsWith('video/')) return 'video';
+  if (t.startsWith('audio/')) return 'audio';
+  return kind === 'image' || kind === 'video' || kind === 'audio' ? 'document' : kind;
 }
 
 /** Assinatura dos avisos (X-Hub-Signature-256) com o segredo do app. */

@@ -12,3 +12,13 @@ select t.ok(t.affected($$insert into whatsapp_templates (tenant_id, channel_acco
   values (t.a(), t.id(t.a(), 25), 'com_imagem', 'pt_BR', 'MARKETING', 'Oferta', 'IMAGE', 'https://scontent.whatsapp.net/a.jpg')$$) = 1, 'modelo com imagem no cabeçalho');
 select t.ctx(null, null);
 reset role;
+
+-- Endereço da mídia das mensagens do Instagram.
+set role crm_app;
+select t.ctx(t.a(), t.ua());
+select t.throws($$insert into messages (tenant_id, channel, direction, status, contact_id, remote, body, kind, media_url)
+  values (t.a(), 'instagram', 'in', 'received', t.id(t.a(), 2), '17841400000001', null, 'image', 'javascript:alert(1)')$$, '23514', 'endereço da mídia só http(s)');
+select t.ok(t.affected($$insert into messages (tenant_id, channel, direction, status, contact_id, remote, kind, media_url)
+  values (t.a(), 'instagram', 'in', 'received', t.id(t.a(), 2), '17841400000001', 'audio', 'https://lookaside.fbsbx.com/ig_messaging_cdn/?asset_id=1')$$) = 1, 'mensagem com o endereço da mídia');
+select t.ctx(null, null);
+reset role;

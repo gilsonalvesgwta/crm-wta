@@ -5,7 +5,7 @@ import { createServer as netServer, type Server as NetServer } from 'node:net';
 import type { AddressInfo } from 'node:net';
 
 export type FakeInstance = { name: string; webhook: string; state: string; owner: string | null; deleted?: boolean };
-export type FakeSend = { instance: string; type: 'text' | 'media'; body: Record<string, unknown> };
+export type FakeSend = { instance: string; type: 'text' | 'media' | 'audio'; body: Record<string, unknown> };
 
 export class FakeEvolution {
   readonly instances = new Map<string, FakeInstance>();
@@ -81,8 +81,9 @@ export class FakeEvolution {
           }
           case 'POST /webhook/set': inst.webhook = (body.webhook as { url: string }).url; return send(201, { webhook: body.webhook });
           case 'POST /message/sendText':
-          case 'POST /message/sendMedia': {
-            this.sent.push({ instance: name, type: key.endsWith('sendText') ? 'text' : 'media', body });
+          case 'POST /message/sendMedia':
+          case 'POST /message/sendWhatsAppAudio': {
+            this.sent.push({ instance: name, type: key.endsWith('sendText') ? 'text' : key.endsWith('sendWhatsAppAudio') ? 'audio' : 'media', body });
             const id = `3EB0FAKE${++this.n}`;
             return send(201, { key: { remoteJid: `${String(body.number)}@s.whatsapp.net`, fromMe: true, id }, status: 'PENDING', messageTimestamp: Math.floor(Date.now() / 1000) });
           }
@@ -233,6 +234,11 @@ export class FakeMeta {
         };
         const u = new URL(req.url ?? '/', 'http://x');
         if (u.pathname === '/__fake/state') return send(200, { sent: this.sent, templates: this.templates });
+        if (u.pathname === '/__fake/media' && req.method === 'POST') {
+          const b = JSON.parse(raw.toString('utf8') || '{}') as { id: string; base64: string; type: string };
+          this.media.set(b.id, { data: Buffer.from(b.base64, 'base64'), type: b.type });
+          return send(200, { url: `${this.url}/media-file/${b.id}` });
+        }
         if (u.pathname === '/__fake/approve' && req.method === 'POST') {
           for (const t of this.templates) if (t.status === 'PENDING') t.status = 'APPROVED';
           return send(200, { ok: true });

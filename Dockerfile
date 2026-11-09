@@ -26,12 +26,13 @@ RUN pnpm --filter @crm/api deploy --legacy --prod /out/api
 FROM node:24-slim AS api
 ARG VERSAO=dev
 # Cliente do PostgreSQL 18 (repositório oficial do PostgreSQL): migrações, cópia e restauração.
+# ffmpeg: converte o áudio gravado no CRM para o formato do WhatsApp e do Instagram.
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
     && install -d /usr/share/postgresql-common/pgdg \
     && curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc \
     && . /etc/os-release \
     && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
-    && apt-get update && apt-get install -y --no-install-recommends postgresql-client-18 \
+    && apt-get update && apt-get install -y --no-install-recommends postgresql-client-18 ffmpeg \
     && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production VERSAO=$VERSAO
 WORKDIR /app

@@ -9,7 +9,8 @@ import { Problem } from '../http/problem.js';
 import { Db, pgCode, type Q } from '../infra/db.js';
 import { Evolution, EvolutionError } from '../infra/evolution.js';
 import { Meta, MetaError, type MetaHost } from '../infra/meta.js';
-import { renderTemplate, templateVariables, type IgMessage } from '../domain/meta.js';
+import { AudioError, convertVoice } from '../infra/audio.js';
+import { kindFromContent, renderTemplate, templateVariables, type IgMessage } from '../domain/meta.js';
 import { sendTenantMail, SmtpError, textToHtml } from '../infra/tenant-mail.js';
 import { memberJson } from './fields.js';
 import { FilesService } from './files.service.js';
@@ -19,6 +20,8 @@ export type SendInput = {
   accountId: string; to?: string | null; text?: string | null; subject?: string | null;
   /** WhatsApp oficial: modelo aprovado e os valores de {{1}}, {{2}}… */
   templateId?: string | null; templateParams?: string[] | null;
+  /** Áudio gravado no CRM: mensagem de voz. */
+  voice?: boolean | null;
 };
 
 /** Canal de cada tipo de conta. */
@@ -58,6 +61,22 @@ const EXT: Record<string, string> = {
 };
 
 const MEDIA_KINDS = new Set(['image', 'audio', 'video', 'document', 'sticker']);
+
+/** Tipo de anexo do Instagram para o arquivo (nulo se o Instagram não aceita). */
+function igAttachmentType(contentType: string, voice: boolean): 'image' | 'video' | 'audio' | 'file' | null {
+  const t = contentType.split(';')[0]!.trim();
+  if (voice) return 'audio';
+  if (/^image\/(jpeg|png|gif)$/.test(t)) return 'image';
+  if (/^video\/(mp4|quicktime|webm)$/.test(t)) return 'video';
+  if (/^audio\/(mp4|x-m4a|aac|wav|mpeg)$/.test(t)) return 'audio';
+  if (t === 'application/pdf') return 'file';
+  return null;
+}
+
+/** Endereço da mídia do Instagram que vale guardar (o domínio é conferido na hora de baixar). */
+function igMediaUrl(u: string | undefined): string | null {
+  return u && /^https?:\/\/\S+$/.test(u) && u.length <= 4000 ? u : null;
+}
 
 type TemplateRow = {
   name: string; language: string; body: string; header: string | null; header_format: string | null; header_file_id: string | null;
@@ -189,6 +208,17 @@ export class MessagesService {
     const ctx = actor ? tenantCtx(actor) : { tenantId: by.tenantId, userId: null };
     let text = input.text?.trim() || null;
     if (!text && !file && !input.templateId) throw Problem.badRequest('Mensagem vazia.', [{ field: 'text', message: 'Escreva a mensagem ou anexe um arquivo.' }]);
+    // Áudio gravado no CRM: Ogg/Opus para o WhatsApp (mensagem de voz) e M4A para o Instagram.
+    if (file && input.voice) {
+      const kind = (await this.db.app(ctx, (q) => q.query<{ kind: string }>('select kind from channel_accounts where id = $1', [input.accountId]))).rows[0]?.kind;
+      if (kind === 'email_smtp') throw Problem.badRequest('Áudio gravado não vai por e-mail.', [{ field: 'file', message: 'Use WhatsApp ou Instagram.' }]);
+      const target = kind === 'instagram' ? 'm4a' : 'ogg';
+      try {
+        file = { name: `audio-${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')}.${target}`, data: await convertVoice(file.data, target) };
+      } catch (err) {
+        throw Problem.badRequest(err instanceof AudioError ? err.message : 'Não foi possível converter o áudio.', [{ field: 'file', message: 'Grave de novo.' }]);
+      }
+    }
 
     // 1. Registra a mensagem como "na fila", com tudo conferido.
     const prep = await this.db.app(ctx, async (q) => {
@@ -251,7 +281,6 @@ export class MessagesService {
             : 'Passaram 24 horas da última mensagem do cliente (ou ele nunca escreveu): no WhatsApp oficial, comece com um modelo aprovado.',
           'outside-window');
         }
-        if (a.kind === 'instagram' && file) throw Problem.badRequest('Arquivo não suportado.', [{ field: 'file', message: 'Envio de arquivo pelo Instagram ainda não é suportado.' }]);
       }
 
       let fileId: string | null = null;
@@ -259,13 +288,16 @@ export class MessagesService {
       if (file) {
         fileId = await this.files.storeIn(q, actor!, { name: file.name, data: file.data, purpose: 'message', ref: { kind: 'contact', id: contactId } });
         contentType = (await q.query<{ content_type: string }>('select content_type from files where id = $1', [fileId])).rows[0]!.content_type;
+        if (a.kind === 'instagram' && !igAttachmentType(contentType, !!input.voice)) {
+          throw Problem.badRequest('Arquivo não aceito pelo Instagram.', [{ field: 'file', message: 'O Instagram aceita imagem (JPG, PNG, GIF), vídeo (MP4, MOV), áudio (M4A, AAC, WAV) e PDF.' }]);
+        }
       }
-      const kind = contentType ? kindOf(contentType) : 'text';
+      const kind = input.voice && file ? 'audio' : contentType ? kindOf(contentType) : 'text';
       const m = await q.query<{ id: string }>(
         `insert into messages (tenant_id, channel_account_id, channel, direction, status, contact_id, remote, subject, body, kind, file_id, sent_by, automation_rule_id, campaign_id)
          values (app.tenant_id(), $1, $2, 'out', 'queued', $3, $4, $5, $6, $7, $8, $9, $10, $11) returning id`,
         [a.id, channel, contactId, to, channel === 'email' ? input.subject!.trim() : null, text, kind, fileId, actor?.membershipId ?? by.sentBy ?? null, by.automationRuleId, by.campaignId ?? null]);
-      return { id: m.rows[0]!.id, account: a, channel, to, kind, contentType, template };
+      return { id: m.rows[0]!.id, account: a, channel, to, kind, contentType, template, fileId };
     });
 
     // 2. Entrega pelo canal, fora da transação.
@@ -302,10 +334,21 @@ export class MessagesService {
         }
       } else if (prep.account.kind === 'instagram') {
         const c = this.metaCreds(prep.account.id, prep.account.secret);
-        externalId = await this.meta.igSend(prep.account.external_id!, c.token, (prep.account.config.host as MetaHost) ?? 'instagram', prep.to, text!);
+        const host = (prep.account.config.host as MetaHost) ?? 'instagram';
+        if (prep.fileId) {
+          // O Instagram busca o arquivo pelo link assinado (vale 1 hora).
+          const type = igAttachmentType(prep.contentType!, !!input.voice)!;
+          externalId = (await this.meta.igSendMessage(prep.account.external_id!, c.token, host, { id: prep.to },
+            { attachment: { type, payload: { url: this.files.publicUrl(by.tenantId, prep.fileId, 3600) } } })).messageId;
+          if (text?.trim()) await this.meta.igSend(prep.account.external_id!, c.token, host, prep.to, text);
+        } else {
+          externalId = await this.meta.igSend(prep.account.external_id!, c.token, host, prep.to, text!);
+        }
       } else if (prep.channel === 'whatsapp') {
         const number = toEvolutionNumber(prep.to);
-        if (file) {
+        if (file && input.voice) {
+          externalId = await this.evo.sendAudio(prep.account.external_id!, number, file.data.toString('base64'));
+        } else if (file) {
           externalId = await this.evo.sendMedia(prep.account.external_id!, number, {
             mediatype: prep.kind === 'image' || prep.kind === 'video' || prep.kind === 'audio' ? prep.kind : 'document',
             mimetype: prep.contentType!, base64: file.data.toString('base64'), fileName: file.name, caption: text ?? undefined,
@@ -473,14 +516,14 @@ export class MessagesService {
         await q.query(`update contact_handles set username = $2 where kind = 'instagram' and value = $1 and username is distinct from $2`, [igsid, username]);
       }
       const ins = await q.query<{ id: string }>(
-        `insert into messages (tenant_id, channel_account_id, channel, direction, status, contact_id, external_id, remote, body, kind, created_at, sent_at)
-         values (app.tenant_id(), $1, 'instagram', $2, $3, $4, $5, $6, $7, $8, $9, case when $2 = 'out' then $9::timestamptz end)
+        `insert into messages (tenant_id, channel_account_id, channel, direction, status, contact_id, external_id, remote, body, kind, created_at, sent_at, media_url)
+         values (app.tenant_id(), $1, 'instagram', $2, $3, $4, $5, $6, $7, $8, $9, case when $2 = 'out' then $9::timestamptz end, $10)
          on conflict (channel_account_id, external_id) where external_id is not null and channel_account_id is not null do nothing
          returning id`,
-        [accountId, ev.fromMe ? 'out' : 'in', ev.fromMe ? 'sent' : 'received', contactId, ev.id, igsid, ev.text, ev.kind, ev.at]);
+        [accountId, ev.fromMe ? 'out' : 'in', ev.fromMe ? 'sent' : 'received', contactId, ev.id, igsid, ev.text, ev.kind, ev.at, igMediaUrl(ev.attachments[0]?.url)]);
       const messageId = ins.rows[0]?.id;
       if (!messageId) return 'duplicate';
-      if (extra.media) await this.attachMedia(q, tenantId, contactId, messageId, extra.media.data, extra.media.mimetype, null, `instagram-${ev.kind}`);
+      if (extra.media) await this.attachMedia(q, tenantId, contactId, messageId, extra.media.data, extra.media.mimetype, null, `instagram-${ev.kind}`, true);
       await q.query(`insert into timeline_entries (tenant_id, kind, contact_id, data) values (app.tenant_id(), $1, $2, $3)`,
         [ev.fromMe ? 'message.sent' : 'message.received', contactId, JSON.stringify({ messageId, channel: 'instagram', newContact: created })]);
       await q.query('update contacts set last_activity_at = now() where id = $1', [contactId]);
@@ -497,8 +540,8 @@ export class MessagesService {
    */
   async fetchMedia(actor: Actor, messageId: string) {
     const m = await this.db.app(tenantCtx(actor), async (q) => {
-      const r = (await q.query<{ contact_id: string; kind: string; file_id: string | null; external_id: string | null; account_kind: string | null; instance: string | null; account_id: string | null }>(
-        `select m.contact_id, m.kind, m.file_id, m.external_id, a.kind as account_kind, a.external_id as instance, a.id as account_id
+      const r = (await q.query<{ contact_id: string; kind: string; file_id: string | null; external_id: string | null; account_kind: string | null; instance: string | null; account_id: string | null; media_url: string | null }>(
+        `select m.contact_id, m.kind, m.file_id, m.external_id, m.media_url, a.kind as account_kind, a.external_id as instance, a.id as account_id
            from messages m left join channel_accounts a on a.id = m.channel_account_id where m.id = $1`, [messageId])).rows[0];
       if (!r) throw Problem.notFound('Mensagem não encontrada.');
       await this.records.assertAccess(q, actor, { kind: 'contact', id: r.contact_id }, false);
@@ -506,6 +549,14 @@ export class MessagesService {
     });
     if (!m.file_id) {
       if (!MEDIA_KINDS.has(m.kind)) throw Problem.badRequest('Esta mensagem não tem arquivo.');
+      if (m.account_kind === 'instagram') {
+        if (!m.media_url) throw new Problem(409, 'O Instagram não mandou o endereço deste arquivo.', 'media-unavailable');
+        const media = await this.meta.fetchMedia(m.media_url, null, this.cfg.UPLOAD_MAX_MB * 1024 * 1024).catch(() => null);
+        const ok = media && await this.db.app(tenantCtx(actor), (q) =>
+          this.attachMedia(q, actor.tenantId!, m.contact_id, messageId, media.data, media.mimetype, null, `instagram-${m.kind}`, true));
+        if (!ok) throw new Problem(409, 'O Instagram não devolveu o arquivo desta mensagem. O link dele pode ter expirado.', 'media-unavailable');
+        return this.db.app(tenantCtx(actor), (q) => this.row(q, messageId));
+      }
       if (m.account_kind !== 'whatsapp_evolution' || !m.instance || !m.external_id || !m.account_id) {
         throw new Problem(409, 'O arquivo desta mensagem não está mais disponível.', 'media-unavailable');
       }
@@ -535,18 +586,26 @@ export class MessagesService {
     });
   }
 
-  private async attachMedia(q: Q, tenantId: string, contactId: string, messageId: string, data: Buffer, mimetype: string | null, fileName: string | null, prefix: string) {
-    if (!data.length || data.length > this.cfg.UPLOAD_MAX_MB * 1024 * 1024) return;
+  private async attachMedia(q: Q, tenantId: string, contactId: string, messageId: string, data: Buffer, mimetype: string | null, fileName: string | null, prefix: string, fixKind = false) {
+    if (!data.length || data.length > this.cfg.UPLOAD_MAX_MB * 1024 * 1024) return false;
     const ext = (mimetype && EXT[mimetype.split(';')[0]!.trim()]) ?? 'bin';
     try {
       await q.query('savepoint midia');
       const fileId = await this.files.storeIn(q, { tenantId, membershipId: null } as unknown as Actor,
         { name: fileName ?? `${prefix}.${ext}`, data, purpose: 'message', ref: { kind: 'contact', id: contactId } });
       await q.query('update messages set file_id = $1 where id = $2', [fileId, messageId]);
+      if (fixKind) {
+        // Instagram: o tipo vem do nome do anexo; o arquivo diz o que ele é de verdade.
+        const f = (await q.query<{ content_type: string; kind: string }>(
+          'select f.content_type, m.kind from files f join messages m on m.file_id = f.id where m.id = $1', [messageId])).rows[0];
+        if (f) await q.query('update messages set kind = $2 where id = $1 and kind <> $2', [messageId, kindFromContent(f.kind, f.content_type)]);
+      }
       await q.query('release savepoint midia');
+      return true;
     } catch (err) {
       await q.query('rollback to savepoint midia');
       this.log.warn(`mídia não guardada: ${(err as Error).message}`);
+      return false;
     }
   }
 
