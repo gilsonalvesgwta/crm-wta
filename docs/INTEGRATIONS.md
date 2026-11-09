@@ -107,7 +107,8 @@ Sem raspagem e sem automação fora da API.
 Em Configurações › Canais › **Adicionar Instagram**: ID da conta profissional, tipo de acesso (API com login do Instagram, padrão, ou pela Página do Facebook), token e chave secreta do app. Os avisos usam o mesmo esquema do WhatsApp oficial (endereço próprio, assinatura conferida), assinando `messages`.
 
 - A pessoa que escreve vira contato (nome e @ buscados no perfil), com o IGSID guardado em `contact_handles`; a conversa aparece em Conversas › Instagram.
-- Resposta em texto até 24 h depois da última mensagem (a marcação de agente humano de 7 dias não está implementada); envio de arquivo pelo Instagram ainda não.
+- Resposta em texto até 24 h depois da última mensagem (a marcação de agente humano de 7 dias não está implementada). Desde 9 nov 2026, também imagem, vídeo, PDF e áudio gravado no CRM (anexo por link assinado de 1 hora; áudio convertido para M4A).
+- Mídia recebida: imagem, vídeo, áudio, arquivo, reels e publicação compartilhados. O endereço fica em `messages.media_url` para buscar o arquivo de novo se o download na hora falhar.
 - Sem campanhas pelo Instagram (a Meta não permite mensagens em massa).
 
 Ao salvar, o CRM ativa os avisos da conta (`/me/subscribed_apps?subscribed_fields=messages`). O token de longa duração (60 dias) é renovado pelo despachante a cada 7 dias (`app.meta_token_refresh_due`). A assinatura dos avisos é conferida com a chave do app e, se informada, com a chave do app do Instagram.
@@ -126,6 +127,10 @@ Menu **Instagram** (Fluxos, Resultados, Mídias, Contatos, Diagnóstico), no est
 - Tudo o que o fluxo manda aparece em Conversas, marcado com o fluxo. Execuções, eventos e avisos ficam em `ig_flow_runs`, `ig_flow_events` e `ig_webhook_log`.
 
 Validado só contra o servidor falso. **Falta o teste real** com o app publicado e os campos assinados.
+
+### Áudio gravado no CRM (9 nov 2026)
+
+Botão **Gravar áudio** nas conversas de WhatsApp e Instagram. O navegador grava (WebM/Opus ou MP4) e a API converte com o ffmpeg da imagem: Ogg/Opus para o WhatsApp (Evolution: `sendWhatsAppAudio`, como mensagem de voz; oficial: mídia `audio/ogg`) e M4A/AAC para o Instagram. Imagem abre ampliada, vídeo e áudio tocam no player e PDF abre no leitor do navegador, sem baixar.
 
 ### Modelos do WhatsApp oficial com mídia (9 nov 2026)
 

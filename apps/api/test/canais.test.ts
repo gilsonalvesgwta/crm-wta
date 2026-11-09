@@ -1,5 +1,9 @@
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { base32Decode, totpAt } from '../src/domain/totp.js';
 import { Browser, createDatabase, createUser, dropDatabase, startApi, type Fixture } from './helpers.js';
@@ -182,6 +186,26 @@ describe('WhatsApp pela Evolution', () => {
     const h = await admin.get(`/api/v1/contacts/${id}/messages`);
     assert.equal(h.body.items[0].direction, 'out');
     assert.equal(h.body.items[0].sentBy, null);
+  });
+
+  test('áudio gravado no CRM vai como mensagem de voz (Ogg/Opus)', async () => {
+    const id = await contact(admin, { firstName: 'Duda', phones: [{ number: '+5541922221111' }] });
+    const webm = path.join(tmpdir(), `crm-voz-${process.pid}.webm`);
+    assert.equal(spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'sine=duration=1', '-c:a', 'libopus', '-f', 'webm', webm]).status, 0);
+    const boundary = '----crmvoz';
+    const body = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="accountId"\r\n\r\n${waAccount}\r\n`),
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="voice"\r\n\r\n1\r\n`),
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="gravacao.webm"\r\nContent-Type: audio/webm\r\n\r\n`),
+      readFileSync(webm), Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+    const r = await admin.req('POST', `/api/v1/contacts/${id}/messages/file`, body, { 'content-type': `multipart/form-data; boundary=${boundary}`, 'x-crm-request': '1' });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    assert.equal(r.body.kind, 'audio');
+    assert.equal(r.body.file.contentType, 'audio/ogg');
+    const sent = evo.sent.at(-1)!;
+    assert.equal(sent.type, 'audio');
+    assert.equal(Buffer.from(String(sent.body.audio), 'base64').subarray(0, 4).toString(), 'OggS');
   });
 
   test('envia e recebe arquivos', async () => {

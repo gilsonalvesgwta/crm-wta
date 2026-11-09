@@ -30,6 +30,8 @@ export const sendBody = z.object({
   subject: optText(998),
   templateId: uuid.nullable().optional(),
   templateParams: z.array(z.string().max(1000)).max(20).nullable().optional(),
+  /** Áudio gravado no CRM: vai como mensagem de voz (convertido para o formato do canal). */
+  voice: z.union([z.boolean(), z.enum(['1', 'true', '0', 'false']).transform((v) => v === '1' || v === 'true')]).nullable().optional(),
 });
 
 @Controller('v1/channels')
@@ -131,7 +133,7 @@ export async function readMessageUpload(req: FastifyRequest, maxMb: number) {
   }
   return {
     file: { name: part.filename || 'arquivo', data },
-    body: { accountId: field('accountId'), to: field('to') ?? null, text: field('text') ?? null, subject: field('subject') ?? null },
+    body: { accountId: field('accountId'), to: field('to') ?? null, text: field('text') ?? null, subject: field('subject') ?? null, voice: field('voice') ?? null },
   };
 }
 

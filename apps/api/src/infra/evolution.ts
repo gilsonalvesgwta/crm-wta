@@ -133,6 +133,12 @@ export class Evolution {
     return idOf(r);
   }
 
+  /** Mensagem de voz (aparece como áudio gravado no WhatsApp). */
+  async sendAudio(name: string, number: string, base64: string): Promise<string | null> {
+    const r = await this.call<Json>('POST', `/message/sendWhatsAppAudio/${name}`, { number, audio: base64, encoding: true }, 60_000);
+    return idOf(r);
+  }
+
   /** Baixa a mídia de uma mensagem que a Evolution guardou (quando o aviso chegou sem o arquivo). */
   async mediaOf(name: string, messageId: string): Promise<{ base64: string; mimetype: string | null; fileName: string | null } | null> {
     const r = await this.call<Json>('POST', `/chat/getBase64FromMediaMessage/${name}`, { message: { key: { id: messageId } }, convertToMp4: false }, 60_000);

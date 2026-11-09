@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { CONFIG, type Config } from '../config.js';
 
 type Json = Record<string, unknown>;
@@ -36,6 +36,7 @@ const MEDIA_HOSTS = /(^|\.)(fbsbx\.com|facebook\.com|fbcdn\.net|cdninstagram\.co
  */
 @Injectable()
 export class Meta {
+  private readonly log = new Logger('Meta');
   constructor(@Inject(CONFIG) private readonly cfg: Config) {}
 
   private base(host: MetaHost): string {
@@ -132,10 +133,16 @@ export class Meta {
     try { u = new URL(url); } catch { return null; }
     const own = new URL(this.cfg.META_GRAPH_URL).host === u.host || new URL(this.cfg.META_INSTAGRAM_URL).host === u.host;
     if (!own && (u.protocol !== 'https:' || !MEDIA_HOSTS.test(u.hostname))) return null;
-    const res = await fetch(u, { headers: token ? { authorization: `Bearer ${token}` } : {}, signal: AbortSignal.timeout(60_000) });
-    if (!res.ok) return null;
+    const res = await fetch(u, { headers: { 'user-agent': 'Mozilla/5.0 (compatible; CRM-WTA/1.0)', ...(token ? { authorization: `Bearer ${token}` } : {}) }, signal: AbortSignal.timeout(60_000) });
+    if (!res.ok) {
+      this.log.warn(`mídia da Meta não baixada: ${u.hostname} respondeu ${res.status}`);
+      return null;
+    }
     const data = Buffer.from(await res.arrayBuffer());
-    if (!data.length || data.length > maxBytes) return null;
+    if (!data.length || data.length > maxBytes) {
+      this.log.warn(`mídia da Meta não guardada: ${data.length} bytes`);
+      return null;
+    }
     return { data, mimetype: mimetype ?? res.headers.get('content-type') };
   }
 

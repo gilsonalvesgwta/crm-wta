@@ -336,7 +336,7 @@ export function InstagramGuide() {
           <li><strong>24 horas</strong> para responder depois da última mensagem da pessoa. Depois disso, o CRM não deixa enviar.</li>
           <li><strong>Sem envio em massa:</strong> o Instagram não aparece em Campanhas. Para conversas automáticas (comentário, palavra no direct, story, live, reação), use o menu <strong>Instagram</strong>.</li>
           <li><strong>Comentários:</strong> a cada comentário dá para mandar <strong>uma</strong> mensagem no privado; a conversa só continua quando a pessoa toca no botão ou responde.</li>
-          <li><strong>Arquivos:</strong> o CRM recebe imagens e vídeos; o envio de arquivo pelo Instagram ainda não está disponível.</li>
+          <li><strong>Arquivos:</strong> o CRM recebe e mostra imagens, vídeos, áudios e PDFs, e manda imagem (JPG, PNG, GIF), vídeo (MP4, MOV), áudio gravado no CRM e PDF.</li>
         </Ul>
       </section>
 
