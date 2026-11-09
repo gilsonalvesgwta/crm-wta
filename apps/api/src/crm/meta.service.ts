@@ -11,6 +11,8 @@ import { Db, pgCode, type Q } from '../infra/db.js';
 import { Meta, MetaError, type MetaHost } from '../infra/meta.js';
 import { assertWithin } from './limits.js';
 import { MessagesService } from './messages.service.js';
+import { IgFlowEngine } from './ig-flows.engine.js';
+import { FilesService } from './files.service.js';
 
 export type CloudInput = { name: string; phoneNumberId: string; wabaId: string; token?: string | null; appSecret?: string | null; pin?: string | null };
 export type InstagramInput = { name: string; igUserId: string; host: MetaHost; token?: string | null; appSecret?: string | null; appSecret2?: string | null };
@@ -18,6 +20,8 @@ export type InstagramInput = { name: string; igUserId: string; host: MetaHost; t
 type Account = { id: string; tenant_id?: string; kind: string; name: string; status: string; external_id: string | null; config: Record<string, unknown>; secret: Buffer | null };
 
 const TEMPLATE_COLUMNS = `t.id, t.channel_account_id as "accountId", t.meta_id as "metaId", t.name, t.language, t.category, t.header, t.body, t.footer,
+  t.header_format as "headerFormat", t.header_file_id as "headerFileId",
+  (select f.original_name from files f where f.id = t.header_file_id) as "headerFileName",
   t.buttons, t.examples, t.status, t.reason, t.updated_at as "updatedAt",
   (select a.name from channel_accounts a where a.id = t.channel_account_id) as "accountName"`;
 
@@ -51,6 +55,8 @@ export class MetaService {
     @Inject(CONFIG) private readonly cfg: Config,
     @Inject(Meta) private readonly meta: Meta,
     @Inject(MessagesService) private readonly messages: MessagesService,
+    @Inject(IgFlowEngine) private readonly flows: IgFlowEngine,
+    @Inject(FilesService) private readonly files: FilesService,
   ) {}
 
   private derive(purpose: string, accountId: string, len = 43): string {
@@ -276,6 +282,12 @@ export class MetaService {
           this.log.error(`aviso do Instagram não processado: ${String(err)}`);
         }
       }
+      // Fluxos: comentários, direct, stories, reações e cliques (depois de a mensagem estar no histórico).
+      try {
+        handled += await this.flows.onWebhook(acc.tenant_id, { id: a.id, external_id: a.external_id!, secret: a.secret!, config: a.config }, body);
+      } catch (err) {
+        this.log.error(`fluxos do Instagram: ${String(err)}`);
+      }
     }
     return { handled };
   }
@@ -329,9 +341,30 @@ export class MetaService {
     const exists = await this.db.app(tenantCtx(actor), (q) => q.query(
       `select 1 from whatsapp_templates where channel_account_id = $1 and name = $2 and language = $3 and status <> 'DELETED'`, [a.id, t.name, t.language]));
     if (exists.rowCount) throw Problem.badRequest('Nome já usado.', [{ field: 'name', message: 'Já existe um modelo com esse nome neste idioma.' }]);
+    const token = this.messages.metaCreds(a.id, a.secret).token;
+    // Cabeçalho de mídia: a Meta pede um arquivo de exemplo enviado antes (fica guardado lá).
+    let handle: string | null = null;
+    if (t.headerFormat && t.headerFormat !== 'TEXT') {
+      const file = await this.db.app(tenantCtx(actor), async (q) => {
+        const f = (await q.query<{ original_name: string; content_type: string }>(
+          'select original_name, content_type from files where id = $1 and deleted_at is null', [t.headerFileId])).rows[0];
+        if (!f) throw Problem.badRequest('Arquivo não encontrado.', [{ field: 'headerFileId', message: 'Escolha um arquivo da biblioteca de mídia.' }]);
+        const want = t.headerFormat === 'IMAGE' ? /^image\/(jpeg|png)$/ : t.headerFormat === 'VIDEO' ? /^video\/mp4$/ : /^application\/pdf$/;
+        if (!want.test(f.content_type)) {
+          throw Problem.badRequest('Arquivo não combina com o cabeçalho.', [{ field: 'headerFileId',
+            message: t.headerFormat === 'IMAGE' ? 'Use uma imagem JPG ou PNG.' : t.headerFormat === 'VIDEO' ? 'Use um vídeo MP4.' : 'Use um PDF.' }]);
+        }
+        return { name: f.original_name, type: f.content_type, data: await this.files.readIn(q, t.headerFileId!) };
+      });
+      try {
+        handle = await this.meta.uploadTemplateMedia(await this.meta.appId(token), token, file);
+      } catch (err) {
+        throw problemFrom(err);
+      }
+    }
     let res: { id?: string; status?: string; category?: string };
     try {
-      res = await this.meta.createTemplate(wabaId, this.messages.metaCreds(a.id, a.secret).token, templateRequest(t));
+      res = await this.meta.createTemplate(wabaId, token, templateRequest(t, handle));
     } catch (err) {
       throw problemFrom(err);
     }
@@ -339,13 +372,15 @@ export class MetaService {
       const status = ['APPROVED', 'REJECTED', 'PENDING', 'PAUSED'].includes(res.status ?? '') ? res.status! : 'PENDING';
       const category = ['MARKETING', 'UTILITY', 'AUTHENTICATION'].includes(res.category ?? '') ? res.category! : t.category;
       const r = await q.query<{ id: string }>(
-        `insert into whatsapp_templates (tenant_id, channel_account_id, meta_id, name, language, category, header, body, footer, buttons, examples, status, created_by)
-         values (app.tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        `insert into whatsapp_templates (tenant_id, channel_account_id, meta_id, name, language, category, header, body, footer, buttons, examples, status, created_by,
+                                         header_format, header_file_id)
+         values (app.tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
          on conflict (channel_account_id, name, language) do update set meta_id = excluded.meta_id, category = excluded.category, header = excluded.header,
-           body = excluded.body, footer = excluded.footer, buttons = excluded.buttons, examples = excluded.examples, status = excluded.status, reason = null
+           body = excluded.body, footer = excluded.footer, buttons = excluded.buttons, examples = excluded.examples, status = excluded.status, reason = null,
+           header_format = excluded.header_format, header_file_id = excluded.header_file_id, header_media_url = null
          returning id`,
         [a.id, res.id ?? null, t.name, t.language, category, t.header, t.body, t.footer,
-          JSON.stringify(t.buttons.map((text) => ({ type: 'QUICK_REPLY', text }))), JSON.stringify(t.examples), status, actor.membershipId]);
+          JSON.stringify(t.buttons), JSON.stringify(t.examples), status, actor.membershipId, t.headerFormat, t.headerFileId]);
       await audit(q, actor, 'whatsapp_template.created', 'whatsapp_template', r.rows[0]!.id, { name: t.name });
       return (await q.query(`select ${TEMPLATE_COLUMNS} from whatsapp_templates t where t.id = $1`, [r.rows[0]!.id])).rows[0];
     });
@@ -366,23 +401,33 @@ export class MetaService {
       let n = 0;
       for (const t of list.data ?? []) {
         if (!/^[a-z0-9_]{1,512}$/.test(t.name) || !/^[a-z]{2,3}(_[A-Z]{2})?$/.test(t.language)) continue;
-        const comps = (t.components ?? []) as { type?: string; format?: string; text?: string; buttons?: { type: string; text: string }[]; example?: { body_text?: string[][] } }[];
+        const comps = (t.components ?? []) as {
+          type?: string; format?: string; text?: string; buttons?: { type: string; text: string; url?: string; phone_number?: string }[];
+          example?: { body_text?: string[][]; header_handle?: string[] };
+        }[];
         const body = comps.find((c) => c.type === 'BODY')?.text;
         if (!body) continue;
-        const header = comps.find((c) => c.type === 'HEADER' && c.format === 'TEXT')?.text ?? null;
+        const head = comps.find((c) => c.type === 'HEADER');
+        const header = head?.format === 'TEXT' ? head.text ?? null : null;
+        const headerFormat = head && ['TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT'].includes(head.format ?? '') ? head.format! : null;
+        const sample = head?.example?.header_handle?.[0];
+        const headerUrl = headerFormat && headerFormat !== 'TEXT' && sample && /^https:\/\/\S+$/.test(sample) && sample.length <= 2000 ? sample : null;
         const footer = comps.find((c) => c.type === 'FOOTER')?.text ?? null;
         const buttons = comps.find((c) => c.type === 'BUTTONS')?.buttons ?? [];
         const examples = comps.find((c) => c.type === 'BODY')?.example?.body_text?.[0] ?? [];
         const status = ['APPROVED', 'REJECTED', 'PENDING', 'PAUSED', 'DISABLED', 'IN_APPEAL', 'LIMIT_EXCEEDED'].includes(t.status) ? t.status : 'PENDING';
         const category = ['MARKETING', 'UTILITY', 'AUTHENTICATION'].includes(t.category) ? t.category : 'UTILITY';
         await q.query(
-          `insert into whatsapp_templates (tenant_id, channel_account_id, meta_id, name, language, category, header, body, footer, buttons, examples, status, reason)
-           values (app.tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          `insert into whatsapp_templates (tenant_id, channel_account_id, meta_id, name, language, category, header, body, footer, buttons, examples, status, reason,
+                                           header_format, header_media_url)
+           values (app.tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
            on conflict (channel_account_id, name, language) do update set meta_id = excluded.meta_id, category = excluded.category, header = excluded.header,
-             body = excluded.body, footer = excluded.footer, buttons = excluded.buttons, examples = excluded.examples, status = excluded.status, reason = excluded.reason`,
+             body = excluded.body, footer = excluded.footer, buttons = excluded.buttons, examples = excluded.examples, status = excluded.status, reason = excluded.reason,
+             header_format = excluded.header_format, header_media_url = excluded.header_media_url`,
           [a.id, /^[0-9]+$/.test(t.id) ? t.id : null, t.name, t.language, category, header?.slice(0, 60) ?? null, body.slice(0, 1024), footer?.slice(0, 60) ?? null,
-            JSON.stringify(buttons.slice(0, 10).map((b) => ({ type: b.type, text: b.text }))), JSON.stringify(examples.slice(0, 20)), status,
-            t.rejected_reason && t.rejected_reason !== 'NONE' ? t.rejected_reason.slice(0, 1000) : null]);
+            JSON.stringify(buttons.slice(0, 10).map((b) => ({ type: b.type, text: b.text, ...(b.url ? { url: b.url } : {}), ...(b.phone_number ? { phone: b.phone_number } : {}) }))),
+            JSON.stringify(examples.slice(0, 20)), status,
+            t.rejected_reason && t.rejected_reason !== 'NONE' ? t.rejected_reason.slice(0, 1000) : null, headerFormat, headerUrl]);
         n++;
       }
       return { synced: n };

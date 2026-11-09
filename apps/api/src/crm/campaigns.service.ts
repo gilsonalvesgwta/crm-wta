@@ -37,7 +37,7 @@ const COLUMNS = `
   ${memberJson('k.created_by')} as "createdBy", ${memberJson('k.started_by')} as "startedBy",
   k.created_at as "createdAt", k.updated_at as "updatedAt", ${STATS('k')} as stats,
   k.template_id as "templateId", k.template_params as "templateParams",
-  (select json_build_object('id', t.id, 'name', t.name, 'language', t.language, 'body', t.body, 'header', t.header, 'status', t.status)
+  (select json_build_object('id', t.id, 'name', t.name, 'language', t.language, 'body', t.body, 'header', t.header, 'headerFormat', t.header_format, 'status', t.status)
      from whatsapp_templates t where t.id = k.template_id) as template`;
 
 /** Contatos do público, com o endereço do canal e o último consentimento de marketing. */

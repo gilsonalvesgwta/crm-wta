@@ -7,6 +7,7 @@ import { AutomationsService } from '../automations/automations.service.js';
 import { CampaignsService } from './campaigns.service.js';
 import { ScheduledService } from './scheduled.service.js';
 import { AdsService } from './ads.service.js';
+import { IgFlowEngine } from './ig-flows.engine.js';
 import { MetaService } from './meta.service.js';
 
 /**
@@ -32,6 +33,7 @@ export class DispatcherService implements OnApplicationBootstrap, OnApplicationS
     @Inject(ScheduledService) private readonly scheduled: ScheduledService,
     @Inject(MetaService) private readonly meta: MetaService,
     @Inject(AdsService) private readonly ads: AdsService,
+    @Inject(IgFlowEngine) private readonly igFlows: IgFlowEngine,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -81,6 +83,7 @@ export class DispatcherService implements OnApplicationBootstrap, OnApplicationS
     const campaigns = await this.campaigns.dispatch(Math.max(2000, budgetMs - (Date.now() - started)));
     await this.meta.refreshInstagramTokens().catch((err) => this.log.error(`renovação de tokens: ${String(err)}`));
     await this.ads.dispatch().catch((err) => this.log.error(`importação de anúncios: ${String(err)}`));
+    await this.igFlows.dispatch().catch((err) => this.log.error(`fluxos do Instagram: ${String(err)}`));
     return { reminders, importBatches, seriesExtended, expired, automations, campaigns, scheduled };
   }
 

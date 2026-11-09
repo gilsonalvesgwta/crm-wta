@@ -165,3 +165,115 @@ test('passo a passo em página própria, para abrir ao lado do site da Meta', as
   await expectAccessible(page);
   await shot(page, '61-passo-a-passo-pagina');
 });
+
+test('Instagram: fluxo de comentário "eu quero" — criar, testar, publicar e rodar', async ({ page }) => {
+  await loginAdmin(page);
+  await page.getByRole('navigation', { name: 'Menu principal' }).getByRole('link', { name: 'Instagram' }).click();
+  await expect(page.getByRole('heading', { name: 'Instagram', level: 1 })).toBeVisible();
+  await page.getByRole('button', { name: 'Novo fluxo' }).first().click();
+  const d = page.getByRole('dialog', { name: 'Novo fluxo' });
+  await expect(d.getByRole('radio', { name: /Comentário em post ou reels/ })).toHaveAttribute('aria-checked', 'true');
+  await d.getByLabel('Nome do fluxo').fill('Reels — eu quero');
+  await expectAccessible(page);
+  await shot(page, '70-instagram-novo-fluxo');
+  await d.getByRole('button', { name: 'Criar e abrir o editor' }).click();
+
+  // Editor: o gatilho com a palavra-chave e um texto depois do botão "Quero".
+  await expect(page.getByLabel('Nome do fluxo')).toHaveValue('Reels — eu quero');
+  await page.getByRole('group', { name: 'Quando…' }).getByRole('button').first().click();
+  await page.getByLabel('Nova palavra-chave').fill('eu quero');
+  await page.getByLabel('Nova palavra-chave').press('Enter');
+  await page.getByRole('group', { name: 'Responder no privado' }).getByRole('button').first().click();
+  await page.getByRole('button', { name: /^Texto/ }).click();
+  await page.getByLabel('Mensagem', { exact: true }).fill('Aqui está o link, {{nome}}: https://exemplo.com');
+  await expect(page.getByRole('status').filter({ hasText: 'Salvo' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Tudo certo' })).toBeVisible();
+  await expectAccessible(page);
+  await shot(page, '71-instagram-editor');
+
+  // Visualizar: nada vai para o Instagram.
+  await page.getByRole('button', { name: 'Visualizar' }).click();
+  const sim = page.getByRole('dialog', { name: 'Visualizar o fluxo' });
+  await sim.getByLabel('Comentário da pessoa').fill('Eu quero!!');
+  await sim.getByRole('button', { name: 'Simular' }).click();
+  await expect(sim.getByText('Resposta no comentário')).toBeVisible();
+  await sim.getByRole('button', { name: 'Quero' }).click();
+  await expect(sim.getByText('Aqui está o link, Maria: https://exemplo.com')).toBeVisible();
+  await expect(sim.getByText('Fim do fluxo.')).toBeVisible();
+  await expectAccessible(page);
+  await shot(page, '72-instagram-visualizar');
+  await sim.getByRole('button', { name: 'Fechar', exact: true }).first().click();
+
+  await page.getByRole('button', { name: 'Publicar' }).click();
+  await expect(page.getByText('Fluxo publicado: já está funcionando no Instagram.')).toBeVisible();
+
+  // Um comentário de verdade (aviso da Meta) dispara o fluxo.
+  const before = (await sent(page)).length;
+  await hook(page, igHook, { object: 'instagram', entry: [{ id: '17841400000777', time: Math.floor(Date.now() / 1000), changes: [{
+    field: 'comments', value: { from: { id: '955500033344', username: 'ana.e2e' }, media: { id: '17900000000000001', media_product_type: 'REELS' }, id: '18000000000777001', text: 'EU QUERO' },
+  }] }] });
+  const out = (await sent(page)).slice(before);
+  expect(out.map((s) => s.path)).toEqual(['18000000000777001/replies', '17841400000777/messages']);
+  expect((out[1]!.body.recipient as { comment_id: string }).comment_id).toBe('18000000000777001');
+
+  await page.goto('/instagram');
+  await expect(page.getByRole('listitem').filter({ hasText: 'Reels — eu quero' })).toContainText('Ativo');
+  await page.getByRole('navigation', { name: 'Subopções do Instagram' }).getByRole('link', { name: 'Resultados' }).click();
+  await expect(page.getByText('Disparos', { exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Últimas pessoas' })).toContainText('Esperando');
+  await expectAccessible(page);
+  await shot(page, '73-instagram-resultados');
+
+  await page.getByRole('navigation', { name: 'Subopções do Instagram' }).getByRole('link', { name: 'Contatos' }).click();
+  await expect(page.getByText('Quem conversou com você')).toBeVisible();
+  await expect(page.getByText('JANELA ABERTA').first()).toBeVisible();
+  await expectAccessible(page);
+
+  await page.getByRole('navigation', { name: 'Subopções do Instagram' }).getByRole('link', { name: 'Mídias' }).click();
+  await page.getByLabel('Escolher arquivos').setInputFiles({ name: 'catalogo.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n%%EOF\n') });
+  await expect(page.getByText('Arquivo enviado.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'catalogo.pdf', exact: true })).toBeVisible();
+  await expectAccessible(page);
+  await shot(page, '74-instagram-midias');
+
+  await page.getByRole('navigation', { name: 'Subopções do Instagram' }).getByRole('link', { name: 'Diagnóstico' }).click();
+  await expect(page.getByText('Comentários em posts e reels')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Últimos avisos' })).toContainText('Reels — eu quero');
+  await expectAccessible(page);
+  await shot(page, '75-instagram-diagnostico');
+});
+
+test('modelo do WhatsApp oficial com imagem, rodapé e botões de link e telefone, com prévia no celular', async ({ page }) => {
+  await loginAdmin(page);
+  await page.goto('/configuracoes/canais/modelos');
+  await page.getByRole('button', { name: 'Novo modelo' }).click();
+  const t = page.getByRole('dialog', { name: 'Novo modelo de mensagem' });
+  await t.getByLabel('Nome', { exact: true }).fill('oferta_com_imagem');
+  await t.getByRole('radio', { name: 'Imagem' }).click();
+  await t.getByLabel('Arquivo do cabeçalho').setInputFiles({ name: 'oferta.png', mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==', 'base64') });
+  await expect(t.getByText('Escolhido:')).toContainText('oferta.png');
+  await t.getByLabel('Texto').fill('Oi! Chegou a oferta da semana. Toque abaixo para ver.');
+  await t.getByLabel('Rodapé (opcional)').fill('Responda SAIR para não receber');
+  await t.getByRole('button', { name: 'Botão', exact: true }).click();
+  await t.getByLabel('Tipo do botão 1').selectOption('URL');
+  await t.getByLabel('Texto do botão 1').fill('Ver a loja');
+  await t.getByLabel('Link do botão 1').fill('https://exemplo.com/loja');
+  await t.getByRole('button', { name: 'Botão', exact: true }).click();
+  await t.getByLabel('Tipo do botão 2').selectOption('PHONE_NUMBER');
+  await t.getByLabel('Texto do botão 2').fill('Ligar');
+  await t.getByLabel('Telefone do botão 2').fill('+55 11 3333-4444');
+  const preview = t.getByRole('complementary', { name: 'Prévia no celular' });
+  await expect(preview).toContainText('Oi! Chegou a oferta da semana.');
+  await expect(preview).toContainText('Ver a loja');
+  await expect(preview.locator('img')).toBeVisible();
+  await expectAccessible(page);
+  await shot(page, '76-modelo-com-imagem');
+  await t.getByRole('button', { name: 'Enviar para aprovação' }).click();
+  await expect(page.getByText('Modelo enviado para a Meta aprovar.')).toBeVisible();
+  await expect(page.getByText('Cabeçalho: imagem (oferta.png)')).toBeVisible();
+  const state = (await (await page.request.get(`${FAKE}/__fake/state`)).json()) as { templates: { name: string; components: { type: string; format?: string; buttons?: { type: string }[] }[] }[] };
+  const tpl = state.templates.find((x) => x.name === 'oferta_com_imagem')!;
+  expect(tpl.components[0]!.format).toBe('IMAGE');
+  expect(tpl.components.at(-1)!.buttons!.map((b) => b.type)).toEqual(['URL', 'PHONE_NUMBER']);
+});

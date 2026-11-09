@@ -35,6 +35,9 @@ import { ConversationsService } from './crm/conversations.service.js';
 import { OperationService } from './crm/operation.service.js';
 import { SalesService } from './crm/sales.service.js';
 import { AdsService } from './crm/ads.service.js';
+import { IgFlowEngine } from './crm/ig-flows.engine.js';
+import { IgFlowsService } from './crm/ig-flows.service.js';
+import { IgFlowsController } from './crm/ig-flows.controller.js';
 import { KpisService } from './crm/kpis.service.js';
 import { KpisController } from './crm/kpis.controller.js';
 import { ScheduledController } from './crm/scheduled.controller.js';
@@ -66,7 +69,7 @@ export class AppModule {
       controllers: [
         HealthController, AuthController, AdminController, PlatformController, WebhooksController, TenantFeaturesController, ContactsController, OrganizationsController,
         CatalogController, PipelinesController, DealsController, LeadsController, ActivitiesController, RecordsController,
-        ImportsController, PrivacyController, DashboardController, KpisController, ChannelsController, MessagesController, ConversationsController, QuickRepliesController, CampaignsController, UnsubscribeController, ScheduledController, EvolutionWebhookController, MetaController, MetaWebhookController, BackupsController, TenantBackupsController, AutomationsController, IntegrationsController,
+        ImportsController, PrivacyController, DashboardController, KpisController, IgFlowsController, ChannelsController, MessagesController, ConversationsController, QuickRepliesController, CampaignsController, UnsubscribeController, ScheduledController, EvolutionWebhookController, MetaController, MetaWebhookController, BackupsController, TenantBackupsController, AutomationsController, IntegrationsController,
       ],
       providers: [
         { provide: CONFIG, useValue: cfg },
@@ -91,7 +94,7 @@ export class AppModule {
         DashboardService,
         DispatcherService,
         Evolution, Meta, MetaService,
-        MessagesService, OperationService, SalesService, AdsService, KpisService, ScheduledService, ConversationsService, QuickRepliesService, CampaignsService,
+        MessagesService, OperationService, SalesService, AdsService, KpisService, IgFlowEngine, IgFlowsService, ScheduledService, ConversationsService, QuickRepliesService, CampaignsService,
         ChannelsService,
         BackupsService,
         AutomationsService,

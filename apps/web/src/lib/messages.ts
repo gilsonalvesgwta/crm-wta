@@ -25,7 +25,8 @@ export const CHANNEL_NAME: Record<Channel, string> = { whatsapp: 'WhatsApp', ema
 export type WaTemplate = {
   id: string; accountId: string; accountName: string; metaId: string | null; name: string; language: string;
   category: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION'; header: string | null; body: string; footer: string | null;
-  buttons: { type: string; text: string }[]; examples: string[]; status: string; reason: string | null; updatedAt: string;
+  headerFormat?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT' | null; headerFileId?: string | null; headerFileName?: string | null;
+  buttons: { type: string; text: string; url?: string; phone?: string }[]; examples: string[]; status: string; reason: string | null; updatedAt: string;
 };
 export const TEMPLATE_STATUS: Record<string, { label: string; tone: 'ok' | 'warn' | 'bad' | 'neutral' | 'info' }> = {
   APPROVED: { label: 'Aprovado', tone: 'ok' }, PENDING: { label: 'Em análise na Meta', tone: 'info' }, REJECTED: { label: 'Recusado', tone: 'bad' },

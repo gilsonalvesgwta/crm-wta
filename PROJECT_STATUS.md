@@ -1,6 +1,6 @@
 # Situação do projeto
 
-Atualizado em 14 de outubro de 2026.
+Atualizado em 9 de novembro de 2026.
 
 ## Fase atual
 
@@ -22,6 +22,17 @@ Atualizado em 14 de outubro de 2026.
 | Usuários, equipes, dados da empresa, identidade visual com contraste calculado | Integração e ponta a ponta |
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
+
+### Instagram estilo Manychat e modelos do WhatsApp com mídia (9 nov 2026)
+
+- Menu novo **Instagram**: Fluxos, Resultados, Mídias, Contatos e Diagnóstico. Nada do que já existia mudou.
+- Gatilhos: comentário em post ou reels (qualquer um ou até 20 escolhidos), comentário em live, palavra no direct, resposta a story, menção em story e reação a mensagem; palavras-chave (contém, exata ou qualquer texto) e frequência.
+- Editor em tela com blocos ligados por setas: responder no comentário (sorteia até 3), responder no privado com botão, texto com até 3 botões, imagem/vídeo/áudio/PDF, esperar, pergunta (guarda e-mail, telefone, campo ou variável), condição (etiqueta, segue a conta, variável) e ações no CRM (etiqueta, campo, lead, negócio, aviso, passar a conversa). Salva sozinho, desfazer e refazer, avisos por bloco, Visualizar (simula sem mandar nada) e Publicar.
+- Contatos e Conversas são os do CRM: quem passa pelo fluxo vira contato com o @, e as mensagens aparecem na conversa.
+- WhatsApp oficial: modelos com cabeçalho de imagem, vídeo ou documento, rodapé, botões de link e telefone e prévia no celular; campanhas e conversas mandam o arquivo do cabeçalho.
+- Migrações 0017 e 0018 só criam tabelas e colunas novas.
+- Testes: banco 520 verificações; API com os fluxos (7 cenários) e os modelos com mídia; ponta a ponta com o fluxo "eu quero" (criar, visualizar, publicar, comentário real do servidor falso, resultados, contatos, mídias, diagnóstico) e o modelo com imagem.
+- Falta o teste com a Meta de verdade: assinar no app os campos `comments`, `live_comments`, `mentions`, `message_reactions`, `messaging_postbacks` e liberar a permissão `instagram_business_manage_comments`.
 
 ### Telas blindadas e versão visível (21 out 2026)
 

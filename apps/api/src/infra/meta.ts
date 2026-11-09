@@ -4,6 +4,9 @@ import { CONFIG, type Config } from '../config.js';
 type Json = Record<string, unknown>;
 export type MetaHost = 'facebook' | 'instagram';
 
+/** Avisos do Instagram que os fluxos usam. */
+export const IG_FIELDS = ['messages', 'messaging_postbacks', 'message_reactions', 'comments', 'live_comments', 'mentions'] as const;
+
 /** Erro da API da Meta, com uma mensagem que dá para mostrar. */
 export class MetaError extends Error {
   constructor(message: string, readonly code: number | null = null, readonly httpStatus = 0) {
@@ -141,6 +144,37 @@ export class Meta {
       'GET', 'facebook', `${wabaId}/message_templates?fields=id,name,status,language,category,rejected_reason,components&limit=250`, token);
   }
 
+  /** Id do app dono do token (para o envio do arquivo de exemplo do modelo). */
+  async appId(token: string): Promise<string> {
+    const r = await this.call<{ id?: string }>('GET', 'facebook', 'app', token);
+    if (!r.id || !/^[0-9]{3,30}$/.test(r.id)) throw new MetaError('A Meta não devolveu o id do app.');
+    return r.id;
+  }
+
+  /**
+   * Envio do arquivo de exemplo do cabeçalho (API de envio retomável da Meta):
+   * abre a sessão no app e manda o arquivo; devolve o identificador ("handle")
+   * usado em example.header_handle.
+   */
+  async uploadTemplateMedia(appId: string, token: string, file: { data: Buffer; type: string; name: string }): Promise<string> {
+    const q = new URLSearchParams({ file_name: file.name.slice(0, 200), file_length: String(file.data.length), file_type: file.type });
+    const session = await this.call<{ id?: string }>('POST', 'facebook', `${appId}/uploads?${q}`, token, undefined, 30_000);
+    const id = session.id ?? '';
+    if (!/^upload:[A-Za-z0-9+/=_:-]+(\?sig=[A-Za-z0-9_=-]+)?$/.test(id)) throw new MetaError('A Meta não abriu o envio do arquivo.');
+    let res: Response;
+    try {
+      res = await fetch(`${this.base('facebook')}/${id}`, {
+        method: 'POST', headers: { authorization: `OAuth ${token}`, file_offset: '0', 'content-type': file.type },
+        body: new Uint8Array(file.data), signal: AbortSignal.timeout(120_000),
+      });
+    } catch {
+      throw new MetaError('Não foi possível enviar o arquivo para a Meta.');
+    }
+    const data = await res.json().catch(() => ({})) as { h?: string; error?: { message?: string; code?: number } };
+    if (!res.ok || !data.h) throw new MetaError(`A Meta recusou o arquivo: ${data.error?.message ?? `erro ${res.status}`}`.slice(0, 900), data.error?.code ?? null, res.status);
+    return data.h;
+  }
+
   createTemplate(wabaId: string, token: string, body: Json) {
     return this.call<{ id?: string; status?: string; category?: string }>('POST', 'facebook', `${wabaId}/message_templates`, token, body);
   }
@@ -162,9 +196,46 @@ export class Meta {
 
   // ---- Instagram ----------------------------------------------------------------------
 
-  /** Ativa os avisos de mensagens desta conta do Instagram para o app. */
+  /**
+   * Ativa os avisos desta conta do Instagram para o app: mensagens, cliques em
+   * botão, reações, comentários (posts, reels e live) e menções.
+   */
   async igSubscribe(token: string, host: MetaHost): Promise<void> {
-    await this.call('POST', host, 'me/subscribed_apps?subscribed_fields=messages', token, {});
+    await this.call('POST', host, `me/subscribed_apps?subscribed_fields=${IG_FIELDS.join(',')}`, token, {});
+  }
+
+  /** Avisos que a conta tem ativos para o app. */
+  async igSubscriptions(token: string, host: MetaHost): Promise<string[]> {
+    const r = await this.call<{ data?: { subscribed_fields?: string[] }[] }>('GET', host, 'me/subscribed_apps', token);
+    return [...new Set((r.data ?? []).flatMap((d) => d.subscribed_fields ?? []))];
+  }
+
+  /** Responde publicamente a um comentário. */
+  async igReplyComment(commentId: string, token: string, host: MetaHost, message: string): Promise<string> {
+    const r = await this.call<{ id?: string }>('POST', host, `${commentId}/replies`, token, { message });
+    return r.id ?? '';
+  }
+
+  /**
+   * Manda uma mensagem no direct: para a pessoa (id) ou como resposta privada a
+   * um comentário (comment_id, uma vez por comentário, até 7 dias depois).
+   */
+  async igSendMessage(igUserId: string, token: string, host: MetaHost, recipient: { id: string } | { comment_id: string }, message: Json): Promise<{ messageId: string; recipientId: string | null }> {
+    const r = await this.call<{ message_id?: string; recipient_id?: string }>('POST', host, `${igUserId}/messages`, token, { recipient, message });
+    if (!r.message_id) throw new MetaError('A Meta não devolveu o identificador da mensagem.');
+    return { messageId: r.message_id, recipientId: r.recipient_id ?? null };
+  }
+
+  /** Publicações recentes da conta (para escolher em quais o fluxo funciona). */
+  async igMedia(token: string, host: MetaHost): Promise<{ id: string; caption?: string; media_type?: string; media_product_type?: string; media_url?: string; thumbnail_url?: string; permalink?: string; timestamp?: string }[]> {
+    const r = await this.call<{ data?: [] }>('GET', host, 'me/media?fields=id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp&limit=50', token);
+    return r.data ?? [];
+  }
+
+  /** A pessoa segue a conta? (só para quem já conversou com a conta). */
+  async igFollows(igsid: string, token: string, host: MetaHost): Promise<boolean | null> {
+    const r = await this.call<{ is_user_follow_business?: boolean }>('GET', host, `${igsid}?fields=is_user_follow_business`, token, undefined, 8000);
+    return typeof r.is_user_follow_business === 'boolean' ? r.is_user_follow_business : null;
   }
 
   /** Renova o token de longa duração do Instagram (vale 60 dias; precisa ter mais de 24 h). */

@@ -162,11 +162,30 @@ Com chave de API não há cookie, então não há verificação de CSRF; chave i
 | `POST /api/v1/channels/instagram`, `PATCH …/:id` | `channels:admin` + 2FA | `{name, igUserId, host: "instagram" \| "facebook", token?, appSecret?}` |
 | `POST /api/v1/channels/:id/verify` | `channels:admin` + 2FA | Confere de novo a conta na Meta |
 | `GET /api/v1/whatsapp-templates` | qualquer pessoa da empresa | Modelos (`accountId`, `approved=1`) |
-| `POST /api/v1/whatsapp-templates` | `campaigns:edit` | `{accountId, name, language, category, header?, body, footer?, buttons[], examples[]}`; envia para a Meta aprovar |
+| `POST /api/v1/whatsapp-templates` | `campaigns:edit` | `{accountId, name, language, category, headerFormat?: TEXT\|IMAGE\|VIDEO\|DOCUMENT, header?, headerFileId?, body, footer?, buttons[], examples[]}`; botões: texto (resposta rápida) ou `{type: QUICK_REPLY\|URL\|PHONE_NUMBER, text, url?, phone?}` (até 10; 2 links; 1 telefone). Cabeçalho de mídia: o arquivo da biblioteca vai para a Meta pelo envio retomável (`/{app}/uploads`) e o modelo leva o `header_handle`; envia para a Meta aprovar |
 | `POST /api/v1/whatsapp-templates/sync`, `DELETE /api/v1/whatsapp-templates/:id` | `campaigns:edit` | Sincronizar estados; excluir (na Meta e aqui) |
 | `GET`, `POST /api/v1/webhooks/meta/:token` | Público (assinatura) | Verificação (`hub.challenge`) e avisos da Meta |
 
 Envio com modelo: `POST /api/v1/conversations/:id/messages` com `{accountId, templateId, templateParams}`. Fora das 24 h sem modelo: 409 `outside-window`.
+
+### Fluxos do Instagram (9 nov 2026)
+
+Ver: `campaigns:view`. Criar, mudar, publicar e subir mídia: `campaigns:edit`. Contatos: `contacts:view`.
+
+| Endpoint | O que faz |
+| --- | --- |
+| `GET /api/v1/instagram/accounts` | Contas do Instagram da empresa |
+| `GET`, `POST /api/v1/instagram/flows` | Lista (disparos em 7 dias e no total, esperando agora); cria `{accountId, name, triggerType}` com o desenho inicial do gatilho |
+| `GET`, `PATCH`, `DELETE /api/v1/instagram/flows/:id` | Fluxo com `draft`, `published` e `issues`; salva `{name?, draft?, accountId?}` (só o rascunho); exclui |
+| `POST /api/v1/instagram/flows/:id/publish` | Publica o rascunho (422 `flow-errors` com a lista de erros) |
+| `POST …/:id/pause`, `…/resume`, `…/duplicate` | Pausar (encerra quem esperava), reativar, duplicar |
+| `GET …/:id/results?from&to` | Disparos, pessoas, concluídos, falhas, esperando, por bloco, cliques por botão, falhas comuns, por dia, últimas 30 pessoas |
+| `GET /api/v1/instagram/posts?accountId` | Publicações recentes (para escolher em quais o fluxo vale) |
+| `GET`, `POST /api/v1/instagram/media`, `GET …/media/:id/url`, `DELETE …/media/:id` | Biblioteca de mídia (3 GB por empresa; JPG/PNG 8 MB, MP4/MOV 25 MB, M4A/AAC/WAV 25 MB, PDF 25 MB) |
+| `GET /api/v1/instagram/contacts?q&tagId&page` | Contatos com Instagram, janela de 24 h aberta, etiquetas |
+| `GET /api/v1/instagram/diagnostics?accountId`, `POST …/diagnostics/subscribe` | Avisos assinados e que faltam, endereço do webhook, últimos 50 avisos e o que aconteceu com cada um; ativar os que faltam |
+
+Desenho (`draft`): `{nodes: [{id, type, position, data}], edges: [{id, source, sourceHandle: next|yes|no|timeout|btn:<id>, target}]}`. Tipos: `trigger` (comment, live_comment, dm_keyword, story_reply, story_mention, reaction; publicações, palavras-chave, frequência), `comment_reply` (sorteia até 3), `private_reply` (uma por comentário, até 3 botões), `text`, `media`, `wait`, `question` (guarda em variável, campo, e-mail ou telefone), `condition` (etiqueta, segue a conta, variável), `action` (etiqueta, campo, lead, negócio, aviso, passar a conversa).
 
 ### Operação e ações agendadas (bloco 3 dos ajustes)
 
