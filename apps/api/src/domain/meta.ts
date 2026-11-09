@@ -83,7 +83,70 @@ export function readCloudWebhook(body: unknown): CloudEvent[] {
 export type IgMessage = {
   type: 'message'; igUserId: string; id: string; sender: string; recipient: string; fromMe: boolean; text: string | null; kind: string;
   at: Date; attachments: { type: string; url: string }[];
+  /** Resposta rápida tocada (payload do botão). */
+  quickReply?: string | null;
+  /** Resposta a um story (id e endereço do story). */
+  replyToStory?: { id: string | null; url: string | null } | null;
+  /** Menção num story (endereço do story). */
+  storyMention?: string | null;
 };
+
+/** Comentário em post, reels ou live (objeto instagram, campos comments e live_comments). */
+export type IgComment = {
+  type: 'comment'; igUserId: string; id: string; mediaId: string | null; mediaType: string | null; live: boolean;
+  parentId: string | null; from: { id: string; username: string | null }; text: string; at: Date;
+};
+/** Toque num botão (postback). */
+export type IgPostback = { type: 'postback'; igUserId: string; sender: string; mid: string | null; payload: string; title: string | null; at: Date };
+/** Reação a uma mensagem. */
+export type IgReaction = { type: 'reaction'; igUserId: string; sender: string; mid: string; action: 'react' | 'unreact'; emoji: string | null; at: Date };
+export type IgActivity = IgComment | IgPostback | IgReaction;
+
+const when = (ts: unknown) => {
+  const n = Number(ts);
+  return Number.isFinite(n) && n > 0 ? new Date(n > 1e12 ? n : n * 1000) : new Date();
+};
+
+/** Comentários, cliques em botão e reações (o que não é mensagem). */
+export function readInstagramActivity(body: unknown): IgActivity[] {
+  const b = obj(body);
+  if (!b || b.object !== 'instagram') return [];
+  const out: IgActivity[] = [];
+  for (const e of arr(b.entry)) {
+    const entry = obj(e);
+    const igUserId = str(entry?.id);
+    if (!igUserId) continue;
+    for (const ch of arr(entry?.changes)) {
+      const c = obj(ch);
+      const field = str(c?.field);
+      const v = obj(c?.value);
+      if ((field !== 'comments' && field !== 'live_comments') || !v) continue;
+      const from = obj(v.from);
+      const id = str(v.id);
+      const fromId = str(from?.id);
+      if (!id || !fromId) continue;
+      const media = obj(v.media);
+      out.push({
+        type: 'comment', igUserId, id, mediaId: str(media?.id), mediaType: str(media?.media_product_type), live: field === 'live_comments',
+        parentId: str(v.parent_id), from: { id: fromId, username: str(from?.username) }, text: str(v.text) ?? '', at: when(entry?.time),
+      });
+    }
+    for (const ev of arr(entry?.messaging)) {
+      const m = obj(ev);
+      const sender = str(obj(m?.sender)?.id);
+      if (!sender) continue;
+      const pb = obj(m?.postback);
+      const payload = str(pb?.payload);
+      if (pb && payload) out.push({ type: 'postback', igUserId, sender, mid: str(pb.mid), payload, title: str(pb.title), at: when(m?.timestamp) });
+      const r = obj(m?.reaction);
+      const rmid = str(r?.mid);
+      if (r && rmid) {
+        out.push({ type: 'reaction', igUserId, sender, mid: rmid, action: r.action === 'unreact' ? 'unreact' : 'react', emoji: str(r.emoji) ?? str(r.reaction), at: when(m?.timestamp) });
+      }
+    }
+  }
+  return out;
+}
 
 /** Avisos do Instagram (objeto instagram, campo messaging). */
 export function readInstagramWebhook(body: unknown): IgMessage[] {
@@ -105,8 +168,13 @@ export function readInstagramWebhook(body: unknown): IgMessage[] {
       const kind = message.text ? 'text' : attachments[0]?.type === 'image' ? 'image' : attachments[0]?.type === 'video' ? 'video'
         : attachments[0]?.type === 'audio' ? 'audio' : attachments.length ? 'document' : 'other';
       const ts = Number(m?.timestamp);
+      const story = obj(obj(message.reply_to)?.story);
+      const mention = arr(message.attachments).map(obj).find((a) => a?.type === 'story_mention');
       out.push({ type: 'message', igUserId, id, sender, recipient, fromMe: message.is_echo === true, text: str(message.text), kind,
-        at: Number.isFinite(ts) && ts > 0 ? new Date(ts > 1e12 ? ts : ts * 1000) : new Date(), attachments });
+        at: Number.isFinite(ts) && ts > 0 ? new Date(ts > 1e12 ? ts : ts * 1000) : new Date(), attachments,
+        quickReply: str(obj(message.quick_reply)?.payload),
+        replyToStory: story ? { id: str(story.id), url: str(story.url) } : null,
+        storyMention: mention ? (str(obj(mention.payload)?.url) ?? '') : null });
     }
   }
   return out;
@@ -132,16 +200,47 @@ export function renderTemplate(text: string, params: string[]): string {
   return text.replace(/\{\{\s*(\d+)\s*\}\}/g, (_m, n: string) => params[Number(n) - 1] ?? '');
 }
 
+/** Botão do modelo: resposta rápida, link (até 2) ou telefone (até 1). */
+const templateButton = z.union([
+  // Formato antigo: só o texto da resposta rápida.
+  z.string().trim().min(1).max(25, { message: 'Botão com até 25 caracteres.' }).transform((text) => ({ type: 'QUICK_REPLY' as const, text })),
+  z.object({
+    type: z.enum(['QUICK_REPLY', 'URL', 'PHONE_NUMBER']).default('QUICK_REPLY'),
+    text: z.string().trim().min(1, { message: 'Dê um nome ao botão.' }).max(25, { message: 'Botão com até 25 caracteres.' }),
+    url: z.string().trim().max(2000).nullable().optional(),
+    phone: z.string().trim().max(20).nullable().optional(),
+  }),
+]);
+export type TemplateButton = { type: 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER'; text: string; url?: string | null; phone?: string | null };
+
+export const HEADER_FORMATS = ['TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT'] as const;
+export type HeaderFormat = (typeof HEADER_FORMATS)[number];
+
 export const templateBody = z.object({
   accountId: z.string().uuid(),
   name: z.string().trim().toLowerCase().regex(/^[a-z0-9_]{1,512}$/, { message: 'Use só letras minúsculas sem acento, números e _ (ex.: boas_vindas).' }),
   language: z.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).default('pt_BR'),
   category: z.enum(['MARKETING', 'UTILITY', 'AUTHENTICATION'], { message: 'Escolha a categoria.' }),
+  // Cabeçalho: texto (até 60), imagem, vídeo ou documento (arquivo da biblioteca de mídia).
+  headerFormat: z.enum(HEADER_FORMATS).nullable().optional(),
   header: z.string().trim().max(60, { message: 'Até 60 caracteres.' }).nullable().optional().transform((v) => v || null),
+  headerFileId: z.string().uuid().nullable().optional().transform((v) => v || null),
   body: z.string().trim().min(1, { message: 'Escreva o texto do modelo.' }).max(1024, { message: 'Até 1024 caracteres.' }),
   footer: z.string().trim().max(60, { message: 'Até 60 caracteres.' }).nullable().optional().transform((v) => v || null),
-  buttons: z.array(z.string().trim().min(1).max(25, { message: 'Botão com até 25 caracteres.' })).max(3).default([]),
+  buttons: z.array(templateButton).max(10, { message: 'Até 10 botões.' }).default([]),
   examples: z.array(z.string().trim().min(1, { message: 'Dê um exemplo para cada variável.' }).max(200)).max(20).default([]),
+}).transform((v) => {
+  const headerFormat: HeaderFormat | null = v.headerFormat ?? (v.header ? 'TEXT' : null);
+  return {
+    ...v, headerFormat,
+    header: headerFormat === 'TEXT' ? v.header : null,
+    headerFileId: headerFormat && headerFormat !== 'TEXT' ? v.headerFileId : null,
+    buttons: v.buttons.map((b): TemplateButton => ({
+      type: b.type, text: b.text,
+      ...(b.type === 'URL' ? { url: ('url' in b ? b.url : null) ?? null } : {}),
+      ...(b.type === 'PHONE_NUMBER' ? { phone: ('phone' in b ? b.phone : null) ?? null } : {}),
+    })),
+  };
 }).superRefine((v, ctx) => {
   const n = templateVariables(v.body);
   for (let i = 1; i <= n; i++) {
@@ -149,17 +248,42 @@ export const templateBody = z.object({
   }
   if (v.examples.length < n) ctx.addIssue({ code: 'custom', path: ['examples'], message: 'Dê um exemplo para cada variável.' });
   if (/\{\{/.test(v.header ?? '')) ctx.addIssue({ code: 'custom', path: ['header'], message: 'O título não aceita variáveis.' });
+  if (v.headerFormat === 'TEXT' && !v.header) ctx.addIssue({ code: 'custom', path: ['header'], message: 'Escreva o título ou escolha outro cabeçalho.' });
+  if (v.headerFormat && v.headerFormat !== 'TEXT' && !v.headerFileId) ctx.addIssue({ code: 'custom', path: ['headerFileId'], message: 'Escolha o arquivo do cabeçalho.' });
   if (/^\s*\{\{|\}\}\s*$/.test(v.body)) ctx.addIssue({ code: 'custom', path: ['body'], message: 'A Meta não aceita texto começando ou terminando com variável.' });
+  const count = (t: TemplateButton['type']) => v.buttons.filter((b) => b.type === t).length;
+  if (count('URL') > 2) ctx.addIssue({ code: 'custom', path: ['buttons'], message: 'Até 2 botões de link.' });
+  if (count('PHONE_NUMBER') > 1) ctx.addIssue({ code: 'custom', path: ['buttons'], message: 'Só 1 botão de telefone.' });
+  v.buttons.forEach((b, i) => {
+    if (b.type === 'URL' && !/^https:\/\/[^\s]+\.[^\s]+$/i.test(b.url ?? '')) ctx.addIssue({ code: 'custom', path: ['buttons', i, 'url'], message: 'Link começando com https://.' });
+    if (b.type === 'PHONE_NUMBER' && !/^\+?[0-9]{10,15}$/.test((b.phone ?? '').replace(/[\s()-]/g, ''))) ctx.addIssue({ code: 'custom', path: ['buttons', i, 'phone'], message: 'Telefone com DDI e DDD (ex.: +55 11 99999-0000).' });
+  });
+  // A Meta pede as respostas rápidas juntas (antes ou depois dos outros botões).
+  const kinds = v.buttons.map((b) => (b.type === 'QUICK_REPLY' ? 'q' : 'o')).join('').replace(/(.)\1+/g, '$1');
+  if (kinds.length > 2) ctx.addIssue({ code: 'custom', path: ['buttons'], message: 'Deixe as respostas rápidas juntas (todas antes ou todas depois dos links e do telefone).' });
 });
 export type TemplateInput = z.infer<typeof templateBody>;
 
-/** Corpo do pedido de criação de modelo na Meta. */
-export function templateRequest(t: TemplateInput) {
+/** Telefone do botão no formato da Meta (+DDI...). */
+export function buttonPhone(p: string | null | undefined): string {
+  const d = (p ?? '').replace(/\D/g, '');
+  return `+${d}`;
+}
+
+/** Corpo do pedido de criação de modelo na Meta (com o identificador do arquivo de exemplo do cabeçalho). */
+export function templateRequest(t: TemplateInput, headerHandle?: string | null) {
   const n = templateVariables(t.body);
   const components: Obj[] = [];
-  if (t.header) components.push({ type: 'HEADER', format: 'TEXT', text: t.header });
+  if (t.headerFormat === 'TEXT' && t.header) components.push({ type: 'HEADER', format: 'TEXT', text: t.header });
+  if (t.headerFormat && t.headerFormat !== 'TEXT') components.push({ type: 'HEADER', format: t.headerFormat, example: { header_handle: [headerHandle ?? ''] } });
   components.push({ type: 'BODY', text: t.body, ...(n ? { example: { body_text: [t.examples.slice(0, n)] } } : {}) });
   if (t.footer) components.push({ type: 'FOOTER', text: t.footer });
-  if (t.buttons.length) components.push({ type: 'BUTTONS', buttons: t.buttons.map((text) => ({ type: 'QUICK_REPLY', text })) });
+  if (t.buttons.length) {
+    components.push({
+      type: 'BUTTONS',
+      buttons: t.buttons.map((b) => b.type === 'URL' ? { type: 'URL', text: b.text, url: b.url }
+        : b.type === 'PHONE_NUMBER' ? { type: 'PHONE_NUMBER', text: b.text, phone_number: buttonPhone(b.phone) } : { type: 'QUICK_REPLY', text: b.text }),
+    });
+  }
   return { name: t.name, language: t.language, category: t.category, components };
 }

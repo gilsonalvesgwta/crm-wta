@@ -59,6 +59,11 @@ const EXT: Record<string, string> = {
 
 const MEDIA_KINDS = new Set(['image', 'audio', 'video', 'document', 'sticker']);
 
+type TemplateRow = {
+  name: string; language: string; body: string; header: string | null; header_format: string | null; header_file_id: string | null;
+  header_media_url: string | null; file_name: string | null;
+};
+
 @Injectable()
 export class MessagesService {
   private readonly log = new Logger('mensagens');
@@ -222,14 +227,16 @@ export class MessagesService {
       }
 
       // Canais da Meta: resposta livre só até 24 h depois da última mensagem do cliente; fora disso, modelo aprovado.
-      let template: { name: string; language: string; body: string; header: string | null } | null = null;
+      let template: TemplateRow | null = null;
       if (a.kind === 'whatsapp_cloud' || a.kind === 'instagram') {
         const last = (await q.query<{ at: Date | null }>(
           `select max(created_at) as at from messages where contact_id = $1 and channel_account_id = $2 and direction = 'in'`, [contactId, a.id])).rows[0]!.at;
         const open = !!last && Date.now() - last.getTime() < WINDOW_MS;
         if (a.kind === 'whatsapp_cloud' && input.templateId) {
-          template = (await q.query<{ name: string; language: string; body: string; header: string | null }>(
-            `select name, language, body, header from whatsapp_templates where id = $1 and channel_account_id = $2 and status = 'APPROVED'`,
+          template = (await q.query<TemplateRow>(
+            `select t.name, t.language, t.body, t.header, t.header_format, t.header_file_id, t.header_media_url,
+                    (select f.original_name from files f where f.id = t.header_file_id and f.deleted_at is null) as file_name
+               from whatsapp_templates t where t.id = $1 and t.channel_account_id = $2 and t.status = 'APPROVED'`,
             [input.templateId, a.id])).rows[0] ?? null;
           if (!template) throw Problem.badRequest('Modelo inválido.', [{ field: 'templateId', message: 'Escolha um modelo aprovado deste número.' }]);
           const need = templateVariables(template.body);
@@ -271,9 +278,19 @@ export class MessagesService {
         const phoneId = prep.account.external_id!;
         if (prep.template) {
           const params = (input.templateParams ?? []).slice(0, templateVariables(prep.template.body));
+          const components: Record<string, unknown>[] = [];
+          // Cabeçalho de mídia: o arquivo da biblioteca (link assinado) ou o exemplo guardado na Meta.
+          const fmt = prep.template.header_format;
+          if (fmt === 'IMAGE' || fmt === 'VIDEO' || fmt === 'DOCUMENT') {
+            const link = prep.template.header_file_id && prep.template.file_name
+              ? this.files.publicUrl(by.tenantId, prep.template.header_file_id, 3 * 86400) : prep.template.header_media_url;
+            if (!link) throw new MetaError('O modelo tem cabeçalho de mídia, mas o arquivo não está mais na biblioteca de mídia.');
+            const kind = fmt.toLowerCase();
+            components.push({ type: 'header', parameters: [{ type: kind, [kind]: { link, ...(fmt === 'DOCUMENT' ? { filename: prep.template.file_name ?? 'documento.pdf' } : {}) } }] });
+          }
+          if (params.length) components.push({ type: 'body', parameters: params.map((v) => ({ type: 'text', text: v })) });
           externalId = await this.meta.sendWhatsapp(phoneId, c.token, { to, type: 'template', template: {
-            name: prep.template.name, language: { code: prep.template.language },
-            components: params.length ? [{ type: 'body', parameters: params.map((v) => ({ type: 'text', text: v })) }] : [],
+            name: prep.template.name, language: { code: prep.template.language }, components,
           } });
         } else if (file) {
           const mediaId = await this.meta.uploadMedia(phoneId, c.token, { data: file.data, type: prep.contentType!, name: file.name });

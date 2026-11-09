@@ -276,7 +276,7 @@ export function InstagramGuide() {
       <Step id="ig-2" n={2} title="Adicionar a conta do Instagram e gerar o token" time="5 min">
         <Ol>
           <li>No <M pt="Painel" en="Dashboard" />, clique no caso de uso do Instagram e em <M pt="Personalizar" en="Customize" />. No menu da esquerda, abra <M pt="Configuração da API com login do Instagram" en="API setup with Instagram login" />.</li>
-          <li>Clique em <M pt="Adicionar todas as permissões necessárias" en="Add all required permissions" /> (entram <code>instagram_business_basic</code> e <code>instagram_business_manage_messages</code>).</li>
+          <li>Clique em <M pt="Adicionar todas as permissões necessárias" en="Add all required permissions" /> (entram <code>instagram_business_basic</code>, <code>instagram_business_manage_messages</code> e <code>instagram_business_manage_comments</code>; a de comentários é a que deixa os fluxos responderem comentários).</li>
           <li>Em <M pt="Gerar tokens de acesso" en="Generate access tokens" />, clique em <M pt="Adicionar conta" en="Add account" />, <M pt="Continuar" en="Continue" />, entre com o Instagram da empresa, autorize e clique em <M pt="Salvar" en="Save" />.</li>
           <li>Ao lado da conta aparece o <strong>ID da conta do Instagram</strong> (só números). Copie.</li>
           <li>Clique em <M pt="Gerar token" en="Generate token" />, confirme e copie o token.</li>
@@ -307,8 +307,9 @@ export function InstagramGuide() {
           <li>No CRM, na conta cadastrada, abra <strong>Configurar os avisos na Meta</strong> e copie a URL de retorno e o token de verificação.</li>
           <li>No app da Meta, na tela <M pt="Configuração da API com login do Instagram" en="API setup with Instagram login" />, abra <M pt="Configurar webhooks" en="Configure webhooks" />.</li>
           <li>Cole a <M pt="URL de retorno" en="Callback URL" /> e o <M pt="Token de verificação" en="Verify token" /> e clique em <M pt="Verificar e salvar" en="Verify and save" />. Só depois da verificação os campos aparecem.</li>
-          <li>Na lista de campos, assine <code>messages</code>.</li>
+          <li>Na lista de campos, assine <code>messages</code>. Para os <strong>fluxos do Instagram</strong> (menu Instagram), assine também <code>comments</code>, <code>live_comments</code>, <code>mentions</code>, <code>message_reactions</code> e <code>messaging_postbacks</code>.</li>
         </Ol>
+        <Note tone="crm">depois de assinar, abra <strong>Instagram › Diagnóstico</strong> aqui no CRM: ele mostra quais avisos estão ativos na conta, ativa os que faltam e lista cada aviso recebido.</Note>
       </Step>
 
       <Step id="ig-6" n={6} title="Publicar o app" time="5 min">
@@ -333,7 +334,8 @@ export function InstagramGuide() {
         <Ul>
           <li><strong>Quem começa é o cliente:</strong> a empresa não pode mandar a primeira mensagem pelo Instagram.</li>
           <li><strong>24 horas</strong> para responder depois da última mensagem da pessoa. Depois disso, o CRM não deixa enviar.</li>
-          <li><strong>Sem envio em massa:</strong> o Instagram não aparece em Campanhas.</li>
+          <li><strong>Sem envio em massa:</strong> o Instagram não aparece em Campanhas. Para conversas automáticas (comentário, palavra no direct, story, live, reação), use o menu <strong>Instagram</strong>.</li>
+          <li><strong>Comentários:</strong> a cada comentário dá para mandar <strong>uma</strong> mensagem no privado; a conversa só continua quando a pessoa toca no botão ou responde.</li>
           <li><strong>Arquivos:</strong> o CRM recebe imagens e vídeos; o envio de arquivo pelo Instagram ainda não está disponível.</li>
         </Ul>
       </section>
@@ -343,6 +345,7 @@ export function InstagramGuide() {
         ['As mensagens não aparecem no CRM', <Ul key="a">
           <li><strong>Permitir acesso às mensagens</strong> está ligado no app do Instagram?</li>
           <li>O webhook foi verificado e o campo <code>messages</code> está assinado (passo 5)?</li>
+          <li>Fluxo de comentário não dispara? Confira <code>comments</code> assinado e a permissão <code>instagram_business_manage_comments</code>; veja em <strong>Instagram › Diagnóstico</strong> o que chegou.</li>
           <li>O app está publicado (passo 6)?</li>
           <li>Antes da análise da Meta, a conta precisa ser <strong>testadora</strong> do app (passo 2).</li>
           <li>Clique em <strong>Conferir</strong> na conta: o CRM ativa de novo os avisos.</li>

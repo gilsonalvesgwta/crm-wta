@@ -204,6 +204,67 @@ describe('WhatsApp oficial (Cloud API)', () => {
   });
 });
 
+describe('modelos com mídia e botões de link', () => {
+  test('cabeçalho de imagem vai para a Meta como arquivo de exemplo; o envio leva o link da imagem', async () => {
+    const up = await admin.upload('/api/v1/instagram/media', 'oferta.png', PNG, 'image/png');
+    assert.equal(up.status, 201, JSON.stringify(up.body));
+    const base = { accountId: cloud, category: 'MARKETING', body: 'Oferta da semana para você, {{1}}!', examples: ['Maria'] };
+    const noFile = await admin.post('/api/v1/whatsapp-templates', { ...base, name: 'sem_arquivo', headerFormat: 'IMAGE' });
+    assert.equal(noFile.status, 422);
+    assert.equal(noFile.body.errors[0].field, 'headerFileId');
+    const video = await admin.post('/api/v1/whatsapp-templates', { ...base, name: 'video_errado', headerFormat: 'VIDEO', headerFileId: up.body.id });
+    assert.equal(video.status, 422, 'imagem num cabeçalho de vídeo');
+    const links = await admin.post('/api/v1/whatsapp-templates', { ...base, name: 'muitos_links', buttons: [1, 2, 3].map((i) => ({ type: 'URL', text: `Link ${i}`, url: 'https://exemplo.com' })) });
+    assert.equal(links.status, 422);
+    const mixed = await admin.post('/api/v1/whatsapp-templates', { ...base, name: 'misturado', buttons: [{ type: 'QUICK_REPLY', text: 'A' }, { type: 'URL', text: 'B', url: 'https://exemplo.com' }, { type: 'QUICK_REPLY', text: 'C' }] });
+    assert.match(mixed.body.errors[0].message, /respostas rápidas juntas/);
+
+    const t = await admin.post('/api/v1/whatsapp-templates', {
+      ...base, name: 'oferta_imagem', headerFormat: 'IMAGE', headerFileId: up.body.id, footer: 'Responda SAIR para não receber',
+      buttons: [{ type: 'URL', text: 'Ver a loja', url: 'https://exemplo.com/loja' }, { type: 'PHONE_NUMBER', text: 'Ligar', phone: '+55 (11) 3333-4444' }, 'Quero'],
+    });
+    assert.equal(t.status, 201, JSON.stringify(t.body));
+    assert.equal(t.body.headerFormat, 'IMAGE');
+    assert.equal(t.body.headerFileName, 'oferta.png');
+    const sentTpl = meta.templates.at(-1)!;
+    const comps = sentTpl.components as { type: string; format?: string; example?: { header_handle: string[] }; buttons?: Record<string, string>[] }[];
+    assert.equal(comps[0]!.format, 'IMAGE');
+    assert.match(comps[0]!.example!.header_handle[0]!, /^4::/);
+    assert.deepEqual(comps.at(-1)!.buttons, [
+      { type: 'URL', text: 'Ver a loja', url: 'https://exemplo.com/loja' }, { type: 'PHONE_NUMBER', text: 'Ligar', phone_number: '+551133334444' }, { type: 'QUICK_REPLY', text: 'Quero' }]);
+    sentTpl.status = 'APPROVED';
+    await admin.post('/api/v1/whatsapp-templates/sync', { accountId: cloud });
+
+    const c = await admin.post('/api/v1/contacts', { firstName: 'Carla', phones: [{ number: '+55 31 96666-3333' }] });
+    const conv = await admin.post('/api/v1/conversations', { contactId: c.body.id, channel: 'whatsapp' });
+    const s = await admin.post(`/api/v1/conversations/${conv.body.id}/messages`, { accountId: cloud, templateId: t.body.id, templateParams: ['Carla'] });
+    assert.equal(s.status, 201, JSON.stringify(s.body));
+    const out = meta.sent.at(-1)!.body as { template: { components: { type: string; parameters: { type: string; image?: { link: string }; text?: string }[] }[] } };
+    assert.deepEqual(out.template.components.map((x) => x.type), ['header', 'body']);
+    const link = out.template.components[0]!.parameters[0]!.image!.link;
+    const file = await app.inject({ method: 'GET', url: new URL(link).pathname });
+    assert.equal(file.statusCode, 200, 'a Meta consegue buscar a imagem');
+    assert.deepEqual(file.rawPayload, PNG);
+    assert.equal(out.template.components[1]!.parameters[0]!.text, 'Carla');
+  });
+
+  test('modelo com imagem trazido da Meta usa o exemplo guardado lá', async () => {
+    meta.templates.push({ id: '9555', name: 'promo_meta', language: 'pt_BR', category: 'MARKETING', status: 'APPROVED',
+      components: [{ type: 'HEADER', format: 'IMAGE', example: { header_handle: ['https://scontent.whatsapp.net/v/promo.jpg'] } }, { type: 'BODY', text: 'Promoção!' },
+        { type: 'BUTTONS', buttons: [{ type: 'URL', text: 'Comprar', url: 'https://exemplo.com/c' }] }] });
+    await admin.post('/api/v1/whatsapp-templates/sync', { accountId: cloud });
+    const t = (await admin.get('/api/v1/whatsapp-templates')).body.items.find((x: { name: string }) => x.name === 'promo_meta');
+    assert.equal(t.headerFormat, 'IMAGE');
+    assert.deepEqual(t.buttons, [{ type: 'URL', text: 'Comprar', url: 'https://exemplo.com/c' }]);
+    const c = await admin.post('/api/v1/contacts', { firstName: 'Davi', phones: [{ number: '+55 31 95555-4444' }] });
+    const conv = await admin.post('/api/v1/conversations', { contactId: c.body.id, channel: 'whatsapp' });
+    const s = await admin.post(`/api/v1/conversations/${conv.body.id}/messages`, { accountId: cloud, templateId: t.id });
+    assert.equal(s.status, 201, JSON.stringify(s.body));
+    const out = meta.sent.at(-1)!.body as { template: { components: { parameters: { image: { link: string } }[] }[] } };
+    assert.equal(out.template.components[0]!.parameters[0]!.image.link, 'https://scontent.whatsapp.net/v/promo.jpg');
+  });
+});
+
 describe('registro do número e chaves', () => {
   test('com o PIN, o número é registrado na Cloud API; PIN errado mostra o erro', async () => {
     const wrong = await admin.patch(`/api/v1/channels/whatsapp-cloud/${cloud}`, { name: 'Oficial', phoneNumberId: '100000000123', wabaId: '200000000001', pin: '000000' });

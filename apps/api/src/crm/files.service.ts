@@ -65,7 +65,7 @@ export class FilesService {
   }
 
   /** Grava o arquivo e o registro. Usado por anexos e pela importação. */
-  async storeIn(q: Q, actor: Actor, input: { name: string; data: Buffer; purpose: 'attachment' | 'import' | 'branding' | 'message'; ref?: RecordRef }): Promise<string> {
+  async storeIn(q: Q, actor: Actor, input: { name: string; data: Buffer; purpose: 'attachment' | 'import' | 'branding' | 'message' | 'media'; ref?: RecordRef }): Promise<string> {
     const maxBytes = this.cfg.UPLOAD_MAX_MB * 1024 * 1024;
     if (input.data.length === 0) throw Problem.badRequest('Arquivo vazio.', [{ field: 'file', message: 'O arquivo está vazio.' }]);
     if (input.data.length > maxBytes) throw new Problem(413, `O arquivo passa de ${this.cfg.UPLOAD_MAX_MB} MB.`);
@@ -149,6 +149,17 @@ export class FilesService {
       const sig = createHmac('sha256', this.signKey).update(payload).digest('base64url');
       return { url: `/api/v1/files/download/${Buffer.from(payload).toString('base64url')}.${sig}`, expiresAt: new Date(exp * 1000).toISOString() };
     });
+  }
+
+  /**
+   * Endereço público assinado (com o domínio) para a Meta buscar um arquivo da
+   * biblioteca de mídia ao mandar no direct.
+   */
+  publicUrl(tenantId: string, id: string, ttlSeconds: number): string {
+    const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
+    const payload = `${tenantId}.${id}.${exp}`;
+    const sig = createHmac('sha256', this.signKey).update(payload).digest('base64url');
+    return `${this.cfg.APP_URL.replace(/\/$/, '')}/api/v1/files/download/${Buffer.from(payload).toString('base64url')}.${sig}`;
   }
 
   /** Valida o endereço assinado e abre o arquivo. Endereço inválido ou vencido: 404. */

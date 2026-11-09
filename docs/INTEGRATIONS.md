@@ -114,6 +114,23 @@ Ao salvar, o CRM ativa os avisos da conta (`/me/subscribed_apps?subscribed_field
 
 Validado só contra o servidor falso. **Falta o teste real**, que depende de acesso avançado da Meta para contas de clientes.
 
+### Fluxos automáticos do Instagram (9 nov 2026)
+
+Menu **Instagram** (Fluxos, Resultados, Mídias, Contatos, Diagnóstico), no estilo do Manychat. Conferido na documentação da Meta ([webhooks](https://developers.facebook.com/docs/instagram-platform/webhooks), [respostas privadas](https://developers.facebook.com/docs/instagram-platform/private-replies), [comentários](https://developers.facebook.com/docs/instagram-platform/comment-moderation)):
+
+- Avisos usados: `messages` (direct, resposta e menção em story, respostas rápidas), `messaging_postbacks` (clique em botão), `message_reactions`, `comments`, `live_comments`, `mentions`. O CRM assina todos ao salvar a conta e pelo Diagnóstico; no app da Meta, os campos precisam estar assinados no webhook.
+- Permissão nova: `instagram_business_manage_comments` (responder comentários e a resposta privada).
+- Comentário: resposta pública (`POST /{comment-id}/replies`) e **uma** resposta privada (`recipient: {comment_id}`). A conversa continua quando a pessoa toca no botão (postback) ou responde; antes disso, mensagens comuns falham com o motivo no resultado.
+- Botões: modelo de botões (postback e link); se a Meta recusar, respostas rápidas; por fim, texto com os links.
+- Mídia: o arquivo da biblioteca vai por link assinado de 1 hora, que a Meta busca.
+- Tudo o que o fluxo manda aparece em Conversas, marcado com o fluxo. Execuções, eventos e avisos ficam em `ig_flow_runs`, `ig_flow_events` e `ig_webhook_log`.
+
+Validado só contra o servidor falso. **Falta o teste real** com o app publicado e os campos assinados.
+
+### Modelos do WhatsApp oficial com mídia (9 nov 2026)
+
+Cabeçalho de imagem (JPG/PNG), vídeo (MP4) ou documento (PDF) escolhido na biblioteca de mídia, rodapé de 60 caracteres e botões de resposta rápida, link (até 2) e telefone (1), com prévia no celular. A Meta pede um arquivo de exemplo: o CRM descobre o app do token (`GET /app`), abre o envio retomável (`POST /{app}/uploads`), manda o arquivo e cria o modelo com o `header_handle`. No envio (conversa ou campanha), o cabeçalho leva o link assinado do arquivo (3 dias); modelos trazidos da Meta usam o exemplo guardado lá. Validado só contra o servidor falso.
+
 ## E-mail
 
 Conferido:

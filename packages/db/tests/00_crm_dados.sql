@@ -12,7 +12,7 @@ $$;
 -- 1 organização, 2 contato, 3 funil, 4 etapa aberta, 5 etapa ganha, 6 etapa
 -- perdida, 7 negócio, 8 lead, 9 produto, 10 motivo, 11 atividade, 12 arquivo,
 -- 13 importação, 14 etiqueta, 15 roteiro, 16 série, 17 campo, 18 conta de canal, 19 mensagem, 20 automação,
--- 28 conta de anúncios, 29 funil de KPI.
+-- 28 conta de anúncios, 29 funil de KPI, 30 conta do Instagram, 31 fluxo, 32 execução.
 
 create function t.seed_crm(p_tenant uuid, p_member uuid, p_team uuid) returns void
 language plpgsql
@@ -133,6 +133,19 @@ begin
   values (t.id(p_tenant, 29), p_tenant, 'Prospecção ativa', array[t.id(p_tenant, 14)], true, p_member);
   insert into kpi_prospecting (tenant_id, funnel_id, membership_id, day, count)
   values (p_tenant, t.id(p_tenant, 29), p_member, current_date, 40);
+
+  -- Instagram: conta, fluxo publicado, uma execução esperando clique, eventos e avisos.
+  insert into channel_accounts (id, tenant_id, kind, name, status, external_id, created_by)
+  values (t.id(p_tenant, 30), p_tenant, 'instagram', '@empresa', 'connected',
+          case when p_tenant = t.a() then '17841400000901' else '17841400000902' end, p_member);
+  insert into ig_flows (id, tenant_id, channel_account_id, name, trigger_type, draft, published, version, status, published_at, created_by)
+  values (t.id(p_tenant, 31), p_tenant, t.id(p_tenant, 30), 'Eu quero', 'comment', '{"nodes": []}', '{"nodes": []}', 1, 'active', now(), p_member);
+  insert into ig_flow_runs (id, tenant_id, flow_id, flow_version, channel_account_id, contact_id, ig_user_id, status, node_id, wait_kind)
+  values (t.id(p_tenant, 32), p_tenant, t.id(p_tenant, 31), 1, t.id(p_tenant, 30), t.id(p_tenant, 2), '900000001', 'waiting', 'n2', 'click');
+  insert into ig_flow_events (tenant_id, flow_id, run_id, node_id, kind) values (p_tenant, t.id(p_tenant, 31), t.id(p_tenant, 32), 'n1', 'sent');
+  insert into ig_trigger_log (tenant_id, flow_id, ig_user_id, scope) values (p_tenant, t.id(p_tenant, 31), '900000001', 'post-1');
+  insert into ig_webhook_log (tenant_id, channel_account_id, event_key, kind, flow_id)
+  values (p_tenant, t.id(p_tenant, 30), 'comment:1', 'comment', t.id(p_tenant, 31));
 end
 $$;
 

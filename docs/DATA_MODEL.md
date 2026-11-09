@@ -177,6 +177,19 @@ O processamento de cada item acontece depois, no contexto da empresa, como `crm_
 
 Funções do despachante (`crm_dispatch`): `app.automation_scan_events()` (eventos novos da linha do tempo viram execuções), `app.automation_scan_schedules()` (aniversário no horário e fuso da empresa; negócio parado há N dias) e `app.automation_claim(n)` (reserva por 10 minutos com SKIP LOCKED). Chaves de API: `app.api_key_lookup(prefixo)` e `app.api_key_touch(id)`.
 
+### Fluxos do Instagram (migração 0017)
+
+- `ig_flows`: fluxo por conta do Instagram, com `draft` e `published` (o grafo de blocos), `version`, `status` (draft, active, paused; ativo só com publicado) e `trigger_type`.
+- `ig_flow_runs`: uma execução por pessoa (`ig_user_id` só números), bloco atual, espera (`click`, `reply`, `delay`), `wake_at`, variáveis e contexto. `app.ig_runs_due` entrega ao despachante as esperas vencidas (SKIP LOCKED).
+- `ig_flow_events`: disparos, envios, cliques, respostas, conclusões e falhas, para os resultados.
+- `ig_trigger_log`: frequência (uma vez por pessoa, ou por pessoa e publicação).
+- `ig_webhook_log`: cada aviso recebido uma vez só (`event_key`), com o resultado para o diagnóstico.
+- `files.purpose` ganha `media` (biblioteca de mídia); `messages.ig_flow_id` marca o que o fluxo mandou.
+
+### Modelos com mídia (migração 0018)
+
+`whatsapp_templates` ganha `header_format` (TEXT, IMAGE, VIDEO, DOCUMENT), `header_file_id` (arquivo da biblioteca, da mesma empresa) e `header_media_url` (exemplo guardado na Meta, só https).
+
 ## Tabelas planejadas
 
 Entram com as migrações de cada fase e podem mudar quando as integrações forem testadas de verdade.

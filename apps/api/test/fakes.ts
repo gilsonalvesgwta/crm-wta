@@ -193,10 +193,25 @@ export class FakeMeta {
   readonly templates: FakeTemplate[] = [];
   readonly tokens = new Set<string>();
   readonly media = new Map<string, { data: Buffer; type: string }>();
+  /** Envios retomáveis abertos (arquivo de exemplo dos modelos). */
+  readonly uploads = new Map<string, { name: string; type: string; length: number }>();
   readonly calls: FakeMetaSend[] = [];
   readonly refreshed: string[] = [];
   /** Gasto da conta de anúncios falsa, por dia (AAAA-MM-DD → valor na moeda da conta). */
   readonly adSpend = new Map<string, number>();
+  /** Instagram: quem fez cada comentário (para a resposta privada devolver o IGSID). */
+  readonly commenters = new Map<string, string>();
+  /** Instagram: quem segue a conta. */
+  readonly followers = new Set<string>();
+  /** Instagram: avisos ativos da conta. */
+  igFields: string[] = [];
+  /** Instagram: recusa o modelo de botões (para testar o envio alternativo). */
+  rejectButtonTemplate = false;
+  /** Instagram: publicações da conta. */
+  readonly posts = [
+    { id: '17900000000000001', caption: 'Reels da coleção nova', media_type: 'VIDEO', media_product_type: 'REELS', thumbnail_url: 'https://cdn.exemplo/1.jpg', permalink: 'https://instagram.com/p/1', timestamp: '2026-11-01T12:00:00+0000' },
+    { id: '17900000000000002', caption: 'Post do catálogo', media_type: 'IMAGE', media_product_type: 'FEED', media_url: 'https://cdn.exemplo/2.jpg', permalink: 'https://instagram.com/p/2', timestamp: '2026-10-28T12:00:00+0000' },
+  ];
   failNext: { status: number; body: unknown } | null = null;
   private server!: Server;
   private n = 0;
@@ -235,7 +250,7 @@ export class FakeMeta {
           this.refreshed.push(t);
           return send(200, { access_token: next, token_type: 'bearer', expires_in: 5183944 });
         }
-        const token = (req.headers.authorization ?? '').replace(/^Bearer /, '');
+        const token = (req.headers.authorization ?? '').replace(/^(Bearer|OAuth) /, '');
         if (!this.tokens.has(token)) return send(401, { error: { message: 'Invalid OAuth access token.', type: 'OAuthException', code: 190 } });
         if (this.failNext) { const f = this.failNext; this.failNext = null; return send(f.status, f.body); }
         const path = u.pathname.replace(/^\/v\d+\.\d+\//, '');
@@ -259,10 +274,46 @@ export class FakeMeta {
           const m = this.media.get(id!);
           return m ? send(200, { url: `${this.url}/media-file/${id}`, mime_type: m.type, id }) : send(404, { error: { message: 'Unsupported get request', code: 100 } });
         }
+        // Envio retomável do arquivo de exemplo dos modelos.
+        if (req.method === 'GET' && id === 'app' && !edge) return send(200, { id: '777000111', name: 'App Teste' });
+        if (req.method === 'POST' && id === '777000111' && edge === 'uploads') {
+          const sid = `upload:MTphdHRhY2htZW50${++this.n}`;
+          this.uploads.set(sid, { name: u.searchParams.get('file_name') ?? '', type: u.searchParams.get('file_type') ?? '', length: Number(u.searchParams.get('file_length')) });
+          return send(200, { id: `${sid}?sig=ARZtest` });
+        }
+        if (req.method === 'POST' && path.startsWith('upload:')) {
+          const sid = path.split('?')[0]!;
+          const up = this.uploads.get(sid);
+          if (!up || req.headers.file_offset !== '0' || raw.length !== up.length) return send(400, { error: { message: 'Invalid upload', code: 100 } });
+          return send(200, { h: `4::${Buffer.from(sid).toString('base64url')}` });
+        }
+        if (req.method === 'GET' && id === 'me' && edge === 'media') return send(200, { data: this.posts });
+        if (id === 'me' && edge === 'subscribed_apps') {
+          if (req.method === 'GET') return send(200, { data: this.igFields.length ? [{ id: 'app', subscribed_fields: this.igFields }] : [] });
+          this.igFields = (u.searchParams.get('subscribed_fields') ?? '').split(',').filter(Boolean);
+          this.calls.push({ path, body: json() });
+          return send(200, { success: true });
+        }
+        if (req.method === 'GET' && !edge && id!.startsWith('9') && u.searchParams.get('fields') === 'is_user_follow_business') {
+          return send(200, { is_user_follow_business: this.followers.has(id!), id });
+        }
+        if (req.method === 'POST' && edge === 'replies') {
+          this.sent.push({ path, body: json() });
+          return send(200, { id: `1800000000${++this.n}` });
+        }
         if (req.method === 'POST' && edge === 'messages') {
           const body = json();
+          if (id!.startsWith('1784')) {
+            const msg = body.message as { attachment?: { type?: string; payload?: { template_type?: string } } } | undefined;
+            if (this.rejectButtonTemplate && msg?.attachment?.payload?.template_type === 'button') {
+              return send(400, { error: { message: '(#100) Invalid parameter', type: 'OAuthException', code: 100 } });
+            }
+            this.sent.push({ path, body });
+            const r = body.recipient as { id?: string; comment_id?: string };
+            const to = r.comment_id ? (this.commenters.get(r.comment_id) ?? '900000000099') : r.id;
+            return send(200, { recipient_id: to, message_id: `mid.${++this.n}` });
+          }
           this.sent.push({ path, body });
-          if (id!.startsWith('1784')) return send(200, { recipient_id: (body.recipient as { id: string }).id, message_id: `mid.${++this.n}` });
           return send(200, { messaging_product: 'whatsapp', contacts: [{ input: body.to, wa_id: body.to }], messages: [{ id: `wamid.${++this.n}` }] });
         }
         if (req.method === 'POST' && (edge === 'subscribed_apps' || edge === 'register')) {
