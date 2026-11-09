@@ -1,9 +1,9 @@
 Creating network crmwta_interna
-Creating service crmwta_api
 Creating service crmwta_web
 Creating service crmwta_backup
 Creating service crmwta_db
 Creating service crmwta_migrate
+Creating service crmwta_api
 aguardando os serviços...
 crmwta_api 1/1
 crmwta_backup 1/1
@@ -21,7 +21,7 @@ OK   página interna renderiza
 OK   arquivo gravado no volume e baixado pelo endereço assinado
 OK   nenhuma porta da stack publicada
 OK   reimplantar não duplica a configuração inicial
-backup: crm-20261109-194214.dump (496K)
+backup: crm-20261109-194957.dump (496K)
 OK   cópia do banco
 restaurado em crm_restaurado: 18 migrações, 1 empresas
 OK   restauração em banco novo
@@ -43,18 +43,18 @@ OK   serviço db em 1/1
 OK   serviço api em 1/1
 OK   serviço web em 1/1
 OK   serviço backup em 1/1
-migrate| crmwta_migrate.1.mace791t0hv6@runnervm7aw5e    | aplicando 0008_conversas
-migrate| crmwta_migrate.1.mace791t0hv6@runnervm7aw5e    | aplicando 0009_campanhas
-migrate| crmwta_migrate.1.mace791t0hv6@runnervm7aw5e    | aplicando 0010_agendamentos
-migrate| crmwta_migrate.1.mace791t0hv6@runnervm7aw5e    | aplicando 0011_meta
-migrate| crmwta_migrate.1.mace791t0hv6@runnervm7aw5e    | aplicando 0012_meta_tokens
-migrate| crmwta_migrate.1.mace791t0hv6@runnervm7aw5e    | aplicando 0013_resultado_das_calls
-migrate| crmwta_migrate.1.mace791t0hv6@runnervm7aw5e    | aplicando 0014_anuncios
-migrate| crmwta_migrate.1.mace791t0hv6@runnervm7aw5e    | aplicando 0015_kpis_fieis
-migrate| crmwta_migrate.1.mace791t0hv6@runnervm7aw5e    | aplicando 0016_kpi_funis
-migrate| crmwta_migrate.1.mace791t0hv6@runnervm7aw5e    | aplicando 0017_instagram_fluxos
-migrate| crmwta_migrate.1.mace791t0hv6@runnervm7aw5e    | aplicando 0018_modelos_midia
-migrate| crmwta_migrate.1.mace791t0hv6@runnervm7aw5e    | migrações aplicadas agora: 18
-migrate| crmwta_migrate.1.mace791t0hv6@runnervm7aw5e    | papel crm_api pronto
-migrate| crmwta_migrate.1.mace791t0hv6@runnervm7aw5e    | pronto: empresa 57c7beff-d987-4ab6-8ff5-c11c855734d6, superadministrador 202eb928-cb45-4e5b-82c9-e6da9c76fcf9
-migrate| crmwta_migrate.1.mace791t0hv6@runnervm7aw5e    | migrate: concluído
+migrate| crmwta_migrate.1.yyv5scsabqks@runnervm7aw5e    | aplicando 0008_conversas
+migrate| crmwta_migrate.1.yyv5scsabqks@runnervm7aw5e    | aplicando 0009_campanhas
+migrate| crmwta_migrate.1.yyv5scsabqks@runnervm7aw5e    | aplicando 0010_agendamentos
+migrate| crmwta_migrate.1.yyv5scsabqks@runnervm7aw5e    | aplicando 0011_meta
+migrate| crmwta_migrate.1.yyv5scsabqks@runnervm7aw5e    | aplicando 0012_meta_tokens
+migrate| crmwta_migrate.1.yyv5scsabqks@runnervm7aw5e    | aplicando 0013_resultado_das_calls
+migrate| crmwta_migrate.1.yyv5scsabqks@runnervm7aw5e    | aplicando 0014_anuncios
+migrate| crmwta_migrate.1.yyv5scsabqks@runnervm7aw5e    | aplicando 0015_kpis_fieis
+migrate| crmwta_migrate.1.yyv5scsabqks@runnervm7aw5e    | aplicando 0016_kpi_funis
+migrate| crmwta_migrate.1.yyv5scsabqks@runnervm7aw5e    | aplicando 0017_instagram_fluxos
+migrate| crmwta_migrate.1.yyv5scsabqks@runnervm7aw5e    | aplicando 0018_modelos_midia
+migrate| crmwta_migrate.1.yyv5scsabqks@runnervm7aw5e    | migrações aplicadas agora: 18
+migrate| crmwta_migrate.1.yyv5scsabqks@runnervm7aw5e    | papel crm_api pronto
+migrate| crmwta_migrate.1.yyv5scsabqks@runnervm7aw5e    | pronto: empresa 2bd8b5e9-5bc1-4b87-a92d-08858f1802bc, superadministrador 6597663b-f43a-4d16-9aa6-7163a3f01e27
+migrate| crmwta_migrate.1.yyv5scsabqks@runnervm7aw5e    | migrate: concluído
