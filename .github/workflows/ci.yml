@@ -84,6 +84,8 @@ jobs:
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y > /dev/null
           sudo apt-get install -y -q postgresql-client-18 > /dev/null
           echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
+      - name: ffmpeg (áudio gravado nas conversas)
+        run: command -v ffmpeg || (sudo apt-get update -q > /dev/null && sudo apt-get install -y -q ffmpeg > /dev/null)
 
       - name: Preparar a pasta de saída
         run: |
