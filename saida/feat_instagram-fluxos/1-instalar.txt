@@ -3,9 +3,9 @@ Lockfile is up to date, resolution step is skipped
 Progress: resolved 1, reused 0, downloaded 0, added 0
 Packages: +198
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-Progress: resolved 198, reused 0, downloaded 111, added 58
-Progress: resolved 198, reused 0, downloaded 141, added 74
-Progress: resolved 198, reused 0, downloaded 197, added 144
+Progress: resolved 198, reused 0, downloaded 109, added 56
+Progress: resolved 198, reused 0, downloaded 140, added 71
+Progress: resolved 198, reused 0, downloaded 197, added 133
 Progress: resolved 198, reused 0, downloaded 198, added 198, done
 
 Done in 4.3s using pnpm v10.28.0
