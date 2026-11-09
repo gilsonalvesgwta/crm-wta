@@ -306,7 +306,7 @@ function PhonePreview({ headerKind, header, file, body, footer, buttons }: {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={url} alt="" className="max-h-[160px] w-full object-cover" />
               ) : (
-                <div className="flex h-[110px] flex-col items-center justify-center gap-1 bg-[#d9dde1] text-[#555]">
+                <div className="flex h-[110px] flex-col items-center justify-center gap-1 bg-[#d9dde1] text-[#3c4043]">
                   <Icon size={28} aria-hidden />
                   <span className="max-w-[200px] truncate px-2 text-[11px]">{file?.name ?? (headerKind === 'DOCUMENT' ? 'Documento' : headerKind === 'VIDEO' ? 'Vídeo' : 'Imagem')}</span>
                 </div>
@@ -315,11 +315,11 @@ function PhonePreview({ headerKind, header, file, body, footer, buttons }: {
             <div className="px-2.5 py-2">
               {headerKind === 'TEXT' && header ? <p className="mb-1 font-semibold">{header}</p> : null}
               <p className="whitespace-pre-wrap break-words">{body || 'O texto do modelo aparece aqui.'}</p>
-              {footer ? <p className="mt-1 text-[11px] text-[#777]">{footer}</p> : null}
-              <p className="mt-0.5 text-right text-[10px] text-[#999]">10:30</p>
+              {footer ? <p className="mt-1 text-[11px] text-[#5f6368]">{footer}</p> : null}
+              <p className="mt-0.5 text-right text-[10px] text-[#5f6368]">10:30</p>
             </div>
             {buttons.filter((b) => b.text.trim()).map((b, i) => (
-              <p key={i} className="flex items-center justify-center gap-1.5 border-t border-[#eee] py-2 text-center text-[13px] font-medium text-[#0b84c6]">
+              <p key={i} className="flex items-center justify-center gap-1.5 border-t border-[#eee] py-2 text-center text-[13px] font-medium text-[#0a6aa1]">
                 {b.type === 'URL' ? <ExternalLink size={13} aria-hidden /> : b.type === 'PHONE_NUMBER' ? <Phone size={13} aria-hidden /> : <Reply size={13} aria-hidden />}{b.text}
               </p>
             ))}
