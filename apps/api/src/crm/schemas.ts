@@ -241,11 +241,13 @@ export const notePatch = z.object({ body: text(20000, 'o texto').optional(), pin
 
 export const importStart = z.object({
   fileId: uuid,
-  entity: z.enum(['contacts', 'organizations']),
+  entity: z.enum(['contacts', 'organizations', 'deals']),
   mapping: z.record(z.string().max(200), z.string().max(60)),
   options: z.object({
     duplicate: z.enum(['skip', 'update', 'create']).default('skip'),
     ownerId: uuid.nullable().optional(),
+    pipelineId: uuid.nullable().optional(),
+    stageId: uuid.nullable().optional(),
     tagIds: z.array(uuid).max(20).optional(),
     consentSource: optText(200),
   }).default({ duplicate: 'skip', consentSource: null }),

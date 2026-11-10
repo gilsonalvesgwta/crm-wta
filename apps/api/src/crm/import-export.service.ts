@@ -5,6 +5,7 @@ import type { Actor } from '../access/actor.js';
 import { tenantCtx } from '../access/decorators.js';
 import { audit } from '../admin/audit.js';
 import { digits, normalizeEmail, normalizePhone, validBirthday } from '../domain/contact-data.js';
+import { cleanPhones, isPlaceholderEmail, moneyToCents, parseSheetDate } from '../domain/import-normalize.js';
 import { applyCustomFields } from '../domain/custom-fields.js';
 import { Problem, type FieldError } from '../http/problem.js';
 import { Db, type Q } from '../infra/db.js';
@@ -21,12 +22,24 @@ export const MAX_IMPORT_ROWS = 50_000;
 const BATCH = 500;
 
 export const CONTACT_TARGETS = [
-  'firstName', 'lastName', 'fullName', 'email', 'email2', 'phone', 'phone2', 'jobTitle', 'organization', 'taxId', 'birthday',
+  'firstName', 'lastName', 'fullName', 'email', 'email2', 'email3', 'phone', 'phone2', 'phone3', 'phone4', 'jobTitle', 'organization', 'taxId', 'birthday',
   'tags', 'ownerEmail', 'source', 'medium', 'campaign', 'city', 'state',
 ] as const;
+/** Negócios (ex.: exportação do Pipedrive). */
+export const DEAL_TARGETS = [
+  'title', 'value', 'pipeline', 'stage', 'status', 'contactName', 'contactEmail', 'contactPhone', 'organization',
+  'expectedCloseDate', 'nextActivityDate', 'closedAt', 'ownerEmail', 'tags', 'lostReason', 'source',
+] as const;
+export type ImportEntity = 'contacts' | 'organizations' | 'deals';
+const TARGETS: Record<ImportEntity, readonly string[]> = { contacts: CONTACT_TARGETS, organizations: [], deals: DEAL_TARGETS };
 export const ORG_TARGETS = ['name', 'legalName', 'taxId', 'website', 'email', 'phone', 'industry', 'tags', 'ownerEmail', 'city', 'state'] as const;
+TARGETS.organizations = ORG_TARGETS;
 
-export type ImportOptions = { duplicate: 'skip' | 'update' | 'create'; ownerId?: string | null; tagIds?: string[]; consentSource?: string | null };
+export type ImportOptions = {
+  duplicate: 'skip' | 'update' | 'create'; ownerId?: string | null; tagIds?: string[]; consentSource?: string | null;
+  /** Negócios: funil e etapa quando a planilha não diz (ou diz um nome que não existe). */
+  pipelineId?: string | null; stageId?: string | null;
+};
 
 /** Decodifica o CSV: UTF-8, ou Windows-1252 (o padrão do Excel no Brasil) se não for UTF-8 válido. */
 export function decodeCsv(data: Buffer): string {
@@ -61,21 +74,54 @@ function norm(s: string): string {
   return s.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ');
 }
 
-/** Sugere o destino de cada coluna pelo cabeçalho. */
-export function suggestMapping(headers: string[], entity: 'contacts' | 'organizations', customKeys: { key: string; label: string }[]): Record<string, string> {
+/** Prefixos de exportações de outros CRMs ("Pessoa - Nome", "Negócio - Valor", "Person - Phone"…). */
+const PREFIX = /^(pessoa|person|people|contato|contact|negocio|deal|organizacao|organization|empresa|company) - /;
+
+const DEAL_ALIASES: Record<string, string> = {
+  titulo: 'title', title: 'title', nome: 'title', name: 'title', 'nome do negocio': 'title', negocio: 'title', deal: 'title',
+  valor: 'value', value: 'value', 'valor do negocio': 'value', funil: 'pipeline', pipeline: 'pipeline', etapa: 'stage', stage: 'stage', fase: 'stage',
+  status: 'status', situacao: 'status', 'pessoa de contato': 'contactName', 'contact person': 'contactName', pessoa: 'contactName', contato: 'contactName',
+  cliente: 'contactName', person: 'contactName', 'e-mail': 'contactEmail', email: 'contactEmail', telefone: 'contactPhone', phone: 'contactPhone',
+  celular: 'contactPhone', whatsapp: 'contactPhone', organizacao: 'organization', organization: 'organization', empresa: 'organization',
+  'data de fechamento esperada': 'expectedCloseDate', 'expected close date': 'expectedCloseDate', 'previsao de fechamento': 'expectedCloseDate',
+  'proxima atividade em': 'nextActivityDate', 'next activity date': 'nextActivityDate', 'data de ganho': 'closedAt', 'won time': 'closedAt',
+  'data de perda': 'closedAt', 'lost time': 'closedAt', 'data de fechamento': 'closedAt', 'close date': 'closedAt',
+  proprietario: 'ownerEmail', owner: 'ownerEmail', responsavel: 'ownerEmail', etiqueta: 'tags', etiquetas: 'tags', label: 'tags', tags: 'tags',
+  'motivo da perda': 'lostReason', 'lost reason': 'lostReason', origem: 'source', 'canal de origem': 'source', source: 'source',
+};
+
+/** Sugere o destino de cada coluna pelo cabeçalho (inclui as exportações do Pipedrive). */
+export function suggestMapping(headers: string[], entity: ImportEntity, customKeys: { key: string; label: string }[]): Record<string, string> {
   const out: Record<string, string> = {};
-  const allowed = new Set<string>(entity === 'contacts' ? CONTACT_TARGETS : ORG_TARGETS);
-  const aliases = Object.fromEntries(Object.entries(ALIASES).map(([k, v]) => [norm(k), v]));
+  const allowed = new Set<string>(TARGETS[entity]);
+  const aliases = Object.fromEntries(Object.entries(entity === 'deals' ? DEAL_ALIASES : ALIASES).map(([k, v]) => [norm(k), v]));
+  const take = (h: string, t: string) => { if (allowed.has(t) && !Object.values(out).includes(t)) { out[h] = t; return true; } return false; };
   for (const h of headers) {
-    let t = aliases[norm(h)];
+    const full = norm(h);
+    const bare = full.replace(PREFIX, '');
+    let t = aliases[full] ?? aliases[bare];
     if (entity === 'organizations' && (t === 'fullName' || t === 'organization')) t = 'name';
-    if (t && allowed.has(t) && !Object.values(out).includes(t)) out[h] = t;
-    else {
-      const c = customKeys.find((k) => norm(k.label) === norm(h) || k.key === norm(h));
-      if (c) out[h] = `custom.${c.key}`;
-    }
+    if (t && take(h, t)) continue;
+    // "E-mail - Trabalho", "Telefone - Celular": vão para o primeiro e-mail ou telefone livre.
+    if (entity === 'contacts' && /^(e-?mail)( -|$)/.test(bare) && ['email', 'email2', 'email3'].some((x) => take(h, x))) continue;
+    if (entity === 'contacts' && /^(telefone|phone|celular|whatsapp|fone)( -|$)/.test(bare) && ['phone', 'phone2', 'phone3', 'phone4'].some((x) => take(h, x))) continue;
+    if (entity === 'deals' && /^(e-?mail)( -|$)/.test(bare) && take(h, 'contactEmail')) continue;
+    if (entity === 'deals' && /^(telefone|phone|celular)( -|$)/.test(bare) && take(h, 'contactPhone')) continue;
+    if (entity !== 'deals' && /^(proprietario|owner)$/.test(bare) && take(h, 'ownerEmail')) continue;
+    if (/^(etiqueta|label)$/.test(bare) && take(h, 'tags')) continue;
+    const c = customKeys.find((k) => norm(k.label) === bare || norm(k.label) === full || k.key === full);
+    if (c) out[h] = `custom.${c.key}`;
   }
   return out;
+}
+
+/** Que tipo de planilha parece ser (pelos cabeçalhos). */
+export function detectEntity(headers: string[]): ImportEntity | null {
+  const n = headers.map(norm);
+  if (n.some((h) => /^(negocio|deal) - /.test(h))) return 'deals';
+  if (n.some((h) => /^(pessoa|person) - /.test(h))) return 'contacts';
+  if (n.some((h) => /^(organizacao|organization) - /.test(h))) return 'organizations';
+  return null;
 }
 
 function parseBirthday(s: string): { day: number; month: number; year: number | null } | null {
@@ -106,7 +152,7 @@ export class ImportExportService {
 
   // ---- Importação: envio e conferência ------------------------------------------
 
-  async upload(actor: Actor, entity: 'contacts' | 'organizations', name: string, data: Buffer) {
+  async upload(actor: Actor, entity: ImportEntity, name: string, data: Buffer) {
     reachOf(actor, 'contacts:import_export');
     if (!/\.(csv|txt)$/i.test(name)) throw Problem.badRequest('Envie um arquivo CSV.', [{ field: 'file', message: 'Salve a planilha como CSV.' }]);
     const rows = parseCsvText(decodeCsv(data));
@@ -120,26 +166,37 @@ export class ImportExportService {
     }
     return this.db.app(tenantCtx(actor), async (q) => {
       const fileId = await this.files.storeIn(q, actor, { name, data, purpose: 'import' });
-      const defs = await fieldDefs(q, entity === 'contacts' ? 'contact' : 'organization');
+      const defs = await fieldDefs(q, entity === 'contacts' ? 'contact' : entity === 'deals' ? 'deal' : 'organization');
       return {
-        fileId, headers, totalRows: rows.length - 1, sample: rows.slice(1, 6),
+        fileId, headers, totalRows: rows.length - 1, sample: rows.slice(1, 6), detectedEntity: detectEntity(headers),
         suggestedMapping: suggestMapping(headers, entity, defs.filter((d) => !d.archived)),
-        targets: [...(entity === 'contacts' ? CONTACT_TARGETS : ORG_TARGETS), ...defs.filter((d) => !d.archived).map((d) => `custom.${d.key}`)],
+        targets: [...TARGETS[entity], ...defs.filter((d) => !d.archived).map((d) => `custom.${d.key}`)],
       };
     });
   }
 
-  async start(actor: Actor, input: { fileId: string; entity: 'contacts' | 'organizations'; mapping: Record<string, string>; options: ImportOptions }) {
+  async start(actor: Actor, input: { fileId: string; entity: ImportEntity; mapping: Record<string, string>; options: ImportOptions }) {
     reachOf(actor, 'contacts:import_export');
     const targets = Object.values(input.mapping).filter(Boolean);
     if (new Set(targets).size !== targets.length) throw Problem.badRequest('Destino repetido.', [{ field: 'mapping', message: 'Cada campo pode receber só uma coluna.' }]);
-    const allowed = new Set<string>(input.entity === 'contacts' ? CONTACT_TARGETS : ORG_TARGETS);
-    const required = input.entity === 'contacts' ? ['firstName', 'fullName'] : ['name'];
+    const allowed = new Set<string>(TARGETS[input.entity]);
+    const required = input.entity === 'contacts' ? ['firstName', 'fullName'] : input.entity === 'deals' ? ['title', 'contactName'] : ['name'];
     if (!targets.some((t) => required.includes(t))) {
-      throw Problem.badRequest('Falta o nome.', [{ field: 'mapping', message: 'Escolha a coluna do nome.' }]);
+      throw Problem.badRequest('Falta o nome.', [{ field: 'mapping', message: input.entity === 'deals' ? 'Escolha a coluna do título do negócio.' : 'Escolha a coluna do nome.' }]);
     }
+    if (input.entity === 'deals') reachOf(actor, 'deals:edit');
     return this.db.app(tenantCtx(actor), async (q) => {
-      const defs = await fieldDefs(q, input.entity === 'contacts' ? 'contact' : 'organization');
+      const defs = await fieldDefs(q, input.entity === 'contacts' ? 'contact' : input.entity === 'deals' ? 'deal' : 'organization');
+      if (input.entity === 'deals') {
+        const pipe = input.options.pipelineId
+          ? (await q.query<{ id: string }>('select id from pipelines where id = $1 and archived_at is null', [input.options.pipelineId])).rows[0]
+          : (await q.query<{ id: string }>('select id from pipelines where archived_at is null order by position, created_at limit 1')).rows[0];
+        if (!pipe) throw Problem.badRequest('Funil não encontrado.', [{ field: 'pipelineId', message: 'Escolha o funil que recebe os negócios.' }]);
+        if (input.options.stageId && !(await q.query("select 1 from pipeline_stages where id = $1 and pipeline_id = $2 and kind = 'open'", [input.options.stageId, pipe.id])).rowCount) {
+          throw Problem.badRequest('Etapa inválida.', [{ field: 'stageId', message: 'Escolha uma etapa em andamento do funil.' }]);
+        }
+        input.options.pipelineId = pipe.id;
+      }
       for (const t of targets) {
         if (allowed.has(t)) continue;
         if (t.startsWith('custom.') && defs.some((d) => d.key === t.slice(7) && !d.archived)) continue;
@@ -225,11 +282,11 @@ export class ImportExportService {
       : null;
     try {
       return await this.db.app({ tenantId, userId }, async (q) => {
-        const imp = (await q.query<{ status: string; entity: 'contacts' | 'organizations'; mapping: Record<string, string>; options: ImportOptions; processed_rows: number; total_rows: number; created_by: string | null; file_id: string }>(
+        const imp = (await q.query<{ status: string; entity: ImportEntity; mapping: Record<string, string>; options: ImportOptions; processed_rows: number; total_rows: number; created_by: string | null; file_id: string }>(
           'select status, entity, mapping, options, processed_rows, total_rows, created_by, file_id from imports where id = $1 for update', [importId])).rows[0]!;
         if (imp.status !== 'processing') return true;
         const actor = imp.created_by ? await actorForMembership(q, tenantId, imp.created_by) : null;
-        if (!actor || actor.permissions.get('contacts:import_export') !== 'tenant') {
+        if (!actor || actor.permissions.get('contacts:import_export') !== 'tenant' || (imp.entity === 'deals' && !actor.permissions.get('deals:edit'))) {
           await q.query("update imports set status = 'failed', error = $2, finished_at = now(), locked_until = null where id = $1",
             [importId, 'Quem iniciou a importação não tem mais permissão para importar.']);
           return true;
@@ -251,7 +308,9 @@ export class ImportExportService {
           try {
             const r = imp.entity === 'contacts'
               ? await this.importContact(q, actor, record, imp.options)
-              : await this.importOrganization(q, actor, record, imp.options);
+              : imp.entity === 'deals'
+                ? await this.importDeal(q, actor, record, imp.options, importId)
+                : await this.importOrganization(q, actor, record, imp.options);
             await q.query('release savepoint linha');
             counts[r.status]++;
             await q.query(
@@ -284,7 +343,7 @@ export class ImportExportService {
           await q.query(
             `insert into notifications (tenant_id, membership_id, kind, title, body, link)
              values (app.tenant_id(), $1, 'import.done', 'Importação concluída', $2, $3)`,
-            [imp.created_by, `${processed.toLocaleString('pt-BR')} linhas processadas`, '/contatos/importar']);
+            [imp.created_by, `${processed.toLocaleString('pt-BR')} linhas processadas`, imp.entity === 'deals' ? '/negocios?visao=lista' : '/contatos/importar']);
         }
         return done;
       });
@@ -296,12 +355,16 @@ export class ImportExportService {
     }
   }
 
+  /** Responsável pelo e-mail ou pelo nome da pessoa da equipe; nome desconhecido (ex.: a conta da empresa no Pipedrive) fica com o padrão. */
   private async ownerFromEmail(q: Q, email: string | undefined, fallback: string | null | undefined): Promise<{ id: string | null; error?: FieldError }> {
     if (!email) return { id: fallback ?? null };
+    const v = email.trim();
     const r = await q.query<{ id: string }>(
-      `select m.id from memberships m join users u on u.id = m.user_id where u.email = lower($1) and m.status = 'active'`, [email.trim()]);
-    if (!r.rows[0]) return { id: null, error: { field: 'ownerEmail', message: `Responsável "${email}" não encontrado.` } };
-    return { id: r.rows[0].id };
+      `select m.id from memberships m join users u on u.id = m.user_id
+        where m.status = 'active' and (u.email = lower($1) or lower(u.name) = lower($1)) order by (u.email = lower($1)) desc limit 1`, [v]);
+    if (r.rows[0]) return { id: r.rows[0].id };
+    if (!v.includes('@')) return { id: fallback ?? null };
+    return { id: null, error: { field: 'ownerEmail', message: `Responsável "${email}" não encontrado.` } };
   }
 
   private async tagIds(q: Q, names: string | undefined, fixed: string[] | undefined): Promise<string[]> {
@@ -329,6 +392,125 @@ export class ImportExportService {
     return out;
   }
 
+  /**
+   * E-mails e telefones de uma linha, limpos: vários por célula, e-mails de
+   * preenchimento ("naopossuo@…") ignorados, telefones em qualquer formato
+   * (Pipedrive, Excel com apóstrofo, celular antigo sem o 9).
+   */
+  private contactData(rec: Record<string, string>, emailKeys: string[], phoneKeys: string[], errors: FieldError[]) {
+    const emails: string[] = [];
+    for (const key of emailKeys) {
+      for (const raw of (rec[key] ?? '').split(/[\s,;]+/).filter(Boolean)) {
+        const e = normalizeEmail(raw);
+        if (!e) errors.push({ field: key, message: `E-mail inválido: ${raw}` });
+        else if (!isPlaceholderEmail(e) && !emails.includes(e)) emails.push(e);
+      }
+    }
+    const phones: string[] = [];
+    for (const key of phoneKeys) {
+      if (!rec[key]) continue;
+      const r = cleanPhones(rec[key]);
+      for (const p of r.phones) if (!phones.includes(p)) phones.push(p);
+      for (const bad of r.invalid) errors.push({ field: key, message: `Telefone inválido: ${bad}` });
+    }
+    return { emails: emails.slice(0, 10), phones: phones.slice(0, 10) };
+  }
+
+  /** Contato do negócio: pelo e-mail ou telefone; senão pelo nome (entre homônimos, o que ainda não tem negócio); senão, cria. */
+  private async dealContact(q: Q, actor: Actor, rec: Record<string, string>, owner: string | null, errors: FieldError[]): Promise<string | null> {
+    const { emails, phones } = this.contactData(rec, ['contactEmail'], ['contactPhone'], errors);
+    if (emails.length || phones.length) {
+      const found = (await q.query<{ id: string }>(
+        `select c.id from contacts c where c.anonymized_at is null and (
+           c.id in (select contact_id from contact_emails where email = any($1::text[]))
+           or c.id in (select contact_id from contact_phones where e164 = any($2::text[])))
+         order by c.created_at limit 1`, [emails, phones])).rows[0];
+      if (found) return found.id;
+    }
+    const name = (rec.contactName ?? '').replace(/\s+/g, ' ').trim();
+    if (!name && !emails.length && !phones.length) return null;
+    if (name) {
+      const found = (await q.query<{ id: string }>(
+        `select c.id from contacts c
+          where c.anonymized_at is null and lower(btrim(c.first_name || coalesce(' ' || c.last_name, ''))) = lower($1)
+          order by (select count(*) from deals d where d.contact_id = c.id), c.created_at limit 1`, [name])).rows[0];
+      if (found) return found.id;
+    }
+    const parts = (name || emails[0] || phones[0]!).split(' ');
+    return this.contacts.createIn(q, actor, { ...reachOf(actor, 'contacts:edit'), scope: 'tenant' }, {
+      firstName: parts.shift()!.slice(0, 100), lastName: parts.join(' ').slice(0, 100) || null, ownerId: owner,
+      emails: emails.map((email, i) => ({ email, isPrimary: i === 0 })), phones: phones.map((number, i) => ({ number, isPrimary: i === 0 })),
+    }, { allowDuplicate: true, touch: { source: 'importação', medium: null, campaign: null, via: 'import' } });
+  }
+
+  private async importDeal(q: Q, actor: Actor, rec: Record<string, string>, opts: ImportOptions, importId: string)
+    : Promise<{ status: 'created' | 'updated' | 'skipped'; id?: string; errors?: FieldError[] }> {
+    const errors: FieldError[] = [];
+    const title = (rec.title || rec.contactName || '').trim().slice(0, 200);
+    if (!title) throw Problem.badRequest('Sem título.', [{ field: 'title', message: 'O título do negócio está vazio.' }]);
+    // Funil e etapa: pelo nome na planilha; senão os escolhidos na importação.
+    let pipelineId = opts.pipelineId!;
+    if (rec.pipeline) {
+      const p = (await q.query<{ id: string }>('select id from pipelines where lower(name) = lower($1) and archived_at is null limit 1', [rec.pipeline.trim()])).rows[0];
+      if (p) pipelineId = p.id; else errors.push({ field: 'pipeline', message: `Funil "${rec.pipeline}" não existe; foi para o funil escolhido.` });
+    }
+    let stageId: string | null = pipelineId === opts.pipelineId ? opts.stageId ?? null : null;
+    if (rec.stage) {
+      const st = (await q.query<{ id: string }>("select id from pipeline_stages where pipeline_id = $1 and lower(name) = lower($2) and kind = 'open' limit 1", [pipelineId, rec.stage.trim()])).rows[0];
+      if (st) stageId = st.id; else errors.push({ field: 'stage', message: `Etapa "${rec.stage}" não existe nesse funil; foi para a primeira etapa.` });
+    }
+    const status = normStatus(rec.status);
+    if (rec.status && !status) errors.push({ field: 'status', message: `Situação "${rec.status}" desconhecida; ficou em andamento.` });
+    if (status === 'deleted') return { status: 'skipped', errors: [{ field: 'status', message: 'Negócio excluído no outro CRM.' }] };
+    let valueCents = 0;
+    if (rec.value) {
+      const v = moneyToCents(rec.value);
+      if (v === null || v < 0) errors.push({ field: 'value', message: `Valor inválido: ${rec.value}` }); else valueCents = v;
+    }
+    const expected = rec.expectedCloseDate ? parseSheetDate(rec.expectedCloseDate) : null;
+    if (rec.expectedCloseDate && !expected) errors.push({ field: 'expectedCloseDate', message: `Data inválida: ${rec.expectedCloseDate}` });
+    const owner = await this.ownerFromEmail(q, rec.ownerEmail, opts.ownerId ?? actor.membershipId);
+    if (owner.error) errors.push(owner.error);
+    // Repetido: mesmo título no funil e mesma pessoa (pelo nome, porque homônimos podem ter caído em contatos diferentes).
+    const person = (rec.contactName ?? '').replace(/\s+/g, ' ').trim();
+    const dup = (await q.query<{ id: string; value_cents: string }>(
+      `select d.id, d.value_cents from deals d left join contacts c on c.id = d.contact_id
+        where d.pipeline_id = $1 and lower(d.title) = lower($2)
+          and ($3 = '' or lower(btrim(c.first_name || coalesce(' ' || c.last_name, ''))) = lower($3))
+          -- linhas da mesma planilha são negócios diferentes (a mesma pessoa pode ter vários)
+          and not exists (select 1 from import_rows r where r.import_id = $4 and r.record_id = d.id)
+        order by d.created_at limit 1`, [pipelineId, title, person, importId])).rows[0];
+    if (dup && opts.duplicate === 'skip') return { status: 'skipped', id: dup.id, errors: [...errors, { field: 'title', message: 'Negócio já cadastrado (mesmo título e pessoa no funil).' }] };
+    const contactId = await this.dealContact(q, actor, rec, owner.id, errors);
+    const orgId = await this.orgByName(q, actor, rec.organization, owner.id);
+    if (dup && opts.duplicate === 'update') {
+      await q.query(`update deals set value_cents = case when value_cents = 0 then $2 else value_cents end,
+                            expected_close_date = coalesce(expected_close_date, $3), organization_id = coalesce(organization_id, $4) where id = $1`,
+        [dup.id, valueCents, expected, orgId]);
+      return { status: 'updated', id: dup.id, errors };
+    }
+    const tagIds = await this.tagIds(q, rec.tags, opts.tagIds);
+    const id = await this.deals.createIn(q, actor, { ...reachOf(actor, 'deals:edit'), scope: 'tenant' }, {
+      pipelineId, stageId: stageId ?? undefined, title, valueCents, contactId, organizationId: orgId, ownerId: owner.id, expectedCloseDate: expected, tagIds,
+    });
+    if (status === 'won' || status === 'lost') {
+      const closed = (rec.closedAt && parseSheetDate(rec.closedAt)) || null;
+      await q.query(
+        `update deals set status = $2, stage_id = (select id from pipeline_stages where pipeline_id = deals.pipeline_id and kind = $2 order by position limit 1),
+                closed_at = coalesce($3::date::timestamptz, now()), outcome_note = $4 where id = $1`,
+        [id, status, closed, status === 'lost' && rec.lostReason ? rec.lostReason.slice(0, 1000) : null]);
+    }
+    // Próxima atividade marcada no outro CRM vira uma tarefa no dia.
+    const next = rec.nextActivityDate ? parseSheetDate(rec.nextActivityDate) : null;
+    if (next && status !== 'won' && status !== 'lost') {
+      await q.query(
+        `insert into activities (tenant_id, type, title, starts_at, all_day, owner_membership_id, contact_id, deal_id, created_by)
+         values (app.tenant_id(), 'task', $1, $2::date::timestamptz, true, $3, $4, $5, $6)`,
+        [`Próxima atividade: ${title}`.slice(0, 200), next, owner.id ?? actor.membershipId, contactId, id, actor.membershipId]);
+    }
+    return { status: 'created', id, errors };
+  }
+
   private async importContact(q: Q, actor: Actor, rec: Record<string, string>, opts: ImportOptions)
     : Promise<{ status: 'created' | 'updated' | 'skipped'; id?: string; errors?: FieldError[] }> {
     const errors: FieldError[] = [];
@@ -340,20 +522,7 @@ export class ImportExportService {
       last = last ?? (parts.join(' ') || undefined);
     }
     if (!first) throw Problem.badRequest('Sem nome.', [{ field: 'firstName', message: 'O nome está vazio.' }]);
-    const emails: string[] = [];
-    for (const key of ['email', 'email2'] as const) {
-      if (!rec[key]) continue;
-      const e = normalizeEmail(rec[key]);
-      if (e) emails.push(e);
-      else errors.push({ field: key, message: `E-mail inválido: ${rec[key]}` });
-    }
-    const phones: string[] = [];
-    for (const key of ['phone', 'phone2'] as const) {
-      if (!rec[key]) continue;
-      const p = normalizePhone(rec[key]);
-      if (p) phones.push(p);
-      else errors.push({ field: key, message: `Telefone inválido: ${rec[key]}` });
-    }
+    const { emails, phones } = this.contactData(rec, ['email', 'email2', 'email3'], ['phone', 'phone2', 'phone3', 'phone4'], errors);
     let birthday: { day: number; month: number; year: number | null } | null = null;
     if (rec.birthday) {
       birthday = parseBirthday(rec.birthday);
@@ -569,4 +738,15 @@ export class ImportExportService {
       return { data, rows: rows.rowCount ?? 0 };
     });
   }
+}
+
+/** Situação do negócio em português ou inglês (Pipedrive: open, won, lost, deleted). */
+function normStatus(raw: string | undefined): 'open' | 'won' | 'lost' | 'deleted' | null {
+  const v = norm(raw ?? '');
+  if (!v) return 'open';
+  if (/^(open|aberto|em aberto|andamento|em andamento|ativo)$/.test(v)) return 'open';
+  if (/^(won|ganho|ganha|vendido|fechado ganho|convertido)$/.test(v)) return 'won';
+  if (/^(lost|perdido|perdida|fechado perdido)$/.test(v)) return 'lost';
+  if (/^(deleted|excluido|apagado)$/.test(v)) return 'deleted';
+  return null;
 }

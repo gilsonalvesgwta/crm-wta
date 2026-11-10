@@ -23,6 +23,15 @@ Atualizado em 9 de novembro de 2026.
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
 
+### Importar do Pipedrive (10 nov 2026)
+
+- Contatos › Importar (e Negócios › Importar) aceitam direto as exportações do Pipedrive: pessoas ("Pessoa - …") e negócios ("Negócio - …"). O tipo é reconhecido sozinho e as colunas já vêm ligadas.
+- Telefones arrumados: celular antigo sem o 9 ganha o 9, número sem o 55 vira Brasil quando tem DDD, números de fora com o código do país (EUA, Portugal, Reino Unido, Japão…), apóstrofo do Excel, vários números na célula e número colado duas vezes.
+- E-mails de preenchimento ("naopossuo@gmail.com", "teste@teste.com") são ignorados e não juntam pessoas diferentes.
+- Negócios: valor em qualquer formato (547812.9, 1.200.000,50), pessoa achada pelo e-mail, telefone ou nome (homônimos repartidos), funil e etapa pelo nome ou os escolhidos, situação (ganho/perdido), previsão de fechamento e próxima atividade (vira tarefa). Importar de novo não duplica.
+- Conferido com os arquivos reais exportados pelo usuário (não guardados no repositório): 514 pessoas e 546 negócios, sem nenhum erro, com o total de R$ 31.514.648,89 batendo.
+- Migração 0021 só amplia os tipos de importação aceitos.
+
 ### Ajustes de 10 nov 2026
 
 - Contato do Instagram: nome do perfil (também quando a mensagem foi mandada pelo celular) no lugar de "@usuario" ou "Instagram 123456", e o e-mail e o telefone que a pessoa escreve nas mensagens entram no contato. O que foi preenchido à mão não é trocado. O Instagram não fornece e-mail nem telefone pela API.

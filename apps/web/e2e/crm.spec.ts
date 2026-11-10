@@ -270,6 +270,48 @@ test('planilha modelo: baixar, importar sem mexer em nada e reconhecer todas as 
   }).toPass({ timeout: 30_000 });
 });
 
+test('Pipedrive: exportação de pessoas e de negócios entra sem erro', async ({ page }) => {
+  test.setTimeout(120_000);
+  await loginAdmin(page);
+  const people = [
+    '"Pessoa - Nome","Pessoa - Etiqueta","Pessoa - Organização","Pessoa - E-mail - Trabalho","Pessoa - E-mail - Residencial","Pessoa - E-mail - Outros","Pessoa - Telefone - Trabalho","Pessoa - Telefone - Residencial","Pessoa - Telefone - Celular","Pessoa - Telefone - Outros","Pessoa - Negócios fechados","Pessoa - Negócios em aberto","Pessoa - Próxima atividade em","Pessoa - Proprietário"',
+    '"Drive Natty","","","natty.drive@hotmail.com","","","55 41 9794-7366","","","","0","1","","Servocar Consórcios"',
+    '"Drive Iury","","","naopossuo@gmail.com","","","1 (774) 606-6570","","","","0","1","","Servocar Consórcios"',
+    '"Drive Felipe","","","naopossuo@gmail.com","","","","","\'+55 83 9983-7655","","0","1","","Servocar Consórcios"',
+  ].join('\n');
+  await page.goto('/contatos/importar');
+  await page.locator('input[type=file]').setInputFiles({ name: 'people-28381201-1.csv', mimeType: 'text/csv', buffer: Buffer.from(people) });
+  await expect(page.getByLabel('Campo para a coluna Pessoa - Telefone - Trabalho', { exact: true })).toHaveValue('phone');
+  await expect(page.getByLabel('Campo para a coluna Pessoa - Proprietário', { exact: true })).toHaveValue('ownerEmail');
+  await page.getByRole('button', { name: 'Importar 3 linhas' }).click();
+  await expect(page.getByText('Tudo certo')).toBeVisible({ timeout: 30_000 });
+
+  // Negócios › Importar: a planilha do Pipedrive é reconhecida sozinha.
+  await page.goto('/negocios');
+  await page.getByRole('link', { name: 'Importar' }).click();
+  const deals = [
+    '"Negócio - Título","Negócio - Valor","Negócio - Organização","Negócio - Pessoa de contato","Negócio - Data de fechamento esperada","Negócio - Próxima atividade em","Negócio - Proprietário"',
+    '"Drive Natty","200000","","Drive Natty","","","Servocar Consórcios"',
+    '"Drive Iury","547812.9","","Drive Iury","","2026-12-12","Servocar Consórcios"',
+    '"Drive Felipe","0","","Drive Felipe","","","Servocar Consórcios"',
+  ].join('\n');
+  await page.locator('input[type=file]').setInputFiles({ name: 'deals-28381201-3.csv', mimeType: 'text/csv', buffer: Buffer.from(deals) });
+  await expect(page.getByLabel('Campo para a coluna Negócio - Valor', { exact: true })).toHaveValue('value');
+  await expect(page.getByLabel('Campo para a coluna Negócio - Pessoa de contato', { exact: true })).toHaveValue('contactName');
+  await expect(page.getByLabel('Funil que recebe os negócios')).toBeVisible();
+  await expectAccessible(page);
+  await shot(page, '28-importar-negocios-pipedrive');
+  await page.getByRole('button', { name: 'Importar 3 linhas' }).click();
+  await expect(page.getByText('Tudo certo')).toBeVisible({ timeout: 30_000 });
+  await page.getByRole('link', { name: 'Ver negócios' }).click();
+  const list = page.getByRole('region', { name: 'Lista de negócios' });
+  await expect(list).toContainText('Drive Iury');
+  await expect(list).toContainText('547.812,90');
+  // A pessoa do negócio é a do contato importado, com o telefone arrumado.
+  const r = await (await page.request.get('/api/v1/contacts?q=Drive%20Felipe')).json() as { items: { phone: string | null }[] };
+  expect(r.items[0]!.phone).toBe('+5583999837655');
+});
+
 test('configurações do CRM: funis e campos', async ({ page }) => {
   await loginAdmin(page);
   await page.goto('/configuracoes/funis');

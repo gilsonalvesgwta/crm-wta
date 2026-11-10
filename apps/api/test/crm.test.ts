@@ -655,6 +655,92 @@ describe('importação e exportação', () => {
     assert.equal(n.rows[0]!.n, 1200);
   });
 
+  test('Pipedrive: pessoas e negócios exportados entram sem erro, com telefones e e-mails arrumados', async () => {
+    const run = async (id: string) => {
+      for (let i = 0; i < 20; i++) {
+        await dispatcher().runOnce(60_000);
+        if ((await admin.get(`/api/v1/imports/${id}`)).body.status === 'done') break;
+      }
+      return (await admin.get(`/api/v1/imports/${id}`)).body;
+    };
+    const people = [
+      '"Pessoa - Nome","Pessoa - Etiqueta","Pessoa - Organização","Pessoa - E-mail - Trabalho","Pessoa - E-mail - Residencial","Pessoa - E-mail - Outros","Pessoa - Telefone - Trabalho","Pessoa - Telefone - Residencial","Pessoa - Telefone - Celular","Pessoa - Telefone - Outros","Pessoa - Negócios fechados","Pessoa - Negócios em aberto","Pessoa - Próxima atividade em","Pessoa - Proprietário"',
+      '"Pipe Edilson","","","edilson.pipe@gmail.com","","","41997810298","","","","0","0","","Servocar Consórcios"',
+      '"Pipe Yandri","Quente","Pipe Ltda","naopossuo@gmail.com","","","55 91 8965-1413","","","","0","1","","Servocar Consórcios"',
+      '"Pipe Gabriel","","","naopossuo@gmail.com","","","55 47 9778-7001, 55 34 9712-2243","","","","0","1","","Servocar Consórcios"',
+      '"Pipe Gabriel","","","naopossuo@gmail.com","","","1 (774) 606-6570","","","","0","1","","Servocar Consórcios"',
+      '"Pipe Bruno","","","pipe.carol@gmail.com  pipe.carol@hotmail.com","","","55 11 92454-190955 11 92454-1909","","\'+55 83 9983-7655","","0","1","","Servocar Consórcios"',
+      '"Pipe Robson","","","naopossuo@gmail.com","","","351 960 480 788","","","","0","1","","Servocar Consórcios"',
+      '"Pipe Sem Telefone","","","naopossuo@gmail.com","","","","","","","0","1","","Servocar Consórcios"',
+    ];
+    const up = await admin.upload('/api/v1/imports/upload?entity=contacts', 'people-28381201-1.csv', people.join('\n'), 'text/csv');
+    assert.equal(up.status, 201, JSON.stringify(up.body));
+    assert.equal(up.body.detectedEntity, 'contacts');
+    assert.deepEqual(up.body.suggestedMapping, {
+      'Pessoa - Nome': 'fullName', 'Pessoa - Etiqueta': 'tags', 'Pessoa - Organização': 'organization',
+      'Pessoa - E-mail - Trabalho': 'email', 'Pessoa - E-mail - Residencial': 'email2', 'Pessoa - E-mail - Outros': 'email3',
+      'Pessoa - Telefone - Trabalho': 'phone', 'Pessoa - Telefone - Residencial': 'phone2', 'Pessoa - Telefone - Celular': 'phone3', 'Pessoa - Telefone - Outros': 'phone4',
+      'Pessoa - Proprietário': 'ownerEmail',
+    });
+    const start = await admin.post('/api/v1/imports', { fileId: up.body.fileId, entity: 'contacts', mapping: up.body.suggestedMapping, options: { duplicate: 'skip' } });
+    assert.equal(start.status, 201, JSON.stringify(start.body));
+    const done = await run(start.body.id);
+    assert.equal(done.createdCount, 7, JSON.stringify(done));
+    assert.equal(done.errorCount, 0, JSON.stringify((await admin.get(`/api/v1/imports/${start.body.id}/errors`)).body));
+    assert.equal(done.skippedCount, 0, 'o e-mail "naopossuo" não junta pessoas diferentes');
+    const phonesOf = async (name: string) => (await f.admin.query<{ e164: string }>(
+      `select p.e164 from contact_phones p join contacts c on c.id = p.contact_id where c.tenant_id = $1 and c.first_name || ' ' || coalesce(c.last_name, '') = $2 order by p.is_primary desc, p.e164`, [f.tenantA, name])).rows.map((r) => r.e164);
+    assert.deepEqual(await phonesOf('Pipe Edilson'), ['+5541997810298']);
+    assert.deepEqual(await phonesOf('Pipe Yandri'), ['+5591989651413'], 'celular antigo ganha o 9');
+    assert.deepEqual((await phonesOf('Pipe Gabriel')).sort(), ['+17746066570', '+5534997122243', '+5547997787001']);
+    assert.deepEqual((await phonesOf('Pipe Bruno')).sort(), ['+5511924541909', '+5583999837655'], 'número colado duas vezes e apóstrofo do Excel');
+    assert.deepEqual(await phonesOf('Pipe Robson'), ['+351960480788']);
+    const emails = (await f.admin.query<{ email: string }>(`select email from contact_emails e join contacts c on c.id = e.contact_id where c.tenant_id = $1 and c.first_name = 'Pipe' order by email`, [f.tenantA])).rows.map((r) => r.email);
+    assert.deepEqual(emails, ['edilson.pipe@gmail.com', 'pipe.carol@gmail.com', 'pipe.carol@hotmail.com']);
+
+    const pipes = (await admin.get('/api/v1/pipelines')).body as { id: string; name: string; archived: boolean; stages: { id: string; name: string; kind: string }[] }[];
+    const pipe = pipes.find((x) => !x.archived)!;
+    const second = pipe.stages.filter((x) => x.kind === 'open')[1]!;
+    const deals = [
+      '"Negócio - Título","Negócio - Valor","Negócio - Organização","Negócio - Pessoa de contato","Negócio - Data de fechamento esperada","Negócio - Próxima atividade em","Negócio - Proprietário"',
+      '"Pipe Yandri","200000","","Pipe Yandri","","","Servocar Consórcios"',
+      '"Pipe Gabriel (1)","547812.9","","Pipe Gabriel","2026-12-20","2026-11-20","Servocar Consórcios"',
+      '"Pipe Gabriel (2)","1.200.000,50","","Pipe Gabriel","","","Servocar Consórcios"',
+      '"Pipe Novo","0","Pipe Ltda","Pipe Pessoa Nova","","","Servocar Consórcios"',
+      '"","0","","","","","Servocar Consórcios"',
+    ];
+    const du = await admin.upload('/api/v1/imports/upload?entity=deals', 'deals-28381201-3.csv', deals.join('\n'), 'text/csv');
+    assert.equal(du.body.detectedEntity, 'deals');
+    assert.deepEqual(du.body.suggestedMapping, {
+      'Negócio - Título': 'title', 'Negócio - Valor': 'value', 'Negócio - Organização': 'organization', 'Negócio - Pessoa de contato': 'contactName',
+      'Negócio - Data de fechamento esperada': 'expectedCloseDate', 'Negócio - Próxima atividade em': 'nextActivityDate', 'Negócio - Proprietário': 'ownerEmail',
+    });
+    const ds = await admin.post('/api/v1/imports', { fileId: du.body.fileId, entity: 'deals', mapping: du.body.suggestedMapping, options: { duplicate: 'skip', pipelineId: pipe.id, stageId: second.id } });
+    assert.equal(ds.status, 201, JSON.stringify(ds.body));
+    const dd = await run(ds.body.id);
+    assert.equal(dd.createdCount, 4, JSON.stringify(dd));
+    assert.equal(dd.errorCount, 1, 'linha sem título nem pessoa');
+    const rows = (await f.admin.query<{ title: string; value_cents: string; stage_id: string; contact: string | null; contact_id: string | null; expected_close_date: string | null }>(
+      `select d.title, d.value_cents, d.stage_id, d.contact_id, d.expected_close_date::text, c.first_name || ' ' || coalesce(c.last_name, '') as contact
+         from deals d left join contacts c on c.id = d.contact_id where d.tenant_id = $1 and d.title like 'Pipe %' order by d.title`, [f.tenantA])).rows;
+    const by = (t: string) => rows.find((r) => r.title === t)!;
+    assert.equal(Number(by('Pipe Yandri').value_cents), 20_000_000);
+    assert.equal(by('Pipe Yandri').stage_id, second.id);
+    assert.equal(Number(by('Pipe Gabriel (1)').value_cents), 54_781_290);
+    assert.equal(Number(by('Pipe Gabriel (2)').value_cents), 120_000_050);
+    assert.equal(by('Pipe Gabriel (1)').expected_close_date, '2026-12-20');
+    assert.notEqual(by('Pipe Gabriel (1)').contact_id, by('Pipe Gabriel (2)').contact_id, 'homônimos: cada negócio num Gabriel');
+    assert.equal(by('Pipe Novo').contact, 'Pipe Pessoa Nova', 'pessoa que não existia é criada');
+    const task = await f.admin.query("select title, starts_at::date::text as d from activities where deal_id = (select id from deals where title = 'Pipe Gabriel (1)' and tenant_id = $1)", [f.tenantA]);
+    assert.deepEqual(task.rows[0], { title: 'Próxima atividade: Pipe Gabriel (1)', d: '2026-11-20' });
+    // Importar de novo não duplica.
+    const again = await admin.upload('/api/v1/imports/upload?entity=deals', 'deals-de-novo.csv', deals.join('\n'), 'text/csv');
+    const as = await admin.post('/api/v1/imports', { fileId: again.body.fileId, entity: 'deals', mapping: again.body.suggestedMapping, options: { duplicate: 'skip', pipelineId: pipe.id } });
+    const ad = await run(as.body.id);
+    assert.equal(ad.createdCount, 0);
+    assert.equal(ad.skippedCount, 4);
+  });
+
   test('comercial não importa nem exporta', async () => {
     assert.equal((await sales1.upload('/api/v1/imports/upload', 'x.csv', 'Nome\nA', 'text/csv')).status, 403);
     assert.equal((await sales1.raw('/api/v1/contacts/export.csv')).status, 403);

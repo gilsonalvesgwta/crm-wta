@@ -30,3 +30,10 @@ select t.throws($$update memberships set notify_phone = '47 99999-0000' where te
 select t.ok(t.affected($$update memberships set notify_phone = '+5547999990000' where id = (select id from memberships where tenant_id = t.a() limit 1)$$) = 1, 'WhatsApp do aviso guardado');
 select t.ctx(null, null);
 reset role;
+
+-- Importação de negócios.
+set role crm_app;
+select t.ctx(t.a(), t.ua());
+select t.throws($$insert into imports (tenant_id, entity, file_id, mapping, total_rows) values (t.a(), 'tarefas', gen_random_uuid(), '{}', 1)$$, '23514', 'tipo de importação fora da lista');
+select t.ctx(null, null);
+reset role;
