@@ -2,7 +2,7 @@
 import { Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-type Entity = 'contacts' | 'organizations';
+type Entity = 'contacts' | 'organizations' | 'deals';
 
 /** Planilhas modelo: cabeçalhos que o CRM reconhece sozinho e duas linhas de exemplo. */
 const TEMPLATES: Record<Entity, { file: string; headers: string[]; rows: string[][]; tips: string[] }> = {
@@ -33,6 +33,22 @@ const TEMPLATES: Record<Entity, { file: string; headers: string[]; rows: string[
       'A primeira linha é o cabeçalho, com os nomes das colunas como no modelo.',
       'Cada organização precisa de nome; o CNPJ ajuda a achar as já cadastradas.',
       'Várias etiquetas na mesma célula, separadas por vírgula.',
+    ],
+  },
+  deals: {
+    file: 'modelo-negocios.csv',
+    headers: ['Título', 'Valor', 'Pessoa de contato', 'E-mail', 'Telefone', 'Organização', 'Etapa', 'Status', 'Data de fechamento esperada', 'Próxima atividade em', 'Responsável', 'Etiquetas'],
+    rows: [
+      ['Consórcio imóvel - Maria', '350.000,00', 'Maria Souza', 'maria@exemplo.com.br', '(11) 98765-4321', 'Souza Comércio', 'Contato feito', 'Em andamento', '20/12/2026', '15/11/2026', '', 'Tráfego pago'],
+      ['Consórcio auto - João', '80000', 'João Pereira', '', '(21) 99876-5432', '', '', 'Ganho', '', '', '', ''],
+    ],
+    tips: [
+      'Também aceita direto a exportação de negócios do Pipedrive ("Negócio - Título", "Negócio - Valor"…).',
+      'A pessoa de contato é achada pelo e-mail ou telefone; sem eles, pelo nome. Quem não existir é cadastrado.',
+      'Importe os contatos antes (exportação de pessoas) para os negócios já caírem nas pessoas certas.',
+      'Valor como 350000, 350.000,00 ou 547812.9. Datas como 20/12/2026 ou 2026-12-20.',
+      'Etapa e funil pelo nome; se não existirem (ou a coluna não vier), usa o funil e a etapa escolhidos na importação.',
+      'Status: em andamento, ganho ou perdido. A próxima atividade vira uma tarefa no dia.',
     ],
   },
 };

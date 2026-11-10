@@ -6,7 +6,7 @@ import {
   DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors,
   type Announcements, type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
-import { AlarmClock, CalendarClock, Download, GripVertical, Kanban, List, Plus, Settings2 } from 'lucide-react';
+import { AlarmClock, CalendarClock, Download, GripVertical, Kanban, List, Plus, Settings2, Upload } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useLoad } from '@/lib/use-load';
 import { useDebounced, useQueryState } from '@/lib/use-query-state';
@@ -53,6 +53,7 @@ function Deals() {
     <div className="flex flex-col gap-4">
       <PageHeader title="Negócios"
         actions={<>
+          {can('contacts:import_export') && can('deals:edit') ? <Link href={`/contatos/importar?tipo=negocios&funil=${pipelineId}`} className="inline-flex h-10 items-center gap-2 rounded-[6px] border border-line bg-surface px-3.5 text-sm font-medium hover:bg-surface-2"><Upload size={16} aria-hidden />Importar</Link> : null}
           {can('deals:export') ? <a href={`/api/v1/deals/export.csv?pipelineId=${pipelineId}&status=all`} className="inline-flex h-10 items-center gap-2 rounded-[6px] border border-line bg-surface px-3.5 text-sm font-medium hover:bg-surface-2"><Download size={16} aria-hidden />Exportar</a> : null}
           {can('pipelines:admin') ? <Link href="/configuracoes/funis" className="inline-flex h-10 items-center gap-2 rounded-[6px] border border-line bg-surface px-3.5 text-sm font-medium hover:bg-surface-2"><Settings2 size={16} aria-hidden />Funis</Link> : null}
           {can('deals:edit') ? <Button onClick={() => setCreating(true)}><Plus size={16} aria-hidden />Novo negócio</Button> : null}

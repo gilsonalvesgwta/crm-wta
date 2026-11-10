@@ -168,6 +168,12 @@ Com chave de API não há cookie, então não há verificação de CSRF; chave i
 
 Envio com modelo: `POST /api/v1/conversations/:id/messages` com `{accountId, templateId, templateParams}`. Fora das 24 h sem modelo: 409 `outside-window`.
 
+### Importação de negócios e do Pipedrive (10 nov 2026)
+
+- `POST /api/v1/imports/upload?entity=contacts|organizations|deals` devolve também `detectedEntity` (pelos prefixos "Pessoa - ", "Negócio - ", "Organização - ").
+- `POST /api/v1/imports` com `entity: 'deals'` e `options.pipelineId` / `options.stageId` (funil e etapa quando a planilha não diz). Destinos de negócio: `title, value, pipeline, stage, status, contactName, contactEmail, contactPhone, organization, expectedCloseDate, nextActivityDate, closedAt, ownerEmail, tags, lostReason, source`. Exige também `deals:edit`.
+- Contatos ganham `email3`, `phone3`, `phone4`. `ownerEmail` aceita o e-mail ou o nome de quem usa o CRM; nome desconhecido fica com o responsável padrão.
+
 ### Avisar a equipe (10 nov 2026)
 
 - Ação de automação `notify_team`: `{membershipIds[], phones[], emails[], whatsappAccountId?, emailAccountId?, subject, text, fileIds[] (até 5)}`. Manda direto pela conta (sem criar conversa); falha só se ninguém recebeu.

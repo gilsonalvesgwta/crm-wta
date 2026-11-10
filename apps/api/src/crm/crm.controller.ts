@@ -648,7 +648,7 @@ export class ImportsController {
   @Require('contacts:import_export', 'tenant')
   @Post('imports/upload')
   async upload(@CurrentActor() a: Actor, @Query() q: unknown, @Req() req: FastifyRequest) {
-    const { entity } = parse(z.object({ entity: z.enum(['contacts', 'organizations']).default('contacts') }), q);
+    const { entity } = parse(z.object({ entity: z.enum(['contacts', 'organizations', 'deals']).default('contacts') }), q);
     const f = await readUpload(req, this.cfg.UPLOAD_MAX_MB);
     return this.io.upload(a, entity, f.name, f.data);
   }
