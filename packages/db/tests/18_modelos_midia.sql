@@ -22,3 +22,11 @@ select t.ok(t.affected($$insert into messages (tenant_id, channel, direction, st
   values (t.a(), 'instagram', 'in', 'received', t.id(t.a(), 2), '17841400000001', 'audio', 'https://lookaside.fbsbx.com/ig_messaging_cdn/?asset_id=1')$$) = 1, 'mensagem com o endereço da mídia');
 select t.ctx(null, null);
 reset role;
+
+-- WhatsApp da pessoa da equipe para os avisos.
+set role crm_app;
+select t.ctx(t.a(), t.ua());
+select t.throws($$update memberships set notify_phone = '47 99999-0000' where tenant_id = t.a()$$, '23514', 'WhatsApp do aviso no formato +DDI');
+select t.ok(t.affected($$update memberships set notify_phone = '+5547999990000' where id = (select id from memberships where tenant_id = t.a() limit 1)$$) = 1, 'WhatsApp do aviso guardado');
+select t.ctx(null, null);
+reset role;

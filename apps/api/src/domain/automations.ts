@@ -40,6 +40,18 @@ export const action = z.discriminatedUnion('type', [
   z.object({ type: z.literal('move_stage'), stageId: uuid }),
   z.object({ type: z.literal('webhook'), url: z.string().trim().url({ message: 'Informe o endereço completo (https://...).' }).max(2000) }),
   z.object({ type: z.literal('wait'), minutes: z.number().int().min(1).max(525_600) }),
+  // Aviso para pessoas da equipe (e outros números e e-mails), por WhatsApp e/ou e-mail, com anexos.
+  z.object({
+    type: z.literal('notify_team'),
+    membershipIds: z.array(uuid).max(30).default([]),
+    phones: z.array(z.string().trim().max(30)).max(10).default([]),
+    emails: z.array(z.string().trim().toLowerCase().email({ message: 'E-mail inválido.' }).max(254)).max(10).default([]),
+    whatsappAccountId: uuid.nullable().optional(),
+    emailAccountId: uuid.nullable().optional(),
+    subject: z.string().trim().max(300).default(''),
+    text: text(4000, 'o aviso'),
+    fileIds: z.array(uuid).max(5, { message: 'Até 5 anexos.' }).default([]),
+  }),
 ]);
 export type Action = z.infer<typeof action>;
 
@@ -65,9 +77,17 @@ export const VARIABLES: { key: string; label: string }[] = [
   { key: 'etapa', label: 'Etapa do negócio' },
   { key: 'valor', label: 'Valor do negócio' },
   { key: 'responsavel', label: 'Responsável pelo contato ou negócio' },
+  { key: 'link', label: 'Link do negócio ou contato no CRM' },
 ];
 
 /** Troca {{variavel}} pelo valor; variável desconhecida ou vazia some. */
 export function render(template: string, vars: Record<string, string | null | undefined>): string {
   return template.replace(/\{\{\s*([a-z_]+)\s*\}\}/g, (_m, k: string) => vars[k] ?? '').replace(/[ \t]+\n/g, '\n');
+}
+
+/** Telefone do aviso no formato +DDI (números do Brasil sem o 55 ganham o 55). */
+export function noticePhone(raw: string): string | null {
+  let d = raw.replace(/\D/g, '');
+  if (!raw.trim().startsWith('+') && (d.length === 10 || d.length === 11)) d = `55${d}`;
+  return d.length >= 8 && d.length <= 15 ? `+${d}` : null;
 }

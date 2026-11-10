@@ -26,6 +26,14 @@ const brandingBody = z.object({
 const memberPatch = z.object({
   status: z.enum(['active', 'disabled']).optional(),
   roleIds: z.array(uuid).max(10).optional(),
+  // WhatsApp para os avisos das automações (com DDI e DDD), ou vazio para tirar.
+  notifyPhone: z.string().trim().max(30).nullable().optional().transform((v, ctx) => {
+    if (v == null || v === '') return v === undefined ? undefined : null;
+    let d = v.replace(/\D/g, '');
+    if (!v.trim().startsWith('+') && (d.length === 10 || d.length === 11)) d = `55${d}`;
+    if (d.length < 8 || d.length > 15) { ctx.addIssue({ code: 'custom', message: 'WhatsApp com DDD (ex.: 47 99999-0000).' }); return z.NEVER; }
+    return `+${d}`;
+  }),
 });
 const inviteBody = z.object({ email, roleId: uuid });
 const teamBody = z.object({ name: name(120, 'o nome da equipe') });

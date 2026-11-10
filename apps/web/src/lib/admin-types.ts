@@ -3,6 +3,8 @@ export type RoleRef = { id: string; name: string };
 export type Member = {
   membershipId: string; userId: string; name: string; email: string; status: 'active' | 'disabled' | 'invited';
   lastLoginAt: string | null; totpEnabled: boolean; roles: RoleRef[]; teams: RoleRef[];
+  /** WhatsApp para os avisos das automações. */
+  notifyPhone?: string | null;
 };
 export type Invitation = { id: string; email: string; roleName: string | null; expiresAt: string; createdAt: string; invitedBy: string | null };
 export type Scope = 'own' | 'team' | 'tenant';

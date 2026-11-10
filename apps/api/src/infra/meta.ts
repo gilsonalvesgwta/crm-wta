@@ -129,20 +129,48 @@ export class Meta {
   }
 
   async fetchMedia(url: string, token: string | null, maxBytes: number, mimetype: string | null = null): Promise<{ data: Buffer; mimetype: string | null } | null> {
+    const r = await this.fetchMediaDetailed(url, token, maxBytes, mimetype);
+    return 'error' in r ? null : r;
+  }
+
+  /**
+   * Baixa a mídia de um endereço da Meta e diz o motivo quando não dá
+   * (domínio fora da Meta, resposta da Meta, tamanho), para aparecer na tela.
+   */
+  async fetchMediaDetailed(url: string, token: string | null, maxBytes: number, mimetype: string | null = null): Promise<{ data: Buffer; mimetype: string | null } | { error: string }> {
     let u: URL;
-    try { u = new URL(url); } catch { return null; }
+    try { u = new URL(url); } catch { return { error: 'endereço inválido' }; }
     const own = new URL(this.cfg.META_GRAPH_URL).host === u.host || new URL(this.cfg.META_INSTAGRAM_URL).host === u.host;
-    if (!own && (u.protocol !== 'https:' || !MEDIA_HOSTS.test(u.hostname))) return null;
-    const res = await fetch(u, { headers: { 'user-agent': 'Mozilla/5.0 (compatible; CRM-WTA/1.0)', ...(token ? { authorization: `Bearer ${token}` } : {}) }, signal: AbortSignal.timeout(60_000) });
+    if (!own && (u.protocol !== 'https:' || !MEDIA_HOSTS.test(u.hostname))) {
+      this.log.warn(`mídia da Meta recusada: domínio ${u.hostname}`);
+      return { error: `o endereço não é da Meta (${u.hostname})` };
+    }
+    const get = (withToken: boolean) => fetch(u, {
+      headers: { 'user-agent': 'Mozilla/5.0 (compatible; CRM-WTA/1.0)', ...(withToken && token ? { authorization: `Bearer ${token}` } : {}) },
+      signal: AbortSignal.timeout(120_000), redirect: 'follow',
+    });
+    let res: Response;
+    try {
+      res = await get(!!token);
+      // Alguns endereços pedem o token da conta e outros recusam quando ele vai junto.
+      if ((res.status === 401 || res.status === 403) && token) res = await get(false);
+    } catch (err) {
+      this.log.warn(`mídia da Meta não baixada: ${u.hostname} ${(err as Error).name}`);
+      return { error: (err as Error).name === 'TimeoutError' ? 'a Meta demorou demais para mandar o arquivo' : 'não foi possível falar com a Meta' };
+    }
+    if (res.redirected) {
+      const final = new URL(res.url);
+      if (!own && !MEDIA_HOSTS.test(final.hostname)) return { error: `o arquivo foi redirecionado para fora da Meta (${final.hostname})` };
+    }
     if (!res.ok) {
       this.log.warn(`mídia da Meta não baixada: ${u.hostname} respondeu ${res.status}`);
-      return null;
+      return { error: res.status === 403 || res.status === 404 || res.status === 410 ? `o link do arquivo venceu (a Meta respondeu ${res.status})` : `a Meta respondeu ${res.status}` };
     }
+    const len = Number(res.headers.get('content-length') ?? 0);
+    if (len > maxBytes) return { error: `o arquivo tem ${Math.ceil(len / 1048576)} MB e passa do limite de ${Math.floor(maxBytes / 1048576)} MB` };
     const data = Buffer.from(await res.arrayBuffer());
-    if (!data.length || data.length > maxBytes) {
-      this.log.warn(`mídia da Meta não guardada: ${data.length} bytes`);
-      return null;
-    }
+    if (!data.length) return { error: 'a Meta mandou um arquivo vazio' };
+    if (data.length > maxBytes) return { error: `o arquivo tem ${Math.ceil(data.length / 1048576)} MB e passa do limite de ${Math.floor(maxBytes / 1048576)} MB` };
     return { data, mimetype: mimetype ?? res.headers.get('content-type') };
   }
 

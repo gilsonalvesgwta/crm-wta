@@ -167,6 +167,48 @@ describe('automações', () => {
     await admin.req('PATCH', `/api/v1/automations/${id}`, { active: false });
   });
 
+  test('negócio ganho: avisa a equipe por WhatsApp e e-mail, com o PDF anexado', async () => {
+    const members = (await admin.get('/api/v1/members')).body.items as { membershipId: string; email: string; name: string }[];
+    const seller = members.find((m) => m.email === 'vendas@a.test')!;
+    const me = members.find((m) => m.email === 'admin@a.test')!;
+    assert.equal((await admin.patch(`/api/v1/members/${seller.membershipId}`, { notifyPhone: '47 99999-0000' })).body.notifyPhone, '+5547999990000');
+    assert.equal((await admin.patch(`/api/v1/members/${seller.membershipId}`, { notifyPhone: '123' })).status, 422);
+    const pdf = await admin.upload('/api/v1/automations/files', 'contrato.pdf', Buffer.from('%PDF-1.4\n%%EOF\n'), 'application/pdf');
+    assert.equal(pdf.status, 201, JSON.stringify(pdf.body));
+    const bad = await admin.post('/api/v1/automations', {
+      name: 'Sem canal', trigger: { type: 'deal.won' }, actions: [{ type: 'notify_team', membershipIds: [seller.membershipId], text: 'oi' }],
+    });
+    assert.equal(bad.status, 422);
+    assert.match(bad.body.errors[0].message, /por onde avisar/);
+    const id = await rule({
+      name: 'Avisar venda', trigger: { type: 'deal.won' },
+      actions: [{
+        type: 'notify_team', membershipIds: [seller.membershipId, me.membershipId], phones: ['(11) 98888-1111'], emails: ['financeiro@a.test'],
+        whatsappAccountId: wa, emailAccountId: mail, subject: 'Venda: {{negocio}}', text: 'Negócio {{negocio}} ganho, {{valor}}. Veja: {{link}}', fileIds: [pdf.body.id],
+      }],
+    });
+    const c = await admin.post('/api/v1/contacts', { firstName: 'Clara', allowDuplicate: true });
+    const d = await admin.post('/api/v1/deals', { pipelineId, title: 'Consultoria', contactId: c.body.id, valueCents: 150000 });
+    const evoBefore = evo.sent.length;
+    const mailsBefore = smtp.mails.length;
+    assert.equal((await admin.post(`/api/v1/deals/${d.body.id}/move`, { stageId: stages['Ganho'] })).status, 200);
+    await tick();
+    const runs = await runsOf(id);
+    assert.equal(runs[0]!.status, 'done', JSON.stringify(runs[0]));
+    const wa2 = evo.sent.slice(evoBefore);
+    // Vendedor (+5547999990000) e o número extra; o admin sem WhatsApp recebe só por e-mail.
+    assert.deepEqual([...new Set(wa2.map((x) => x.body.number))].sort(), ['5511988881111', '5547999990000']);
+    const txt = wa2.find((x) => x.type === 'text')!.body.text as string;
+    assert.match(txt, /Negócio Consultoria ganho, R\$\s?1\.500,00\. Veja: http.*\/negocios\//);
+    assert.equal(wa2.filter((x) => x.type === 'media').length, 2, 'o PDF vai para cada número');
+    const mails = smtp.mails.slice(mailsBefore);
+    assert.equal(mails.length, 3, 'vendedor, admin e financeiro');
+    assert.ok(mails.every((m) => /Subject: .*Venda/.test(m.data) && /contrato\.pdf/.test(m.data)));
+    // A conversa do cliente não recebe nada disso.
+    assert.equal((await f.admin.query("select count(*)::int as n from messages where contact_id = $1", [c.body.id])).rows[0].n, 0);
+    await admin.req('PATCH', `/api/v1/automations/${id}`, { active: false });
+  });
+
   test('filtro de etiqueta: contato sem a etiqueta é pulado, com o motivo', async () => {
     const id = await rule({ name: 'Só VIP', trigger: { type: 'contact.created' }, filters: { tagId: tagVip }, actions: [{ type: 'webhook', url: hookUrl }] });
     await admin.post('/api/v1/contacts', { firstName: 'Comum', allowDuplicate: true });

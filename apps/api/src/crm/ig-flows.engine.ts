@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { enrichContact } from './contact-enrich.js';
 import {
   checkAnswer, COMMENT_TRIGGERS, graphSchema, keywordScore, nextNode, normalize, parsePayload, payloadFor, postbackButtons, renderText,
   triggerOf, waitMinutes, type FlowButton, type FlowGraph, type FlowNode, type FlowOp, type FlowRule, type TriggerType,
@@ -135,6 +136,12 @@ export class IgFlowEngine {
   }): Promise<string> {
     if (!/^[0-9]{3,40}$/.test(ev.igsid)) return 'nenhum fluxo: pessoa sem identificação';
     const ctx = { tenantId, userId: null };
+    // Nome do perfil (quando a Meta deixa ver) para completar o contato.
+    let profile: { name?: string; username?: string } | null = null;
+    try {
+      const c = this.creds(acc);
+      profile = await this.meta.igProfile(ev.igsid, c.token, c.host).catch(() => null);
+    } catch { /* conta sem token: segue sem o nome */ }
     const picked = await this.db.app(ctx, async (q) => {
       const flows = (await q.query<{ id: string; name: string; published: unknown; version: number }>(
         `select id, name, published, version from ig_flows where channel_account_id = $1 and trigger_type = $2 and status = 'active'
@@ -163,6 +170,7 @@ export class IgFlowEngine {
         `update ig_flow_runs set status = 'canceled', finished_at = now(), last_error = 'Recomeçou pelo gatilho'
           where flow_id = $1 and ig_user_id = $2 and status in ('waiting', 'running')`, [best.id, ev.igsid]);
       const contactId = await this.ensureContact(q, ev.igsid, ev.username ?? null);
+      await enrichContact(q, contactId, { name: profile?.name ?? null, text: ev.dm ? ev.text : null });
       const context: RunContext = {
         trigger: type, commentId: ev.commentId ?? null, mediaId: ev.mediaId ?? null, text: ev.text ?? null, username: ev.username ?? null,
         lastInboundAt: ev.dm ? new Date().toISOString() : null,

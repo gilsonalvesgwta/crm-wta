@@ -292,7 +292,8 @@ test('mídia do direct no CRM: imagem ampliada, PDF e vídeo na janela, áudio n
   }
   await page.goto('/conversas?st=all');
   await page.getByRole('group', { name: 'Canal' }).getByRole('button', { name: 'Instagram' }).click();
-  await page.getByRole('region', { name: 'Lista de conversas' }).getByRole('button', { name: /Cliente Insta/ }).click();
+  // A conversa que acabou de receber a imagem e o PDF fica no topo da lista.
+  await page.getByRole('region', { name: 'Lista de conversas' }).getByRole('button', { name: /Cliente Insta/ }).first().click();
   const thread = page.getByRole('list', { name: 'Mensagens' });
 
   await thread.getByRole('button', { name: /Ampliar a imagem/ }).click();

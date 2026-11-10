@@ -46,6 +46,22 @@ test('automação: contato novo vira tarefa, com o histórico da execução', as
   // Desligar.
   await page.getByRole('listitem').filter({ hasText: 'Ligar para quem chega' }).first().getByRole('checkbox').click({ timeout: 5000 });
   await expect(page.getByRole('listitem').filter({ hasText: 'Ligar para quem chega' }).first()).toContainText('Desligada');
+  // Avisar a equipe: escolher pessoas, e-mail extra e anexo.
+  await page.getByRole('button', { name: 'Nova automação' }).click();
+  const n = page.getByRole('dialog', { name: 'Nova automação' });
+  await n.getByLabel('Nome', { exact: true }).fill('Avisar venda');
+  await n.getByLabel('Acontecimento').selectOption({ label: 'Negócio ganho' });
+  await n.getByLabel('Ação 1', { exact: true }).selectOption({ label: 'Avisar a equipe (WhatsApp ou e-mail)' });
+  await n.getByRole('checkbox').first().check();
+  await n.getByLabel('Outros e-mails (opcional)').fill('financeiro@exemplo.com');
+  await n.getByLabel('Anexo do aviso').setInputFiles({ name: 'contrato.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n%%EOF\n') });
+  await expect(n.getByText('contrato.pdf')).toBeVisible();
+  await expectAccessible(page);
+  await shot(page, '52-avisar-equipe');
+  await n.getByRole('button', { name: 'Criar automação' }).click();
+  // Sem número nem caixa conectados neste teste: a regra pede por onde avisar.
+  await expect(n.getByText(/por onde avisar|Escolha um número|caixa de e-mail/).first()).toBeVisible();
+  await n.getByRole('button', { name: 'Cancelar' }).click();
 });
 
 test('n8n: chave de API mostrada uma vez, cadastro de contato e negócio pela entrada, revogar', async ({ page, browser }) => {

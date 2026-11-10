@@ -3,7 +3,7 @@ import type { Actor } from '../access/actor.js';
 import { tenantCtx } from '../access/decorators.js';
 import { audit } from '../admin/audit.js';
 import { CONFIG, type Config } from '../config.js';
-import { dealActionsAllowed, render, type Action, type Filters, type RuleInput, type Trigger } from '../domain/automations.js';
+import { dealActionsAllowed, noticePhone, render, type Action, type Filters, type RuleInput, type Trigger } from '../domain/automations.js';
 import { resolvePublicHost } from '../domain/net-guard.js';
 import { Problem } from '../http/problem.js';
 import { Db, type Q } from '../infra/db.js';
@@ -91,6 +91,19 @@ export class AutomationsService {
         else if (!(await exists("select 1 from pipeline_stages where id = $1 and kind = 'open'", a.stageId))) errors.push({ field, message: 'Escolha uma etapa em andamento.' });
       }
       if (a.type === 'webhook' && !/^https?:\/\//.test(a.url)) errors.push({ field, message: 'Use um endereço http(s).' });
+      if (a.type === 'notify_team') {
+        if (!a.membershipIds.length && !a.phones.length && !a.emails.length) errors.push({ field, message: 'Escolha quem recebe o aviso.' });
+        if (!a.whatsappAccountId && !a.emailAccountId) errors.push({ field, message: 'Escolha por onde avisar: WhatsApp, e-mail ou os dois.' });
+        if (a.whatsappAccountId && !(await exists("select 1 from channel_accounts where id = $1 and kind in ('whatsapp_evolution', 'whatsapp_cloud')", a.whatsappAccountId))) {
+          errors.push({ field, message: 'Escolha um número de WhatsApp conectado.' });
+        }
+        if (a.emailAccountId && !(await exists("select 1 from channel_accounts where id = $1 and kind = 'email_smtp'", a.emailAccountId))) errors.push({ field, message: 'Escolha uma caixa de e-mail.' });
+        if (a.phones.some((p) => !noticePhone(p))) errors.push({ field, message: 'Telefone com DDD (ex.: 47 99999-0000).' });
+        if (a.phones.length && !a.whatsappAccountId) errors.push({ field, message: 'Para avisar por telefone, escolha o número de WhatsApp que envia.' });
+        if (a.emails.length && !a.emailAccountId) errors.push({ field, message: 'Para avisar por e-mail, escolha a caixa de e-mail que envia.' });
+        for (const id of a.membershipIds) if (!(await exists("select 1 from memberships where id = $1 and status = 'active'", id))) errors.push({ field, message: 'Pessoa da equipe não encontrada ou desativada.' });
+        for (const id of a.fileIds) if (!(await exists('select 1 from files where id = $1 and deleted_at is null', id))) errors.push({ field, message: 'Anexo não encontrado.' });
+      }
     }
     if (input.actions.every((a) => a.type === 'wait')) errors.push({ field: 'actions', message: 'Inclua uma ação além de esperar.' });
     if (errors.length) throw Problem.badRequest('Confira a automação.', errors);
@@ -244,7 +257,52 @@ export class AutomationsService {
       etapa: ctx.deal?.stage ?? '',
       valor: ctx.deal ? (ctx.deal.value_cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: ctx.deal.currency || 'BRL' }) : '',
       responsavel: ctx.deal?.owner_name ?? ctx.contact?.owner_name ?? '',
+      link: ctx.deal ? `${this.cfg.APP_URL}/negocios/${ctx.deal.id}` : ctx.contact ? `${this.cfg.APP_URL}/contatos/${ctx.contact.id}` : '',
     };
+  }
+
+  /** Avisa a equipe por WhatsApp e/ou e-mail, com os anexos. Falha só se ninguém recebeu. */
+  private async notifyTeam(tenantId: string, rule: RuleRow, ctx: Ctx, a: Extract<Action, { type: 'notify_team' }>, vars: Record<string, string>): Promise<string> {
+    const { members, files } = await this.db.app({ tenantId, userId: null }, async (q) => ({
+      members: (await q.query<{ name: string; email: string; phone: string | null }>(
+        `select u.name, u.email, m.notify_phone as phone from memberships m join users u on u.id = m.user_id
+          where m.id = any($1::uuid[]) and m.status = 'active'`, [a.membershipIds])).rows,
+      files: await this.messages.loadFiles(q, a.fileIds),
+    }));
+    const text = render(a.text, vars).slice(0, 4000);
+    const subject = (render(a.subject || `Aviso: ${rule.name}`, vars) || rule.name).slice(0, 300);
+    const phones = new Set<string>();
+    const emails = new Set<string>();
+    const missing: string[] = [];
+    if (a.whatsappAccountId) {
+      for (const m of members) { if (m.phone) phones.add(m.phone); else if (!a.emailAccountId) missing.push(m.name); }
+      for (const p of a.phones) { const n = noticePhone(p); if (n) phones.add(n); }
+    }
+    if (a.emailAccountId) {
+      for (const m of members) emails.add(m.email);
+      for (const e of a.emails) emails.add(e);
+    }
+    const ok: string[] = [];
+    const bad: string[] = [];
+    for (const to of phones) {
+      try {
+        await this.messages.sendNotice(tenantId, a.whatsappAccountId!, to, { text, files });
+        ok.push(to);
+      } catch (err) {
+        bad.push(`${to}: ${(err as Error).message}`);
+      }
+    }
+    for (const to of emails) {
+      try {
+        await this.messages.sendNotice(tenantId, a.emailAccountId!, to, { subject, text, files });
+        ok.push(to);
+      } catch (err) {
+        bad.push(`${to}: ${(err as Error).message}`);
+      }
+    }
+    if (missing.length) bad.push(`sem WhatsApp cadastrado: ${missing.join(', ')}`);
+    if (!ok.length) throw new ActionError(`ninguém recebeu o aviso (${bad.join('; ') || 'sem destinatários'})`.slice(0, 900));
+    return `aviso para ${ok.length} destinatário(s)${files.length ? ` com ${files.length} anexo(s)` : ''}${bad.length ? `; falhou: ${bad.join('; ')}` : ''}`.slice(0, 900);
   }
 
   private async finish(tenantId: string, runId: string, status: 'done' | 'failed' | 'skipped', log: LogEntry[], error: string | null) {
@@ -347,6 +405,8 @@ export class AutomationsService {
             [ctx.contact?.id ?? null, ctx.deal!.id, JSON.stringify({ fromStage: ctx.deal!.stage, toStage: to.name, toStageId: to.id, pipelineId: to.pipeline_id, automation: rule.id })]);
           return `movido para "${to.name}"`;
         });
+      case 'notify_team':
+        return this.notifyTeam(tenantId, rule, ctx, a, vars);
       case 'webhook': {
         const url = new URL(a.url);
         try {

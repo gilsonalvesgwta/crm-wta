@@ -168,6 +168,13 @@ Com chave de API não há cookie, então não há verificação de CSRF; chave i
 
 Envio com modelo: `POST /api/v1/conversations/:id/messages` com `{accountId, templateId, templateParams}`. Fora das 24 h sem modelo: 409 `outside-window`.
 
+### Avisar a equipe (10 nov 2026)
+
+- Ação de automação `notify_team`: `{membershipIds[], phones[], emails[], whatsappAccountId?, emailAccountId?, subject, text, fileIds[] (até 5)}`. Manda direto pela conta (sem criar conversa); falha só se ninguém recebeu.
+- `PATCH /api/v1/members/:id` aceita `notifyPhone` (WhatsApp para avisos; vazio tira). `GET /api/v1/members` devolve `notifyPhone`.
+- `GET`, `POST /api/v1/automations/files`: anexos dos avisos (biblioteca de mídia).
+- Variável `{{link}}`: endereço do negócio (ou do contato) no CRM.
+
 ### Fluxos do Instagram (9 nov 2026)
 
 Ver: `campaigns:view`. Criar, mudar, publicar e subir mídia: `campaigns:edit`. Contatos: `contacts:view`.

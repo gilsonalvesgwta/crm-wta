@@ -23,6 +23,14 @@ Atualizado em 9 de novembro de 2026.
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
 
+### Ajustes de 10 nov 2026
+
+- Contato do Instagram: nome do perfil (também quando a mensagem foi mandada pelo celular) no lugar de "@usuario" ou "Instagram 123456", e o e-mail e o telefone que a pessoa escreve nas mensagens entram no contato. O que foi preenchido à mão não é trocado. O Instagram não fornece e-mail nem telefone pela API.
+- Negócios ganhos e perdidos: botões "Ver ganhos" e "Ver perdidos" no quadro abrem a lista; o negócio continua com histórico, anotações e "Reabrir".
+- Automações: ação "Avisar a equipe" por WhatsApp e/ou e-mail, para pessoas da equipe e outros números e e-mails, com até 5 anexos (PDF, imagem, vídeo, áudio) e a variável {{link}}. O WhatsApp de cada pessoa fica em Configurações › Usuários.
+- Mídia do Instagram: limite de 100 MB para o que chega, nova tentativa com e sem token e o motivo exato quando o arquivo não abre.
+- Migração 0020 só acrescenta `memberships.notify_phone`.
+
 ### Mídia nas conversas e áudio gravado (9 nov 2026)
 
 - Imagem abre ampliada numa janela; vídeo e áudio tocam no CRM; PDF abre no leitor, sem baixar.

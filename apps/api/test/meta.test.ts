@@ -333,6 +333,25 @@ describe('Instagram', () => {
     assert.equal((await hook(igHook, body, 'chave-errada')).status, 403);
   });
 
+  test('o contato do Instagram ganha o nome do perfil e o e-mail e telefone que a pessoa escreveu', async () => {
+    const at = Date.now();
+    const msg = (mid: string, text: string) => ({ object: 'instagram', entry: [{ id: '17841400000099', time: at, messaging: [
+      { sender: { id: '933300011122' }, recipient: { id: '17841400000099' }, timestamp: at, message: { mid, text } }] }] });
+    await hook(igHook, msg('mid.DADOS1', 'Oi! Quero saber mais'));
+    await hook(igHook, msg('mid.DADOS2', 'meu e-mail é Rita.Lopes@Exemplo.com e o whats (31) 97777-6666'));
+    const c = (await f.admin.query<{ id: string; first_name: string; last_name: string | null }>(
+      "select c.id, c.first_name, c.last_name from contacts c join contact_handles h on h.contact_id = c.id where h.value = '933300011122'")).rows[0]!;
+    assert.deepEqual([c.first_name, c.last_name], ['Cliente', 'Insta'], 'nome do perfil');
+    assert.equal((await f.admin.query('select email from contact_emails where contact_id = $1', [c.id])).rows[0].email, 'rita.lopes@exemplo.com');
+    assert.equal((await f.admin.query('select e164 from contact_phones where contact_id = $1', [c.id])).rows[0].e164, '+5531977776666');
+    // Nome mudado à mão não é trocado.
+    await f.admin.query("update contacts set first_name = 'Rita', last_name = 'Lopes' where id = $1", [c.id]);
+    await hook(igHook, msg('mid.DADOS3', 'outro: rita2@exemplo.com'));
+    const after = (await f.admin.query('select first_name from contacts where id = $1', [c.id])).rows[0];
+    assert.equal(after.first_name, 'Rita');
+    assert.equal((await f.admin.query('select count(*)::int as n from contact_emails where contact_id = $1', [c.id])).rows[0].n, 2);
+  });
+
   test('mídia do direct: áudio, arquivo buscado de novo, reels; responder com áudio gravado', async () => {
     const at = Date.now();
     const att = (mid: string, type: string, url: string) => ({ object: 'instagram', entry: [{ id: '17841400000099', time: at, messaging: [
@@ -363,7 +382,9 @@ describe('Instagram', () => {
     await hook(igHook, att('mid.OLD1', 'file', `${meta.url}/media-file/nao-existe`));
     await f.admin.query("update messages set media_url = null where external_id = 'mid.OLD1'");
     const old = (await f.admin.query<{ id: string }>("select id from messages where external_id = 'mid.OLD1'")).rows[0]!.id;
-    assert.equal((await admin.post(`/api/v1/messages/${old}/media`)).status, 409, 'sem anexos na Meta: avisa');
+    const miss = await admin.post(`/api/v1/messages/${old}/media`);
+    assert.equal(miss.status, 409, 'sem anexos na Meta: avisa');
+    assert.match(miss.body.title, /a Meta não mostrou os anexos/, 'o motivo aparece na tela');
     meta.media.set('media-old1', { data: PDF, type: 'application/pdf' });
     meta.igAttachments.set('mid.OLD1', [{ id: 'att1', mime_type: 'application/pdf', name: 'contrato.pdf', file_url: `${meta.url}/media-file/media-old1` }]);
     const again = await admin.post(`/api/v1/messages/${old}/media`);
