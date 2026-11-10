@@ -540,8 +540,8 @@ export class MessagesService {
    */
   async fetchMedia(actor: Actor, messageId: string) {
     const m = await this.db.app(tenantCtx(actor), async (q) => {
-      const r = (await q.query<{ contact_id: string; kind: string; file_id: string | null; external_id: string | null; account_kind: string | null; instance: string | null; account_id: string | null; media_url: string | null }>(
-        `select m.contact_id, m.kind, m.file_id, m.external_id, m.media_url, a.kind as account_kind, a.external_id as instance, a.id as account_id
+      const r = (await q.query<{ contact_id: string; kind: string; file_id: string | null; external_id: string | null; account_kind: string | null; instance: string | null; account_id: string | null; media_url: string | null; secret: Buffer | null; config: Record<string, unknown> | null }>(
+        `select m.contact_id, m.kind, m.file_id, m.external_id, m.media_url, a.kind as account_kind, a.secret, a.config, a.external_id as instance, a.id as account_id
            from messages m left join channel_accounts a on a.id = m.channel_account_id where m.id = $1`, [messageId])).rows[0];
       if (!r) throw Problem.notFound('Mensagem não encontrada.');
       await this.records.assertAccess(q, actor, { kind: 'contact', id: r.contact_id }, false);
@@ -550,11 +550,24 @@ export class MessagesService {
     if (!m.file_id) {
       if (!MEDIA_KINDS.has(m.kind)) throw Problem.badRequest('Esta mensagem não tem arquivo.');
       if (m.account_kind === 'instagram') {
-        if (!m.media_url) throw new Problem(409, 'O Instagram não mandou o endereço deste arquivo.', 'media-unavailable');
-        const media = await this.meta.fetchMedia(m.media_url, null, this.cfg.UPLOAD_MAX_MB * 1024 * 1024).catch(() => null);
+        const max = this.cfg.UPLOAD_MAX_MB * 1024 * 1024;
+        let media = m.media_url ? await this.meta.fetchMedia(m.media_url, null, max).catch(() => null) : null;
+        // Sem endereço guardado (mensagens antigas) ou link vencido: pede à Meta os anexos da mensagem.
+        if (!media && m.external_id && m.account_id) {
+          const { token } = this.metaCreds(m.account_id, m.secret);
+          const urls = await this.meta.igMessageAttachments(m.external_id, token, (m.config?.host as MetaHost) ?? 'instagram')
+            .catch((err: Error) => { this.log.warn(`anexos da mensagem do Instagram não consultados: ${err.message}`); return [] as string[]; });
+          for (const u of urls) {
+            media = await this.meta.fetchMedia(u, null, max).catch(() => null);
+            if (media) {
+              await this.db.app(tenantCtx(actor), (q) => q.query('update messages set media_url = $2 where id = $1', [messageId, u.length <= 4000 ? u : null]));
+              break;
+            }
+          }
+        }
         const ok = media && await this.db.app(tenantCtx(actor), (q) =>
           this.attachMedia(q, actor.tenantId!, m.contact_id, messageId, media.data, media.mimetype, null, `instagram-${m.kind}`, true));
-        if (!ok) throw new Problem(409, 'O Instagram não devolveu o arquivo desta mensagem. O link dele pode ter expirado.', 'media-unavailable');
+        if (!ok) throw new Problem(409, 'O Instagram não devolveu o arquivo desta mensagem (o link pode ter expirado). Peça para a pessoa mandar de novo.', 'media-unavailable');
         return this.db.app(tenantCtx(actor), (q) => this.row(q, messageId));
       }
       if (m.account_kind !== 'whatsapp_evolution' || !m.instance || !m.external_id || !m.account_id) {
