@@ -1,0 +1,4 @@
+commit: 8ff01e8fe030946e6be71a14c2702fbe3a3703db
+ramo: fix/anexos-instagram-antigos
+execucao: 42731709634
+inicio: 2026-11-10T00:54:24Z
