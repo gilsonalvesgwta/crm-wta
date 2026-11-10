@@ -1,4 +1,7 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
+import type { FastifyRequest } from 'fastify';
+import { readUpload } from '../crm/crm.controller.js';
+import { IgFlowsService } from '../crm/ig-flows.service.js';
 import { z } from 'zod';
 import type { Actor } from '../access/actor.js';
 import { CurrentActor, Require } from '../access/decorators.js';
@@ -10,7 +13,24 @@ const uuid = z.string().uuid();
 
 @Controller('v1/automations')
 export class AutomationsController {
-  constructor(@Inject(AutomationsService) private readonly svc: AutomationsService) {}
+  constructor(
+    @Inject(AutomationsService) private readonly svc: AutomationsService,
+    @Inject(IgFlowsService) private readonly media: IgFlowsService,
+  ) {}
+
+  /** Anexos dos avisos: a biblioteca de mídia da empresa (a mesma dos fluxos do Instagram). */
+  @Require('automations:admin', 'tenant')
+  @Get('files')
+  files(@CurrentActor() a: Actor) {
+    return this.media.media(a);
+  }
+
+  @Require('automations:admin', 'tenant')
+  @Post('files')
+  async upload(@CurrentActor() a: Actor, @Req() req: FastifyRequest) {
+    const f = await readUpload(req, 25);
+    return this.media.uploadMedia(a, f.name, f.data);
+  }
 
   @Require('automations:view', 'tenant')
   @Get()

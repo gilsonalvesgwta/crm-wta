@@ -107,10 +107,10 @@ export class AdminService {
   async members(actor: Actor): Promise<MemberRow[]> {
     return this.db.app(tenantCtx(actor), async (q) => {
       const r = await q.query<{
-        membership_id: string; user_id: string; name: string; email: string; status: string;
+        membership_id: string; user_id: string; name: string; email: string; status: string; notify_phone: string | null;
         last_login_at: Date | null; totp_enabled_at: Date | null; roles: { id: string; name: string }[] | null; teams: { id: string; name: string }[] | null;
       }>(
-        `select m.id as membership_id, u.id as user_id, u.name, u.email, m.status, u.last_login_at, u.totp_enabled_at,
+        `select m.id as membership_id, u.id as user_id, u.name, u.email, m.status, m.notify_phone, u.last_login_at, u.totp_enabled_at,
                 (select json_agg(json_build_object('id', r.id, 'name', r.name) order by r.name)
                    from membership_roles mr join roles r on r.id = mr.role_id where mr.membership_id = m.id) as roles,
                 (select json_agg(json_build_object('id', t.id, 'name', t.name) order by t.name)
@@ -119,7 +119,7 @@ export class AdminService {
            join users u on u.id = m.user_id
           order by m.status = 'active' desc, u.name`);
       return r.rows.map((x) => ({
-        membershipId: x.membership_id, userId: x.user_id, name: x.name, email: x.email, status: x.status,
+        membershipId: x.membership_id, userId: x.user_id, name: x.name, email: x.email, status: x.status, notifyPhone: x.notify_phone,
         lastLoginAt: x.last_login_at, totpEnabled: x.totp_enabled_at !== null, roles: x.roles ?? [], teams: x.teams ?? [],
       }));
     });
@@ -136,7 +136,7 @@ export class AdminService {
     return r.rows[0]!.n;
   }
 
-  async updateMember(actor: Actor, membershipId: string, patch: { status?: 'active' | 'disabled'; roleIds?: string[] }) {
+  async updateMember(actor: Actor, membershipId: string, patch: { status?: 'active' | 'disabled'; roleIds?: string[]; notifyPhone?: string | null }) {
     return this.db.app(tenantCtx(actor), async (q) => {
       const m = await q.query<{ id: string; user_id: string; status: string }>('select id, user_id, status from memberships where id = $1 for update', [membershipId]);
       const row = m.rows[0];
@@ -153,6 +153,9 @@ export class AdminService {
         for (const id of ids) {
           await q.query('insert into membership_roles (tenant_id, membership_id, role_id) values (app.tenant_id(), $1, $2)', [membershipId, id]);
         }
+      }
+      if (patch.notifyPhone !== undefined) {
+        await q.query('update memberships set notify_phone = $1 where id = $2', [patch.notifyPhone, membershipId]);
       }
       if (patch.status) {
         if (patch.status === 'active' && row.status !== 'active') await assertWithin(q, 'max_users', (await seatsInUse(q)) + 1);

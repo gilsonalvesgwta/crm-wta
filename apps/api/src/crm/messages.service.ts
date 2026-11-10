@@ -10,6 +10,8 @@ import { Db, pgCode, type Q } from '../infra/db.js';
 import { Evolution, EvolutionError } from '../infra/evolution.js';
 import { Meta, MetaError, type MetaHost } from '../infra/meta.js';
 import { AudioError, convertVoice } from '../infra/audio.js';
+import { enrichContact } from './contact-enrich.js';
+import { splitName } from '../domain/contact-info.js';
 import { kindFromContent, renderTemplate, templateVariables, type IgMessage } from '../domain/meta.js';
 import { sendTenantMail, SmtpError, textToHtml } from '../infra/tenant-mail.js';
 import { memberJson } from './fields.js';
@@ -97,6 +99,58 @@ export class MessagesService {
     @Inject(RecordsService) private readonly records: RecordsService,
   ) {
     this.box = new SecretBox(cfg.masterKeys, cfg.currentKey);
+  }
+
+  /** Arquivos (anexos de avisos) com o conteúdo. */
+  async loadFiles(q: Q, ids: string[]): Promise<{ name: string; contentType: string; data: Buffer }[]> {
+    const out: { name: string; contentType: string; data: Buffer }[] = [];
+    for (const id of ids) {
+      const f = (await q.query<{ original_name: string; content_type: string }>('select original_name, content_type from files where id = $1 and deleted_at is null', [id])).rows[0];
+      if (f) out.push({ name: f.original_name, contentType: f.content_type, data: await this.files.readIn(q, id) });
+    }
+    return out;
+  }
+
+  /**
+   * Aviso interno (para a equipe): manda direto pela conta, sem criar conversa
+   * nem contato. WhatsApp: texto e cada anexo; e-mail: um e-mail com os anexos.
+   */
+  async sendNotice(tenantId: string, accountId: string, to: string, msg: { subject?: string; text: string; files: { name: string; contentType: string; data: Buffer }[] }) {
+    const a = (await this.db.app({ tenantId, userId: null }, (q) => q.query<{ id: string; kind: string; status: string; external_id: string | null; config: Record<string, unknown>; secret: Buffer | null; address: string | null }>(
+      'select id, kind, status, external_id, config, secret, address from channel_accounts where id = $1', [accountId]))).rows[0];
+    if (!a) throw new Error('a conta de envio não existe mais');
+    try {
+      if (a.kind === 'whatsapp_evolution') {
+        const number = to.replace(/\D/g, '');
+        if (msg.text) await this.evo.sendText(a.external_id!, number, msg.text);
+        for (const f of msg.files) {
+          await this.evo.sendMedia(a.external_id!, number, {
+            mediatype: f.contentType.startsWith('image/') ? 'image' : f.contentType.startsWith('video/') ? 'video' : f.contentType.startsWith('audio/') ? 'audio' : 'document',
+            mimetype: f.contentType, base64: f.data.toString('base64'), fileName: f.name,
+          });
+        }
+      } else if (a.kind === 'whatsapp_cloud') {
+        // API oficial: mensagem livre só chega se a pessoa falou com o número nas últimas 24 h.
+        const c = this.metaCreds(a.id, a.secret);
+        const number = to.replace(/\D/g, '');
+        if (msg.text) await this.meta.sendWhatsapp(a.external_id!, c.token, { to: number, type: 'text', text: { body: msg.text, preview_url: true } });
+        for (const f of msg.files) {
+          const mediaId = await this.meta.uploadMedia(a.external_id!, c.token, { data: f.data, type: f.contentType, name: f.name });
+          const t = f.contentType.startsWith('image/') ? 'image' : f.contentType.startsWith('video/') ? 'video' : f.contentType.startsWith('audio/') ? 'audio' : 'document';
+          await this.meta.sendWhatsapp(a.external_id!, c.token, { to: number, type: t, [t]: { id: mediaId, ...(t === 'document' ? { filename: f.name } : {}) } });
+        }
+      } else if (a.kind === 'email_smtp') {
+        const c = a.config as { host: string; port: number; secure: boolean; user: string; fromName: string };
+        await sendTenantMail({ host: c.host, port: c.port, secure: c.secure, user: c.user, fromName: c.fromName, address: a.address!, pass: this.openSecret(a.id, a.secret!) },
+          { to, subject: msg.subject ?? 'Aviso do CRM', text: msg.text, html: textToHtml(msg.text), attachments: msg.files.map((f) => ({ filename: f.name, content: f.data, contentType: f.contentType })) },
+          this.cfg.CHANNEL_ALLOW_PRIVATE_HOSTS);
+      } else {
+        throw new Error('essa conta não manda avisos');
+      }
+    } catch (err) {
+      if (err instanceof EvolutionError || err instanceof SmtpError || err instanceof MetaError) throw new Error(err.message);
+      throw err;
+    }
   }
 
   /** Token e segredo do app de uma conta da Meta (guardados cifrados juntos). */
@@ -502,8 +556,10 @@ export class MessagesService {
       let created = false;
       const username = extra.profile?.username && /^[A-Za-z0-9._]{1,60}$/.test(extra.profile.username) ? extra.profile.username : null;
       if (!contactId) {
-        const name = (extra.profile?.name || (username ? `@${username}` : `Instagram ${igsid.slice(-6)}`)).slice(0, 120);
-        contactId = (await q.query<{ id: string }>('insert into contacts (tenant_id, first_name) values (app.tenant_id(), $1) returning id', [name])).rows[0]!.id;
+        const real = extra.profile?.name?.trim() ? splitName(extra.profile.name) : null;
+        const name = real?.first ?? (username ? `@${username}` : `Instagram ${igsid.slice(-6)}`).slice(0, 120);
+        contactId = (await q.query<{ id: string }>('insert into contacts (tenant_id, first_name, last_name) values (app.tenant_id(), $1, $2) returning id',
+          [name, real?.last ?? null])).rows[0]!.id;
         await q.query(
           `insert into contact_handles (tenant_id, contact_id, kind, value, username) values (app.tenant_id(), $1, 'instagram', $2, $3)
            on conflict (tenant_id, kind, value) do nothing`, [contactId, igsid, username]);
@@ -515,6 +571,8 @@ export class MessagesService {
       } else if (username) {
         await q.query(`update contact_handles set username = $2 where kind = 'instagram' and value = $1 and username is distinct from $2`, [igsid, username]);
       }
+      // Nome do perfil e e-mail/telefone que a pessoa escreveu completam o contato.
+      await enrichContact(q, contactId, { name: extra.profile?.name ?? null, text: ev.fromMe ? null : ev.text });
       const ins = await q.query<{ id: string }>(
         `insert into messages (tenant_id, channel_account_id, channel, direction, status, contact_id, external_id, remote, body, kind, created_at, sent_at, media_url)
          values (app.tenant_id(), $1, 'instagram', $2, $3, $4, $5, $6, $7, $8, $9, case when $2 = 'out' then $9::timestamptz end, $10)
@@ -550,24 +608,33 @@ export class MessagesService {
     if (!m.file_id) {
       if (!MEDIA_KINDS.has(m.kind)) throw Problem.badRequest('Esta mensagem não tem arquivo.');
       if (m.account_kind === 'instagram') {
-        const max = this.cfg.UPLOAD_MAX_MB * 1024 * 1024;
-        let media = m.media_url ? await this.meta.fetchMedia(m.media_url, null, max).catch(() => null) : null;
+        const max = this.inboundMax;
+        const reasons: string[] = [];
+        const tryUrl = async (u: string) => {
+          const r = await this.meta.fetchMediaDetailed(u, null, max);
+          if ('error' in r) { reasons.push(r.error); return null; }
+          return r;
+        };
+        let media = m.media_url ? await tryUrl(m.media_url) : null;
         // Sem endereço guardado (mensagens antigas) ou link vencido: pede à Meta os anexos da mensagem.
         if (!media && m.external_id && m.account_id) {
           const { token } = this.metaCreds(m.account_id, m.secret);
           const urls = await this.meta.igMessageAttachments(m.external_id, token, (m.config?.host as MetaHost) ?? 'instagram')
-            .catch((err: Error) => { this.log.warn(`anexos da mensagem do Instagram não consultados: ${err.message}`); return [] as string[]; });
+            .catch((err: Error) => { reasons.push(`a Meta não mostrou os anexos (${err.message.slice(0, 160)})`); return [] as string[]; });
           for (const u of urls) {
-            media = await this.meta.fetchMedia(u, null, max).catch(() => null);
+            media = await tryUrl(u);
             if (media) {
               await this.db.app(tenantCtx(actor), (q) => q.query('update messages set media_url = $2 where id = $1', [messageId, u.length <= 4000 ? u : null]));
               break;
             }
           }
         }
-        const ok = media && await this.db.app(tenantCtx(actor), (q) =>
-          this.attachMedia(q, actor.tenantId!, m.contact_id, messageId, media.data, media.mimetype, null, `instagram-${m.kind}`, true));
-        if (!ok) throw new Problem(409, 'O Instagram não devolveu o arquivo desta mensagem (o link pode ter expirado). Peça para a pessoa mandar de novo.', 'media-unavailable');
+        const failed = media ? await this.db.app(tenantCtx(actor), (q) =>
+          this.attachMedia(q, actor.tenantId!, m.contact_id, messageId, media!.data, media!.mimetype, null, `instagram-${m.kind}`, true)) : null;
+        if (!media || failed) {
+          const why = [...new Set([...reasons, ...(failed ? [failed] : [])])].join('; ') || 'o Instagram não mandou o endereço do arquivo';
+          throw new Problem(409, `Não foi possível abrir o arquivo: ${why}. Se continuar, peça para a pessoa mandar de novo.`, 'media-unavailable');
+        }
         return this.db.app(tenantCtx(actor), (q) => this.row(q, messageId));
       }
       if (m.account_kind !== 'whatsapp_evolution' || !m.instance || !m.external_id || !m.account_id) {
@@ -599,13 +666,20 @@ export class MessagesService {
     });
   }
 
-  private async attachMedia(q: Q, tenantId: string, contactId: string, messageId: string, data: Buffer, mimetype: string | null, fileName: string | null, prefix: string, fixKind = false) {
-    if (!data.length || data.length > this.cfg.UPLOAD_MAX_MB * 1024 * 1024) return false;
+  /** Mídia recebida pode ser maior que o limite de envio (vídeos e reels): até 100 MB. */
+  get inboundMax(): number {
+    return Math.max(this.cfg.UPLOAD_MAX_MB, 100) * 1024 * 1024;
+  }
+
+  /** Guarda a mídia recebida na mensagem. Devolve nulo quando deu certo ou o motivo da recusa. */
+  private async attachMedia(q: Q, tenantId: string, contactId: string, messageId: string, data: Buffer, mimetype: string | null, fileName: string | null, prefix: string, fixKind = false): Promise<string | null> {
+    if (!data.length) return 'arquivo vazio';
+    if (data.length > this.inboundMax) return `arquivo maior que ${Math.floor(this.inboundMax / 1048576)} MB`;
     const ext = (mimetype && EXT[mimetype.split(';')[0]!.trim()]) ?? 'bin';
     try {
       await q.query('savepoint midia');
       const fileId = await this.files.storeIn(q, { tenantId, membershipId: null } as unknown as Actor,
-        { name: fileName ?? `${prefix}.${ext}`, data, purpose: 'message', ref: { kind: 'contact', id: contactId } });
+        { name: fileName ?? `${prefix}.${ext}`, data, purpose: 'message', ref: { kind: 'contact', id: contactId }, maxBytes: this.inboundMax });
       await q.query('update messages set file_id = $1 where id = $2', [fileId, messageId]);
       if (fixKind) {
         // Instagram: o tipo vem do nome do anexo; o arquivo diz o que ele é de verdade.
@@ -614,11 +688,12 @@ export class MessagesService {
         if (f) await q.query('update messages set kind = $2 where id = $1 and kind <> $2', [messageId, kindFromContent(f.kind, f.content_type)]);
       }
       await q.query('release savepoint midia');
-      return true;
+      return null;
     } catch (err) {
       await q.query('rollback to savepoint midia');
-      this.log.warn(`mídia não guardada: ${(err as Error).message}`);
-      return false;
+      const reason = err instanceof Problem ? (err.errors?.[0]?.message ?? err.title) : (err as Error).message;
+      this.log.warn(`mídia não guardada: ${reason}`);
+      return reason.replace(/\.$/, '');
     }
   }
 

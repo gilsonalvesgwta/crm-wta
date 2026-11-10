@@ -149,7 +149,7 @@ describe('fluxos do Instagram', () => {
     assert.match(payload, /^f:[0-9a-f-]{36}:b1$/);
     const run = (await f.admin.query<{ status: string; wait_kind: string; contact_id: string }>('select status, wait_kind, contact_id from ig_flow_runs where flow_id = $1', [id])).rows[0]!;
     assert.deepEqual([run.status, run.wait_kind], ['waiting', 'click']);
-    assert.equal((await f.admin.query("select first_name from contacts where id = $1", [run.contact_id])).rows[0].first_name, '@maria.silva');
+    assert.equal((await f.admin.query("select first_name from contacts where id = $1", [run.contact_id])).rows[0].first_name, 'Cliente', 'o nome do perfil completa o contato');
 
     // A mesma pessoa no mesmo reels: não dispara de novo; sem a palavra, nada; a própria conta, nada.
     mark = meta.sent.length;
@@ -203,7 +203,7 @@ describe('fluxos do Instagram', () => {
     assert.equal(res.body.totals.completed, 1);
     assert.deepEqual(res.body.buttons, [{ nodeId: 'n2', button: 'Quero', clicks: 1 }]);
     assert.equal(res.body.nodes.find((x: { nodeId: string }) => x.nodeId === 'n4').answered, 1);
-    assert.equal(res.body.runs[0].contact.name, '@maria.silva');
+    assert.equal(res.body.runs[0].contact.name, 'Cliente Insta');
   });
 
   test('palavra no direct com botão (o Instagram recusa o modelo: vai como resposta rápida) e espera de 5 minutos', async () => {
@@ -365,8 +365,8 @@ describe('fluxos do Instagram', () => {
     assert.equal((await admin.req('DELETE', `/api/v1/instagram/media/${up.body.id}`)).status, 204);
     assert.equal((await admin.get('/api/v1/instagram/media')).body.items.length, 0);
 
-    const people = await admin.get('/api/v1/instagram/contacts?q=maria');
-    assert.equal(people.body.items[0].name, '@maria.silva');
+    const people = await admin.get('/api/v1/instagram/contacts?q=cliente');
+    assert.equal(people.body.items[0].name, 'Cliente Insta');
     assert.equal(people.body.items[0].windowOpen, true);
     const all = await admin.get('/api/v1/instagram/contacts');
     assert.ok(all.body.total >= 5);

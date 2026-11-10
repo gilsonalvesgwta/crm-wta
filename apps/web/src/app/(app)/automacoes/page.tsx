@@ -1,7 +1,7 @@
 'use client';
-import { useEffect, useState, type FormEvent } from 'react';
-import { ArrowDown, ArrowUp, History, Pencil, Plus, Trash2, Zap } from 'lucide-react';
-import { ApiError, api } from '@/lib/api';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { ArrowDown, ArrowUp, History, Paperclip, Pencil, Plus, Trash2, X, Zap } from 'lucide-react';
+import { ApiError, api, apiUpload } from '@/lib/api';
 import { useLoad } from '@/lib/use-load';
 import { dateTime } from '@/lib/admin-types';
 import type { SendAccount } from '@/lib/messages';
@@ -31,7 +31,11 @@ type Action =
   | { type: 'add_tag'; tagId: string }
   | { type: 'move_stage'; stageId: string }
   | { type: 'webhook'; url: string }
-  | { type: 'wait'; minutes: number };
+  | { type: 'wait'; minutes: number }
+  | {
+    type: 'notify_team'; membershipIds: string[]; phones: string[]; emails: string[]; whatsappAccountId: string | null; emailAccountId: string | null;
+    subject: string; text: string; fileIds: string[];
+  };
 type Filters = { pipelineId?: string | null; stageId?: string | null; tagId?: string | null; source?: string | null };
 type Rule = {
   id: string; name: string; active: boolean; trigger: Trigger; filters: Filters; actions: Action[];
@@ -61,6 +65,7 @@ const ACTIONS: { type: Action['type']; label: string }[] = [
   { type: 'create_task', label: 'Criar tarefa ou lembrete' },
   { type: 'add_tag', label: 'Pôr etiqueta no contato' },
   { type: 'move_stage', label: 'Mover o negócio de etapa' },
+  { type: 'notify_team', label: 'Avisar a equipe (WhatsApp ou e-mail)' },
   { type: 'webhook', label: 'Avisar o n8n (webhook)' },
   { type: 'wait', label: 'Esperar' },
 ];
@@ -106,6 +111,10 @@ function newAction(type: Action['type']): Action {
     case 'move_stage': return { type, stageId: '' };
     case 'webhook': return { type, url: '' };
     case 'wait': return { type, minutes: 60 };
+    case 'notify_team': return {
+      type, membershipIds: [], phones: [], emails: [], whatsappAccountId: null, emailAccountId: null,
+      subject: 'Aviso: {{negocio}}', text: 'O negócio {{negocio}} ({{valor}}) de {{nome}} está em {{etapa}}.\nAbrir no CRM: {{link}}', fileIds: [],
+    };
   }
 }
 
@@ -422,6 +431,8 @@ function ActionFields({ a, onChange, accounts, tags, stages }: {
           {stages.filter((s) => s.kind === 'open').map((s) => <option key={s.id} value={s.id}>{s.pipeline} › {s.name}</option>)}
         </Select>
       );
+    case 'notify_team':
+      return <NotifyTeamFields a={a} onChange={onChange} accounts={accounts} />;
     case 'webhook':
       return <Field label="Endereço do webhook (n8n)" value={a.url} onChange={(e) => onChange({ ...a, url: e.target.value })} placeholder="https://n8n.suaempresa.com.br/webhook/..." hint="O CRM manda um POST com o evento, o contato e o negócio em JSON." />;
     case 'wait':
@@ -444,4 +455,103 @@ function ActionFields({ a, onChange, accounts, tags, stages }: {
         </div>
       );
   }
+}
+
+/** Avisar a equipe: quem recebe, por onde (WhatsApp e/ou e-mail), texto e anexos. */
+function NotifyTeamFields({ a, onChange, accounts }: { a: Extract<Action, { type: 'notify_team' }>; onChange: (a: Action) => void; accounts: SendAccount[] }) {
+  const members = useLoad(() => api<{ items: { membershipId: string; name: string; email: string; status: string; notifyPhone: string | null }[] }>('GET', '/api/v1/members').then((r) => r.items.filter((m) => m.status === 'active')).catch(() => []));
+  const files = useLoad(() => api<{ items: { id: string; name: string; contentType: string; size: number }[] }>('GET', '/api/v1/automations/files').then((r) => r.items));
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [upErr, setUpErr] = useState<string | null>(null);
+  const [extraPhones, setExtraPhones] = useState(a.phones.join(', '));
+  const [extraEmails, setExtraEmails] = useState(a.emails.join(', '));
+  const was = accounts.filter((x) => x.kind === 'whatsapp_evolution' || x.kind === 'whatsapp_cloud');
+  const mails = accounts.filter((x) => x.kind === 'email_smtp');
+  const toggle = (id: string) => onChange({ ...a, membershipIds: a.membershipIds.includes(id) ? a.membershipIds.filter((x) => x !== id) : [...a.membershipIds, id] });
+  const split = (v: string) => v.split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
+  const noPhone = a.whatsappAccountId ? (members.data ?? []).filter((m) => a.membershipIds.includes(m.membershipId) && !m.notifyPhone) : [];
+  async function upload(f: File) {
+    setBusy(true);
+    setUpErr(null);
+    try {
+      const m = await apiUpload<{ id: string }>('/api/v1/automations/files', f);
+      onChange({ ...a, fileIds: [...a.fileIds, m.id].slice(0, 5) });
+      await files.reload();
+    } catch (e) {
+      setUpErr(e instanceof ApiError ? e.errors[0]?.message ?? e.title : 'Não foi possível enviar.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  const selected = a.fileIds.map((id) => files.data?.find((f) => f.id === id) ?? { id, name: 'Arquivo', contentType: '', size: 0 });
+  return (
+    <div className="flex flex-col gap-3">
+      <fieldset className="flex flex-col gap-1.5">
+        <legend className="mb-1 text-[13px] font-medium">Quem recebe</legend>
+        {!members.data ? <p className="text-[13px] text-muted">Carregando a equipe…</p> : (
+          <div className="grid gap-1 sm:grid-cols-2">
+            {members.data.map((m) => (
+              <label key={m.membershipId} className="flex items-center gap-2 rounded-[6px] border border-line px-2.5 py-1.5 text-[13px]">
+                <input type="checkbox" checked={a.membershipIds.includes(m.membershipId)} onChange={() => toggle(m.membershipId)} className="size-4 accent-[var(--primary)]" />
+                <span className="min-w-0 flex-1 truncate">{m.name}</span>
+                <span className="shrink-0 text-[11px] text-muted">{m.notifyPhone ? 'WhatsApp ✓' : 'sem WhatsApp'}</span>
+              </label>
+            ))}
+          </div>
+        )}
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Field label="Outros WhatsApp (opcional)" value={extraPhones} placeholder="47 99999-0000, 11 98888-7777"
+            onChange={(e) => { setExtraPhones(e.target.value); onChange({ ...a, phones: split(e.target.value).slice(0, 10) }); }} />
+          <Field label="Outros e-mails (opcional)" value={extraEmails} placeholder="financeiro@empresa.com"
+            onChange={(e) => { setExtraEmails(e.target.value); onChange({ ...a, emails: split(e.target.value).slice(0, 10) }); }} />
+        </div>
+      </fieldset>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Select label="Avisar por WhatsApp, pelo número" value={a.whatsappAccountId ?? ''} onChange={(e) => onChange({ ...a, whatsappAccountId: e.target.value || null })}>
+          <option value="">Não avisar por WhatsApp</option>
+          {was.map((x) => <option key={x.id} value={x.id}>{x.name}{x.address ? ` · ${x.address}` : ''}</option>)}
+        </Select>
+        <Select label="Avisar por e-mail, pela caixa" value={a.emailAccountId ?? ''} onChange={(e) => onChange({ ...a, emailAccountId: e.target.value || null })}>
+          <option value="">Não avisar por e-mail</option>
+          {mails.map((x) => <option key={x.id} value={x.id}>{x.name}{x.address ? ` · ${x.address}` : ''}</option>)}
+        </Select>
+      </div>
+      {noPhone.length ? (
+        <Alert tone="warning">Sem WhatsApp cadastrado: {noPhone.map((m) => m.name).join(', ')}. Cadastre em Configurações › Usuários{a.emailAccountId ? ' (por e-mail essas pessoas recebem)' : ''}.</Alert>
+      ) : null}
+      {a.whatsappAccountId && was.find((x) => x.id === a.whatsappAccountId)?.kind === 'whatsapp_cloud' ? (
+        <p className="text-[12px] text-muted">Pela API oficial, o aviso só chega para quem mandou mensagem a esse número nas últimas 24 horas. Para avisos da equipe, prefira um número conectado por QR code.</p>
+      ) : null}
+      {a.emailAccountId ? <Field label="Assunto do e-mail" value={a.subject} onChange={(e) => onChange({ ...a, subject: e.target.value })} /> : null}
+      <Textarea label="Aviso" rows={4} value={a.text} onChange={(e) => onChange({ ...a, text: e.target.value })} hint="Use {{negocio}}, {{valor}}, {{nome}}, {{link}}…" />
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[13px] font-medium">Anexos (até 5: PDF, imagem, vídeo, áudio)</span>
+        <div className="flex flex-wrap gap-1.5">
+          {selected.map((f) => (
+            <span key={f.id} className="inline-flex h-8 items-center gap-1.5 rounded-full bg-surface-2 pl-3 pr-1 text-[13px]">
+              <Paperclip size={13} aria-hidden /><span className="max-w-[200px] truncate">{f.name}</span>
+              <button type="button" aria-label={`Tirar ${f.name}`} onClick={() => onChange({ ...a, fileIds: a.fileIds.filter((x) => x !== f.id) })}
+                className="flex size-6 items-center justify-center rounded-full hover:bg-surface"><X size={12} aria-hidden /></button>
+            </span>
+          ))}
+        </div>
+        {a.fileIds.length < 5 ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <input ref={fileInput} type="file" className="hidden" aria-label="Anexo do aviso" accept="application/pdf,image/jpeg,image/png,video/mp4,video/quicktime,audio/mp4,audio/x-m4a,audio/aac,audio/wav"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ''; }} />
+            <Button type="button" variant="secondary" loading={busy} onClick={() => fileInput.current?.click()}><Paperclip size={15} aria-hidden />Anexar arquivo</Button>
+            {(files.data ?? []).filter((f) => !a.fileIds.includes(f.id)).length ? (
+              <select aria-label="Escolher anexo da biblioteca" value="" onChange={(e) => { if (e.target.value) onChange({ ...a, fileIds: [...a.fileIds, e.target.value].slice(0, 5) }); }}
+                className="h-10 min-w-0 flex-1 rounded-[6px] border border-line-strong bg-surface px-3 text-sm">
+                <option value="">Ou escolha da biblioteca de mídia…</option>
+                {(files.data ?? []).filter((f) => !a.fileIds.includes(f.id)).map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            ) : null}
+          </div>
+        ) : null}
+        {upErr ? <p className="text-[13px] text-bad">{upErr}</p> : null}
+      </div>
+    </div>
+  );
 }

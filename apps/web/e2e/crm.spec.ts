@@ -149,6 +149,12 @@ test('negócios: funil padrão, quadro, regras de etapa, ganho e perda', async (
   await page.getByRole('button', { name: 'Ganho', exact: true }).click();
   await page.getByRole('dialog', { name: 'Marcar como ganho' }).getByRole('button', { name: 'Marcar como ganho' }).click();
   await expect(page.getByText(/^Ganho em/)).toBeVisible();
+  // Fechado sai do quadro, mas continua acessível com todo o histórico pelo "Ver ganhos".
+  await page.goto('/negocios');
+  await page.getByRole('link', { name: 'Ver ganhos' }).click();
+  await expect(page.getByLabel('Situação')).toHaveValue('won');
+  await page.getByRole('region', { name: 'Lista de negócios' }).getByRole('link', { name: /Implantação do CRM/ }).click();
+  await expect(page.getByText(/^Ganho em/)).toBeVisible();
 });
 
 test('dado inesperado num negócio mostra um aviso, sem derrubar o CRM', async ({ page }) => {

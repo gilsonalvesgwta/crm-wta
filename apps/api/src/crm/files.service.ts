@@ -65,10 +65,10 @@ export class FilesService {
   }
 
   /** Grava o arquivo e o registro. Usado por anexos e pela importação. */
-  async storeIn(q: Q, actor: Actor, input: { name: string; data: Buffer; purpose: 'attachment' | 'import' | 'branding' | 'message' | 'media'; ref?: RecordRef }): Promise<string> {
-    const maxBytes = this.cfg.UPLOAD_MAX_MB * 1024 * 1024;
+  async storeIn(q: Q, actor: Actor, input: { name: string; data: Buffer; purpose: 'attachment' | 'import' | 'branding' | 'message' | 'media'; ref?: RecordRef; maxBytes?: number }): Promise<string> {
+    const maxBytes = input.maxBytes ?? this.cfg.UPLOAD_MAX_MB * 1024 * 1024;
     if (input.data.length === 0) throw Problem.badRequest('Arquivo vazio.', [{ field: 'file', message: 'O arquivo está vazio.' }]);
-    if (input.data.length > maxBytes) throw new Problem(413, `O arquivo passa de ${this.cfg.UPLOAD_MAX_MB} MB.`);
+    if (input.data.length > maxBytes) throw new Problem(413, `O arquivo passa de ${Math.floor(maxBytes / 1048576)} MB.`);
     const contentType = await this.detectType(input.name, input.data);
     const id = randomUUID();
     const now = new Date();

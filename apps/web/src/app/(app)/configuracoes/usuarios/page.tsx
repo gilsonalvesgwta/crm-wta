@@ -178,6 +178,7 @@ function Members({ items, roles, loading, onChange }: { items: Member[] | null; 
                   <td className="py-3 pr-3">
                     <p className="font-medium">{m.name} {m.userId === me.user.id ? <span className="text-[13px] font-normal text-muted">(você)</span> : null}</p>
                     <p className="text-[13px] text-muted">{m.email}</p>
+                    <NotifyPhone member={m} onSaved={onChange} />
                     {m.status !== 'active' ? <div className="mt-1"><Badge tone="bad">Desativado</Badge></div> : null}
                   </td>
                   <td className="py-3 pr-3">
@@ -251,5 +252,44 @@ function RoleEditor({ member, roles, onClose, onSaved }: { member: Member; roles
         <Button variant="ghost" onClick={onClose}>Cancelar</Button>
       </div>
     </fieldset>
+  );
+}
+
+/** WhatsApp da pessoa para os avisos das automações ("Avisar a equipe"). */
+function NotifyPhone({ member, onSaved }: { member: Member; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(member.notifyPhone ?? '');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  async function save() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api('PATCH', `/api/v1/members/${member.membershipId}`, { notifyPhone: value.trim() || null });
+      setEditing(false);
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.errors[0]?.message ?? e.title : 'Não foi possível salvar.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  if (!editing) {
+    return (
+      <button type="button" onClick={() => setEditing(true)} className="mt-0.5 text-[12px] text-muted hover:text-ink hover:underline">
+        {member.notifyPhone ? `WhatsApp para avisos: ${member.notifyPhone}` : '+ WhatsApp para avisos'}
+      </button>
+    );
+  }
+  return (
+    <div className="mt-1.5 flex flex-col gap-1">
+      <div className="flex items-center gap-1.5">
+        <input aria-label={`WhatsApp de ${member.name} para avisos`} value={value} onChange={(e) => setValue(e.target.value)} placeholder="47 99999-0000"
+          className="h-9 w-44 rounded-[6px] border border-line-strong bg-surface px-2.5 text-sm" />
+        <Button loading={busy} onClick={save}>Salvar</Button>
+        <Button variant="ghost" onClick={() => { setEditing(false); setValue(member.notifyPhone ?? ''); }}>Cancelar</Button>
+      </div>
+      {err ? <p role="alert" className="text-[12px] text-bad">{err}</p> : null}
+    </div>
   );
 }

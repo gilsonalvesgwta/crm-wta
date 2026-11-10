@@ -143,7 +143,7 @@ function BoardView({ pipelineId, ownerId, q, canMove }: { pipelineId: string; ow
       </div>
       {canMove ? (
         <div className="grid gap-3 sm:grid-cols-2">
-          {closed.map((s) => <OutcomeZone key={s.id} stage={s} active={!!dragging} />)}
+          {closed.map((s) => <OutcomeZone key={s.id} stage={s} active={!!dragging} pipelineId={pipelineId} />)}
         </div>
       ) : null}
       <DragOverlay>{dragging ? <Card deal={dragging} overlay /> : null}</DragOverlay>
@@ -216,7 +216,7 @@ function Card({ deal, overlay = false, handle }: { deal: DealCard; overlay?: boo
   );
 }
 
-function OutcomeZone({ stage, active }: { stage: Board['stages'][number]; active: boolean }) {
+function OutcomeZone({ stage, active, pipelineId }: { stage: Board['stages'][number]; active: boolean; pipelineId: string }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const won = stage.kind === 'won';
   return (
@@ -224,7 +224,14 @@ function OutcomeZone({ stage, active }: { stage: Board['stages'][number]; active
       className={`flex h-16 items-center justify-between rounded-[10px] border-2 border-dashed px-4 text-sm transition-colors ${
         isOver ? (won ? 'border-ok bg-ok-soft' : 'border-bad bg-bad-soft') : active ? 'border-line-strong bg-surface' : 'border-line bg-transparent'}`}>
       <span className={`font-semibold ${won ? 'text-ok' : 'text-bad'}`}>{won ? 'Ganho' : 'Perdido'}</span>
-      <span className="text-[12px] text-muted">{stage.count} nos últimos 30 dias · {money(stage.totalCents, 'BRL', true)}</span>
+      <span className="flex items-center gap-3">
+        <span className="text-[12px] text-muted">{stage.count} nos últimos 30 dias · {money(stage.totalCents, 'BRL', true)}</span>
+        {/* Os negócios fechados saem do quadro, mas continuam com todo o histórico: a lista mostra todos. */}
+        <Link href={`/negocios?funil=${pipelineId}&visao=lista&status=${won ? 'won' : 'lost'}`}
+          className={`inline-flex h-8 items-center rounded-[6px] border px-2.5 text-[12px] font-medium ${won ? 'border-ok/40 text-ok hover:bg-ok-soft' : 'border-bad/40 text-bad hover:bg-bad-soft'}`}>
+          Ver {won ? 'ganhos' : 'perdidos'}
+        </Link>
+      </span>
     </div>
   );
 }

@@ -274,9 +274,10 @@ export class MetaService {
         try {
           if (ev.igUserId !== a.external_id) continue;
           const igsid = ev.fromMe ? ev.recipient : ev.sender;
-          const profile = ev.fromMe ? null : await this.meta.igProfile(igsid, creds.token, host).catch(() => null);
+          // Também no eco (mensagem mandada pelo celular): o nome de quem recebeu completa o contato.
+          const profile = await this.meta.igProfile(igsid, creds.token, host).catch(() => null);
           const att = ev.attachments[0];
-          const media = att ? await this.meta.fetchMedia(att.url, null, this.cfg.UPLOAD_MAX_MB * 1024 * 1024).catch(() => null) : null;
+          const media = att ? await this.meta.fetchMedia(att.url, null, this.messages.inboundMax).catch(() => null) : null;
           if ((await this.messages.receiveInstagram(acc.tenant_id, a.id, ev, { profile, media })) !== 'duplicate') handled++;
         } catch (err) {
           this.log.error(`aviso do Instagram não processado: ${String(err)}`);
