@@ -271,6 +271,27 @@ export class Meta {
     return this.call<{ name?: string; username?: string }>('GET', host, `${igsid}?fields=name,username`, token, undefined, 8000);
   }
 
+  /**
+   * Endereços dos anexos de uma mensagem do Instagram (para mensagens que
+   * chegaram sem o arquivo). A Meta devolve image_data, video_data, file_url…
+   */
+  async igMessageAttachments(mid: string, token: string, host: MetaHost): Promise<string[]> {
+    if (!/^[0-9A-Za-z_.-]{5,400}$/.test(mid)) return [];
+    const r = await this.call<{ attachments?: { data?: Record<string, unknown>[] } }>('GET', host, `${mid}?fields=attachments`, token);
+    const out: string[] = [];
+    for (const a of r.attachments?.data ?? []) {
+      // O domínio é conferido na hora de baixar (só os da Meta).
+      const pick = (v: unknown) => { if (typeof v === 'string' && /^https?:\/\//.test(v)) out.push(v); };
+      for (const k of ['image_data', 'video_data', 'audio_data', 'animated_gif_data']) {
+        const d = a[k] as Record<string, unknown> | undefined;
+        pick(d?.url);
+      }
+      pick(a.file_url);
+      pick(a.url);
+    }
+    return out;
+  }
+
   async igSend(igUserId: string, token: string, host: MetaHost, recipient: string, text: string): Promise<string> {
     const r = await this.call<{ message_id?: string }>('POST', host, `${igUserId}/messages`, token, { recipient: { id: recipient }, message: { text } });
     if (!r.message_id) throw new MetaError('A Meta não devolveu o identificador da mensagem.');

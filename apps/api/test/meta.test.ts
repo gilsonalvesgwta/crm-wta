@@ -359,6 +359,17 @@ describe('Instagram', () => {
     assert.equal(got.body.kind, 'document');
     assert.equal(got.body.file.contentType, 'application/pdf');
 
+    // Mensagem antiga, sem o endereço guardado: o CRM pede os anexos da mensagem à Meta.
+    await hook(igHook, att('mid.OLD1', 'file', `${meta.url}/media-file/nao-existe`));
+    await f.admin.query("update messages set media_url = null where external_id = 'mid.OLD1'");
+    const old = (await f.admin.query<{ id: string }>("select id from messages where external_id = 'mid.OLD1'")).rows[0]!.id;
+    assert.equal((await admin.post(`/api/v1/messages/${old}/media`)).status, 409, 'sem anexos na Meta: avisa');
+    meta.media.set('media-old1', { data: PDF, type: 'application/pdf' });
+    meta.igAttachments.set('mid.OLD1', [{ id: 'att1', mime_type: 'application/pdf', name: 'contrato.pdf', file_url: `${meta.url}/media-file/media-old1` }]);
+    const again = await admin.post(`/api/v1/messages/${old}/media`);
+    assert.equal(again.status, 200, JSON.stringify(again.body));
+    assert.equal(again.body.file.contentType, 'application/pdf');
+
     // Responder com áudio gravado no navegador (WebM): vai como M4A pelo link assinado.
     const conv = (await admin.get('/api/v1/conversations?channel=instagram')).body.items[0].id;
     const boundary = '----crmvoz';
