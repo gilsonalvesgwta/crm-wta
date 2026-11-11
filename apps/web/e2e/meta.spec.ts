@@ -388,7 +388,7 @@ test('WhatsApp: transmissão com fluxo — modelo com botões, o que cada botão
   await page.getByRole('button', { name: 'Continuar' }).click();
   await expect(page.getByText('Fluxo Raio X e2e')).toBeVisible();
   await page.getByRole('button', { name: 'Salvar rascunho' }).click();
-  await expect(page.getByText(/Transmissão com o fluxo/)).toBeVisible();
+  await expect(page.getByText('Rascunho salvo.')).toBeVisible();
 
   await page.goto('/whatsapp/transmissoes');
   await expect(page.getByRole('region', { name: 'Transmissões' })).toContainText('Transmissão Raio X');
