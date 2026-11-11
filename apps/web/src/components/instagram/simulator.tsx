@@ -4,7 +4,7 @@ import { RotateCcw, Send } from 'lucide-react';
 import { useTags } from '@/components/crm/data';
 import {
   COMMENT_TRIGGERS, UNIT_LABEL, checkAnswer, keywordMatches, renderText,
-  type FlowGraph, type FlowNode, type NodeData,
+  type FlowChannel, type FlowGraph, type FlowNode, type NodeData,
 } from '@/lib/instagram';
 import { Dialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -17,14 +17,15 @@ type Wait = { kind: 'click' | 'reply' | 'cond'; nodeId: string } | null;
 const START_LABEL: Record<string, string> = {
   comment: 'Comentário da pessoa', live_comment: 'Comentário na live', dm_keyword: 'Mensagem no direct',
   story_reply: 'Resposta ao story', story_mention: 'Menção em story', reaction: 'Reação a mensagem',
+  wa_broadcast: 'Envio da transmissão', wa_keyword: 'Mensagem no WhatsApp',
 };
 
 /** Prévia do fluxo: roda o desenho na tela, sem mandar nada ao Instagram. */
-export function Simulator({ open, graph, onClose }: { open: boolean; graph: FlowGraph; onClose: () => void }) {
+export function Simulator({ open, graph, onClose, channel = 'instagram' }: { open: boolean; graph: FlowGraph; onClose: () => void; channel?: FlowChannel }) {
   const tags = useTags().data ?? [];
   const trig = graph.nodes.find((n) => n.type === 'trigger') as Extract<FlowNode, { type: 'trigger' }>;
   const t = trig.data;
-  const needsText = !['story_mention', 'reaction'].includes(t.type);
+  const needsText = !['story_mention', 'reaction', 'wa_broadcast'].includes(t.type);
   const [input, setInput] = useState(t.match === 'any' ? 'Oi!' : t.keywords[0] ?? '');
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [wait, setWait] = useState<Wait>(null);
@@ -67,6 +68,12 @@ export function Simulator({ open, graph, onClose }: { open: boolean; graph: Flow
           else node = next(node.id);
           break;
         }
+        case 'template': {
+          out.push({ from: 'me', text: node.data.templateId ? `📄 Modelo ${node.data.name}${node.data.params.length ? `\n${node.data.params.map((p, k) => `{{${k + 1}}} = ${r(p)}`).join('\n')}` : ''}` : '📄 (modelo não escolhido)', buttons: node.data.buttons });
+          if (node.data.buttons.length) { setWait({ kind: 'click', nodeId: node.id }); return out; }
+          node = next(node.id);
+          break;
+        }
         case 'media':
           out.push({ from: 'me', text: node.data.fileId ? `📎 ${node.data.name}` : '📎 (arquivo não escolhido)' });
           node = next(node.id);
@@ -104,9 +111,9 @@ export function Simulator({ open, graph, onClose }: { open: boolean; graph: Flow
   }
 
   function simulate() {
-    const text = needsText ? input.trim() : t.type === 'reaction' ? '❤️' : '(marcou você no story)';
-    vars.current = { nome: 'Maria', primeiro_nome: 'Maria', nome_completo: 'Maria Silva', usuario: '@maria.silva', comentario: text };
-    const out: Msg[] = [{ from: 'them', text, public: COMMENT_TRIGGERS.includes(t.type) }];
+    const text = needsText ? input.trim() : t.type === 'reaction' ? '❤️' : t.type === 'wa_broadcast' ? '' : '(marcou você no story)';
+    vars.current = { nome: 'Maria', primeiro_nome: 'Maria', nome_completo: 'Maria Silva', usuario: '@maria.silva', comentario: text, telefone: '+55 11 99999-0000', mensagem: text };
+    const out: Msg[] = t.type === 'wa_broadcast' ? [{ from: 'note', text: 'Transmissão enviada para Maria.' }] : [{ from: 'them', text, public: COMMENT_TRIGGERS.includes(t.type) }];
     setStarted(true);
     if (KEY_TRIGGERS.includes(t.type) && !keywordMatches(t, text)) {
       out.push({ from: 'note', text: 'Não dispara: o texto não tem as palavras-chave do gatilho.' });
@@ -144,7 +151,7 @@ export function Simulator({ open, graph, onClose }: { open: boolean; graph: Flow
   const timeout = () => wait && setMsgs((m) => run(next(wait.nodeId, 'timeout'), [...m, { from: 'note', text: 'A pessoa não respondeu no prazo.' }]));
 
   return (
-    <Dialog open={open} onClose={onClose} title="Visualizar o fluxo" description="Nada é enviado ao Instagram." width={460}
+    <Dialog open={open} onClose={onClose} title="Visualizar o fluxo" description={channel === 'whatsapp' ? 'Nada é enviado ao WhatsApp.' : 'Nada é enviado ao Instagram.'} width={460}
       footer={<><Button variant="ghost" onClick={reset}><RotateCcw size={15} aria-hidden />Recomeçar</Button><Button variant="secondary" onClick={onClose}>Fechar</Button></>}>
       <div className="flex flex-col gap-3">
         <div className="flex h-[420px] flex-col gap-2 overflow-y-auto rounded-[16px] border border-line bg-surface-2 p-3" aria-live="polite">
@@ -185,4 +192,4 @@ export function Simulator({ open, graph, onClose }: { open: boolean; graph: Flow
   );
 }
 
-const KEY_TRIGGERS = ['comment', 'live_comment', 'dm_keyword', 'story_reply'];
+const KEY_TRIGGERS = ['comment', 'live_comment', 'dm_keyword', 'story_reply', 'wa_keyword'];

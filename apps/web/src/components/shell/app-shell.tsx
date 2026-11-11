@@ -2,7 +2,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Building, Building2, CalendarDays, ChevronDown, Handshake, House, Inbox, LogOut, Menu, MessagesSquare, Settings, ShieldCheck, UserRound, Megaphone, Users, Workflow, X, Zap } from 'lucide-react';
+import { Building, Building2, CalendarDays, ChevronDown, Handshake, House, Inbox, LogOut, Menu, MessagesSquare, Send, Settings, ShieldCheck, UserRound, Megaphone, Users, Workflow, X, Zap } from 'lucide-react';
 import { Notifications } from './notifications';
 import { NewVersionBanner } from './new-version';
 import { api } from '@/lib/api';
@@ -40,6 +40,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     { href: '/automacoes', label: 'Automações', icon: <Zap size={18} strokeWidth={1.75} aria-hidden />, show: can('automations:view') },
     { href: '/campanhas', label: 'Campanhas', icon: <Megaphone size={18} strokeWidth={1.75} aria-hidden />, show: can('campaigns:view') },
     { href: '/instagram', label: 'Instagram', icon: <Workflow size={18} strokeWidth={1.75} aria-hidden />, show: can('campaigns:view') },
+    { href: '/whatsapp', label: 'WhatsApp', icon: <Send size={18} strokeWidth={1.75} aria-hidden />, show: can('campaigns:view') },
     { href: '/agenda', label: 'Agenda', icon: <CalendarDays size={18} strokeWidth={1.75} aria-hidden />, show: can('tasks:manage') },
   ].filter((i) => i.show !== false && !!me.tenantId);
   const admin = ['settings:admin', 'users:admin', 'audit:view', 'pipelines:admin', 'products:admin', 'contacts:delete', 'channels:admin', 'integrations:admin'].some(can);

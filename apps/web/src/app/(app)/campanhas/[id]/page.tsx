@@ -89,6 +89,7 @@ function CampaignView({ id }: { id: string }) {
   const cards: [string, number, string?][] = [
     ['Público', s.total], ['Enviadas', s.sent], ['Entregues', s.delivered], ['Lidas', s.read], ['Respostas', s.replied],
     ['Falharam', s.failed], ['Não enviadas', s.skipped, 'Pediram para sair, cancelada ou sem contato'],
+    ...(c.flowId ? [['Tocaram num botão', c.flowStats?.clicked ?? 0, 'Pessoas que tocaram num botão do fluxo'] as [string, number, string]] : []),
   ];
 
   return (
@@ -133,6 +134,7 @@ function CampaignView({ id }: { id: string }) {
 
       <Panel title="Mensagem">
         {c.subject ? <p className="mb-1 font-semibold">{c.subject}</p> : null}
+        {c.flow ? <p className="mb-1 text-[13px] text-muted">Transmissão com o fluxo <Link href={`/whatsapp/fluxos/${c.flow.id}`} className="font-medium text-ink underline">{c.flow.name}</Link>: o modelo e os botões vêm do fluxo; os resultados de cada botão ficam em WhatsApp › Resultados.</p> : null}
         {c.template ? <p className="mb-1 text-[13px] text-muted">Modelo do WhatsApp oficial: <span className="font-mono">{c.template.name}</span> · valores: {c.templateParams.join(', ') || '—'}</p> : null}
         <p className="whitespace-pre-wrap text-sm">{c.template ? c.template.body : c.body}</p>
       </Panel>

@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
-import { Clock, ExternalLink, GitBranch, Image as ImageIcon, Maximize, MessageCircle, MessageSquareText, Minus, Plus, Reply, Send, TriangleAlert, X, Zap, CircleHelp } from 'lucide-react';
-import { NODE_TITLE, TRIGGER_TITLE, UNIT_LABEL, outputsOf, type FlowEdge, type FlowGraph, type FlowIssue, type FlowNode, type NodeType } from '@/lib/instagram';
+import { Clock, ExternalLink, FileText, GitBranch, Image as ImageIcon, Maximize, MessageCircle, MessageSquareText, Minus, Plus, Reply, Send, TriangleAlert, X, Zap, CircleHelp } from 'lucide-react';
+import { TRIGGER_TITLE, UNIT_LABEL, nodeTitle, outputsOf, type FlowChannel, type FlowEdge, type FlowGraph, type FlowIssue, type FlowNode, type NodeType } from '@/lib/instagram';
 import { TriggerIcon } from './trigger-icon';
 
 type Pt = { x: number; y: number };
@@ -17,6 +17,7 @@ const NODE_ICON: Record<Exclude<NodeType, 'trigger'>, { icon: typeof Send; tone:
   comment_reply: { icon: MessageCircle, tone: 'bg-[#FDE7F1] text-[#B0185E]' },
   private_reply: { icon: Reply, tone: 'bg-info-soft text-info' },
   text: { icon: Send, tone: 'bg-info-soft text-info' },
+  template: { icon: FileText, tone: 'bg-ok-soft text-ok' },
   media: { icon: ImageIcon, tone: 'bg-ok-soft text-ok' },
   wait: { icon: Clock, tone: 'bg-surface-2 text-muted' },
   question: { icon: CircleHelp, tone: 'bg-[#EFE7FD] text-[#6B2BD9]' },
@@ -44,8 +45,8 @@ function pathFor(a: Pt, b: Pt) {
  * à entrada de outro, arrastar o fundo para mover e Ctrl+roda (ou os botões)
  * para aproximar.
  */
-export function FlowCanvas({ graph, selected, selectedEdge, issues, readOnly, onChange, onSelect, onSelectEdge, onDeleteEdge }: {
-  graph: FlowGraph; selected: string | null; selectedEdge: string | null; issues: FlowIssue[]; readOnly?: boolean;
+export function FlowCanvas({ graph, selected, selectedEdge, issues, readOnly, channel = 'instagram', onChange, onSelect, onSelectEdge, onDeleteEdge }: {
+  graph: FlowGraph; selected: string | null; selectedEdge: string | null; issues: FlowIssue[]; readOnly?: boolean; channel?: FlowChannel;
   onChange: (g: FlowGraph, mergeKey?: string) => void; onSelect: (id: string | null) => void; onSelectEdge: (id: string | null) => void;
   onDeleteEdge: (id: string) => void;
 }) {
@@ -209,7 +210,7 @@ export function FlowCanvas({ graph, selected, selectedEdge, issues, readOnly, on
           </button>
         ) : null}
         {graph.nodes.map((n) => (
-          <NodeCard key={n.id} node={n} selected={n.id === selected} issues={byNode.get(n.id) ?? []} readOnly={readOnly}
+          <NodeCard key={n.id} node={n} channel={channel} selected={n.id === selected} issues={byNode.get(n.id) ?? []} readOnly={readOnly}
             connected={(h) => graph.edges.some((x) => x.source === n.id && x.sourceHandle === h)}
             onSelect={() => { onSelect(n.id); onSelectEdge(null); }}
             onDragStart={(e) => { onSelect(n.id); onSelectEdge(null); if (!readOnly) down(e, { kind: 'node', id: n.id, start: { x: e.clientX, y: e.clientY }, pos: n.position, moved: false }); }}
@@ -226,15 +227,15 @@ export function FlowCanvas({ graph, selected, selectedEdge, issues, readOnly, on
   );
 }
 
-function NodeCard({ node, selected, issues, readOnly, connected, onSelect, onDragStart, onLinkStart }: {
-  node: FlowNode; selected: boolean; issues: FlowIssue[]; readOnly?: boolean; connected: (h: string) => boolean;
+function NodeCard({ node, channel, selected, issues, readOnly, connected, onSelect, onDragStart, onLinkStart }: {
+  node: FlowNode; channel: FlowChannel; selected: boolean; issues: FlowIssue[]; readOnly?: boolean; connected: (h: string) => boolean;
   onSelect: () => void; onDragStart: (e: RPointerEvent) => void; onLinkStart: (e: RPointerEvent, handle: string) => void;
 }) {
   const hasError = issues.some((i) => i.level === 'error');
   const outs = outputsOf(node);
   const isTrigger = node.type === 'trigger';
   return (
-    <div data-node-id={node.id} role="group" aria-label={NODE_TITLE[node.type]}
+    <div data-node-id={node.id} role="group" aria-label={nodeTitle(node.type, channel)}
       onPointerDown={(e) => e.stopPropagation()}
       className={`absolute rounded-[12px] border bg-surface shadow-sm ${selected ? 'border-primary ring-2 ring-primary/30' : hasError ? 'border-bad' : 'border-line'}`}
       style={{ left: node.position.x, top: node.position.y, width: NODE_W }}>
@@ -243,7 +244,7 @@ function NodeCard({ node, selected, issues, readOnly, connected, onSelect, onDra
         className={`flex w-full items-center gap-2 rounded-t-[12px] px-3 py-2.5 text-left ${readOnly ? '' : 'cursor-grab active:cursor-grabbing'} ${isTrigger ? 'bg-primary/10' : ''}`}>
         {isTrigger ? <TriggerIcon type={node.data.type} size={28} /> : <NodeIcon type={node.type} />}
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13px] font-semibold">{NODE_TITLE[node.type]}</span>
+          <span className="block truncate text-[13px] font-semibold">{nodeTitle(node.type, channel)}</span>
           {isTrigger ? <span className="block truncate text-xs text-muted">{TRIGGER_TITLE[node.data.type]}</span> : null}
         </span>
         {issues.length ? (
@@ -282,10 +283,11 @@ function NodeBody({ node }: { node: FlowNode }) {
     case 'trigger': {
       const d = node.data;
       const where = d.type === 'comment' ? (d.posts === 'any' ? 'Qualquer post ou reels' : `${d.postIds.length} publicação(ões) escolhida(s)`) : null;
+      if (d.type === 'wa_broadcast') return <p className="text-muted">Quando a campanha com este fluxo for enviada</p>;
       return (
         <>
           {where ? <p className="text-muted">{where}</p> : null}
-          {d.match === 'any' ? <p className="text-muted">Qualquer {d.type === 'dm_keyword' ? 'mensagem' : d.type.includes('comment') ? 'comentário' : 'evento'}</p> : (
+          {d.match === 'any' ? <p className="text-muted">Qualquer {d.type === 'dm_keyword' || d.type === 'wa_keyword' ? 'mensagem' : d.type.includes('comment') ? 'comentário' : 'evento'}</p> : (
             <div className="flex flex-wrap gap-1">
               {d.keywords.filter(Boolean).length ? d.keywords.filter(Boolean).slice(0, 6).map((k) => (
                 <span key={k} className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium">{k}</span>
@@ -317,6 +319,14 @@ function NodeBody({ node }: { node: FlowNode }) {
           {node.type === 'private_reply' && node.data.buttons.some((b) => !b.url) ? <p className="text-xs text-muted">Sem o clique, a conversa para aqui.</p> : null}
         </>
       );
+    case 'template':
+      return node.data.templateId ? (
+        <>
+          <Bubble>{node.data.name}</Bubble>
+          {node.data.params.length ? <p className="text-xs text-muted">{node.data.params.length} variável(is)</p> : null}
+          {!node.data.buttons.length ? <p className="text-xs text-muted">Sem botões de resposta: segue direto.</p> : null}
+        </>
+      ) : <Bubble muted>Escolha o modelo aprovado…</Bubble>;
     case 'media':
       return node.data.fileId ? <Bubble>📎 {node.data.name}</Bubble> : <Bubble muted>Escolha o arquivo…</Bubble>;
     case 'wait':

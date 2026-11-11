@@ -1,4 +1,6 @@
 'use client';
+import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { ApiError } from '@/lib/api';
 import { useSession } from '@/components/shell/session';
 import { CampaignWizard } from '@/components/crm/campaign-wizard';
@@ -11,7 +13,14 @@ export default function NewCampaignPage() {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <PageHeader title="Nova Campanha" subtitle="Criar uma nova campanha de mensagens em massa" back={{ href: '/campanhas', label: 'Campanhas' }} />
-      <CampaignWizard initial={null} />
+      <Suspense><Wizard /></Suspense>
     </div>
   );
+}
+
+/** "?fluxo=<id>" (do editor do fluxo) ou "?tipo=transmissao" já começam uma transmissão do WhatsApp oficial. */
+function Wizard() {
+  const sp = useSearchParams();
+  const flowId = sp.get('fluxo');
+  return <CampaignWizard initial={null} preset={{ flowId: flowId && /^[0-9a-f-]{36}$/.test(flowId) ? flowId : null, broadcast: sp.get('tipo') === 'transmissao' }} />;
 }

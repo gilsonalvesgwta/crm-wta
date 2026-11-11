@@ -38,4 +38,6 @@ export const TRIGGER_TONE: Record<string, string> = {
   story_reply: 'bg-accent-soft text-accent',
   story_mention: 'bg-[#EFE7FD] text-[#6B2BD9]',
   reaction: 'bg-warn-soft text-warn',
+  wa_broadcast: 'bg-ok-soft text-ok',
+  wa_keyword: 'bg-ok-soft text-ok',
 };

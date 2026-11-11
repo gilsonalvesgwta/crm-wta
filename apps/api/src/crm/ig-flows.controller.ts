@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { Actor } from '../access/actor.js';
 import { CurrentActor, Require } from '../access/decorators.js';
 import { parse } from '../http/validate.js';
-import { TRIGGERS } from '../domain/flows.js';
+import { IG_TRIGGERS } from '../domain/flows.js';
 import { readUpload } from './crm.controller.js';
 import { IgFlowsService } from './ig-flows.service.js';
 import * as S from './schemas.js';
@@ -34,7 +34,7 @@ export class IgFlowsController {
     return this.svc.create(a, parse(z.object({
       accountId: S.uuid,
       name: z.string().trim().max(80, { message: 'Até 80 caracteres.' }).default(''),
-      triggerType: z.enum(TRIGGERS, { message: 'Escolha o que dispara o fluxo.' }),
+      triggerType: z.enum(IG_TRIGGERS, { message: 'Escolha o que dispara o fluxo.' }),
     }), b));
   }
 

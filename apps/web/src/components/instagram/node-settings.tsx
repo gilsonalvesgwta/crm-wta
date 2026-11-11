@@ -1,11 +1,13 @@
 'use client';
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import Link from 'next/link';
 import { Check, Copy, Link2, Plus, RefreshCw, Trash2, Upload, X } from 'lucide-react';
 import { ApiError, api, apiUpload } from '@/lib/api';
 import {
-  COMMENT_TRIGGERS, KEYWORD_TRIGGERS, NODE_TITLE, TRIGGER_TITLE, VARIABLES, bytes, mediaKind, newId,
-  type FlowButton, type FlowIssue, type FlowNode, type FlowOp, type FlowRule, type IgPost, type MediaItem, type NodeData, type NodeType,
+  COMMENT_TRIGGERS, KEYWORD_TRIGGERS, TRIGGER_TITLE, VARIABLES, WA_VARIABLES, bytes, mediaKind, newId, nodeTitle,
+  type FlowButton, type FlowChannel, type FlowIssue, type FlowNode, type FlowOp, type FlowRule, type IgPost, type MediaItem, type NodeData, type NodeType,
 } from '@/lib/instagram';
+import { fillTemplate, templateVariables, type WaTemplate } from '@/lib/messages';
 import { useDirectory, useFields, usePipelines, useTags } from '@/components/crm/data';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
@@ -17,19 +19,23 @@ import { TriggerIcon } from './trigger-icon';
 
 type Upd<T> = (patch: Partial<T>, mergeKey?: string) => void;
 
+/** Canal do fluxo aberto (muda textos, variáveis e o que cada bloco oferece). */
+const ChannelCtx = createContext<FlowChannel>('instagram');
+
 /** Painel lateral com as opções do bloco escolhido. */
-export function NodeSettings({ node, issues, accountId, readOnly, onChange, onDelete, onDuplicate, onClose }: {
-  node: FlowNode; issues: FlowIssue[]; accountId: string; readOnly?: boolean;
+export function NodeSettings({ node, issues, accountId, readOnly, channel = 'instagram', onChange, onDelete, onDuplicate, onClose }: {
+  node: FlowNode; issues: FlowIssue[]; accountId: string; readOnly?: boolean; channel?: FlowChannel;
   onChange: (data: FlowNode['data'], mergeKey?: string) => void; onDelete: () => void; onDuplicate: () => void; onClose: () => void;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const upd = (patch: Record<string, unknown>, key?: string) => onChange({ ...(node.data as any), ...patch }, key ? `${node.id}:${key}` : undefined);
   return (
+    <ChannelCtx.Provider value={channel}>
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2">
         {node.type === 'trigger' ? <TriggerIcon type={node.data.type} size={32} /> : <NodeIcon type={node.type} size={32} />}
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-[15px] font-semibold">{NODE_TITLE[node.type]}</h2>
+          <h2 className="truncate text-[15px] font-semibold">{nodeTitle(node.type, channel)}</h2>
           {node.type === 'trigger' ? <p className="truncate text-[13px] text-muted">{TRIGGER_TITLE[node.data.type]}</p> : null}
         </div>
         <button type="button" onClick={onClose} aria-label="Fechar opções do bloco" className="flex size-8 items-center justify-center rounded-[6px] text-muted hover:bg-surface-2 hover:text-ink"><X size={16} aria-hidden /></button>
@@ -43,6 +49,7 @@ export function NodeSettings({ node, issues, accountId, readOnly, onChange, onDe
         {node.type === 'trigger' ? <TriggerSettings d={node.data} accountId={accountId} upd={upd as Upd<NodeData['trigger']>} /> : null}
         {node.type === 'comment_reply' ? <CommentReplySettings d={node.data} upd={upd as Upd<NodeData['comment_reply']>} /> : null}
         {node.type === 'private_reply' || node.type === 'text' ? <MessageSettings type={node.type} d={node.data} upd={upd as Upd<NodeData['text']>} /> : null}
+        {node.type === 'template' ? <TemplateSettings d={node.data} accountId={accountId} upd={upd as Upd<NodeData['template']>} /> : null}
         {node.type === 'media' ? <MediaSettings d={node.data} upd={upd as Upd<NodeData['media']>} /> : null}
         {node.type === 'wait' ? <WaitSettings d={node.data} upd={upd as Upd<NodeData['wait']>} /> : null}
         {node.type === 'question' ? <QuestionSettings d={node.data} upd={upd as Upd<NodeData['question']>} /> : null}
@@ -56,6 +63,7 @@ export function NodeSettings({ node, issues, accountId, readOnly, onChange, onDe
         </div>
       ) : null}
     </div>
+    </ChannelCtx.Provider>
   );
 }
 
@@ -92,6 +100,7 @@ export function TextVars({ label, value, onChange, max, rows = 4, placeholder, h
 }) {
   const id = useId();
   const ref = useRef<HTMLTextAreaElement>(null);
+  const vars = useContext(ChannelCtx) === 'whatsapp' ? WA_VARIABLES : VARIABLES;
   function insert(k: string) {
     const el = ref.current;
     const tag = `{{${k}}}`;
@@ -109,7 +118,7 @@ export function TextVars({ label, value, onChange, max, rows = 4, placeholder, h
       <textarea id={id} ref={ref} rows={rows} maxLength={max} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
         className="rounded-[6px] border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted" />
       <div className="flex flex-wrap gap-1" aria-label="Inserir variável">
-        {VARIABLES.map((v) => (
+        {vars.map((v) => (
           <button key={v.key} type="button" onClick={() => insert(v.key)} title={v.label}
             className="rounded-full border border-line bg-surface px-2 py-0.5 text-xs text-muted hover:bg-surface-2 hover:text-ink">{`{{${v.key}}}`}</button>
         ))}
@@ -126,6 +135,14 @@ function TriggerSettings({ d, accountId, upd }: { d: NodeData['trigger']; accoun
   const isComment = COMMENT_TRIGGERS.includes(d.type);
   const usesKeywords = KEYWORD_TRIGGERS.includes(d.type);
   const total = d.type === 'comment' ? 3 : usesKeywords ? 2 : 1;
+  if (d.type === 'wa_broadcast') {
+    return (
+      <>
+        <p className="text-[13px] text-muted">O fluxo começa quando você envia uma transmissão (campanha) com ele. O primeiro passo é o modelo aprovado: cada botão de resposta do modelo continua a conversa pelo caminho dele.</p>
+        <Alert tone="info">Para enviar: publique o fluxo e crie uma campanha em <Link href="/campanhas/nova" className="underline">Campanhas</Link> escolhendo este WhatsApp e o fluxo.</Alert>
+      </>
+    );
+  }
   const addKw = () => {
     const words = kw.split(',').map((w) => w.trim()).filter(Boolean).filter((w) => !d.keywords.includes(w));
     if (words.length) upd({ keywords: [...d.keywords, ...words].slice(0, 30) });
@@ -266,12 +283,14 @@ function CommentReplySettings({ d, upd }: { d: NodeData['comment_reply']; upd: U
 }
 
 function MessageSettings({ type, d, upd }: { type: 'private_reply' | 'text'; d: NodeData['text']; upd: Upd<NodeData['text']> }) {
+  const wa = useContext(ChannelCtx) === 'whatsapp';
   const setBtn = (id: string, patch: Partial<FlowButton>) => upd({ buttons: d.buttons.map((b) => (b.id === id ? { ...b, ...patch } : b)) }, `btn:${id}`);
   return (
     <>
       {type === 'private_reply' ? (
         <p className="text-[13px] text-muted">A mensagem que chega no direct de quem comentou. Coloque um botão: quando a pessoa toca, a conversa abre e o fluxo continua.</p>
       ) : null}
+      {wa ? <p className="text-[13px] text-muted">Mensagem livre com até 3 botões de resposta. Só chega até 24 h depois da última mensagem da pessoa (o clique num botão conta).</p> : null}
       <TextVars label="Mensagem" value={d.text} max={type === 'private_reply' ? 640 : 1000} rows={5} onChange={(text) => upd({ text }, 'text')}
         placeholder="Oi, {{nome}}! …" />
       <section className="flex flex-col gap-2">
@@ -300,6 +319,68 @@ function MessageSettings({ type, d, upd }: { type: 'private_reply' | 'text'; d: 
           </Button>
         ) : null}
       </section>
+    </>
+  );
+}
+
+/** WhatsApp: escolhe o modelo aprovado deste número; as respostas rápidas do modelo viram as saídas do bloco. */
+function TemplateSettings({ d, accountId, upd }: { d: NodeData['template']; accountId: string; upd: Upd<NodeData['template']> }) {
+  const [items, setItems] = useState<WaTemplate[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const load = () => api<{ items: WaTemplate[] }>('GET', `/api/v1/whatsapp-templates?accountId=${accountId}&approved=1`)
+    .then((r) => { setItems(r.items); setError(null); }).catch((e) => { setItems([]); setError(e instanceof ApiError ? e.title : 'Não foi possível buscar os modelos.'); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { void load(); }, [accountId]);
+  const chosen = items?.find((t) => t.id === d.templateId) ?? null;
+  function pick(id: string) {
+    const t = items?.find((x) => x.id === id);
+    if (!t) { upd({ templateId: null, name: null, params: [], buttons: [] }); return; }
+    const n = templateVariables(t.body);
+    upd({
+      templateId: t.id, name: `${t.name} (${t.language})`,
+      params: Array.from({ length: n }, (_, i) => d.params[i] ?? (i === 0 ? '{{nome}}' : '')),
+      buttons: t.buttons.map((b, i) => (b.type === 'QUICK_REPLY' ? { id: `q${i}`, title: b.text, url: null } : null)).filter((b): b is FlowButton => !!b),
+    });
+  }
+  const linkButtons = chosen?.buttons.filter((b) => b.type !== 'QUICK_REPLY') ?? [];
+  return (
+    <>
+      <p className="text-[13px] text-muted">Mensagem aprovada pela Meta: chega mesmo para quem não fala com você há mais de 24 h. Cada botão de resposta rápida continua o fluxo pelo caminho dele.</p>
+      <div className="flex items-end gap-2">
+        <Select className="min-w-0 flex-1" label="Modelo aprovado" value={d.templateId ?? ''} onChange={(e) => pick(e.target.value)}>
+          <option value="">{items === null ? 'Carregando…' : items.length ? 'Escolha o modelo' : 'Nenhum modelo aprovado neste número'}</option>
+          {(items ?? []).map((t) => <option key={t.id} value={t.id}>{t.name} ({t.language})</option>)}
+          {d.templateId && items && !chosen ? <option value={d.templateId}>{d.name ?? 'Modelo'} (não está mais aprovado)</option> : null}
+        </Select>
+        <button type="button" aria-label="Atualizar modelos" onClick={() => void load()} className="mb-1.5 flex size-8 items-center justify-center rounded-[6px] text-muted hover:bg-surface-2 hover:text-ink"><RefreshCw size={15} aria-hidden /></button>
+      </div>
+      {error ? <Alert tone="error">{error}</Alert> : null}
+      <p className="text-xs text-muted">Para criar um modelo com imagem e botões, vá em <Link href="/configuracoes/canais" className="underline">Configurações › Canais › Modelos</Link>. A Meta aprova em minutos ou horas.</p>
+      {chosen ? (
+        <>
+          {d.params.length ? (
+            <section className="flex flex-col gap-2">
+              <h3 className="text-sm font-semibold">Variáveis do modelo</h3>
+              {d.params.map((v, i) => (
+                <TextVars key={i} label={`{{${i + 1}}}${chosen.examples[i] ? ` · ex.: ${chosen.examples[i]}` : ''}`} value={v} max={1000} rows={1}
+                  onChange={(x) => upd({ params: d.params.map((p, k) => (k === i ? x : p)) }, `p${i}`)} />
+              ))}
+            </section>
+          ) : null}
+          <div className="rounded-[10px] border border-line bg-surface-2 p-3 text-[13px]">
+            {chosen.headerFormat && chosen.headerFormat !== 'TEXT' ? <p className="mb-1 text-xs text-muted">[{chosen.headerFormat === 'IMAGE' ? 'Imagem' : chosen.headerFormat === 'VIDEO' ? 'Vídeo' : 'Documento'} no topo]</p> : null}
+            {chosen.header && chosen.headerFormat !== 'IMAGE' && chosen.headerFormat !== 'VIDEO' && chosen.headerFormat !== 'DOCUMENT' ? <p className="font-semibold">{chosen.header}</p> : null}
+            <p className="whitespace-pre-wrap">{fillTemplate(chosen.body, d.params)}</p>
+            {chosen.footer ? <p className="mt-1 text-xs text-muted">{chosen.footer}</p> : null}
+          </div>
+          <section className="flex flex-col gap-1.5">
+            <h3 className="text-sm font-semibold">Botões</h3>
+            {d.buttons.length ? d.buttons.map((b) => <p key={b.id} className="rounded-[6px] border border-line px-2.5 py-1.5 text-[13px]">↩ {b.title} <span className="text-xs text-muted">— ligue a bolinha “{b.title}” ao próximo passo</span></p>)
+              : <p className="text-xs text-muted">Este modelo não tem botões de resposta rápida: o fluxo segue direto para o próximo passo.</p>}
+            {linkButtons.map((b, i) => <p key={i} className="text-xs text-muted">🔗 {b.text} (abre {b.type === 'URL' ? 'o link' : 'a ligação'}; não continua o fluxo)</p>)}
+          </section>
+        </>
+      ) : null}
     </>
   );
 }
@@ -349,6 +430,7 @@ function MediaSettings({ d, upd }: { d: NodeData['media']; upd: Upd<NodeData['me
 }
 
 function WaitSettings({ d, upd }: { d: NodeData['wait']; upd: Upd<NodeData['wait']> }) {
+  const wa = useContext(ChannelCtx) === 'whatsapp';
   return (
     <>
       <div className="flex gap-2">
@@ -358,7 +440,9 @@ function WaitSettings({ d, upd }: { d: NodeData['wait']; upd: Upd<NodeData['wait
           <option value="minutes">minutos</option><option value="hours">horas</option><option value="days">dias</option>
         </Select>
       </div>
-      <p className="text-xs text-muted">O Instagram só permite mensagens até 24 horas depois da última mensagem da pessoa.</p>
+      <p className="text-xs text-muted">{wa
+        ? 'O WhatsApp só permite mensagem livre até 24 horas depois da última mensagem da pessoa; depois disso, use um modelo aprovado.'
+        : 'O Instagram só permite mensagens até 24 horas depois da última mensagem da pessoa.'}</p>
     </>
   );
 }
@@ -418,6 +502,7 @@ function TagSelect({ value, onChange, label = 'Etiqueta' }: { value: string; onC
 }
 
 function ConditionSettings({ d, upd }: { d: NodeData['condition']; upd: Upd<NodeData['condition']> }) {
+  const wa = useContext(ChannelCtx) === 'whatsapp';
   const set = (i: number, r: FlowRule) => upd({ rules: d.rules.map((x, k) => (k === i ? r : x)) }, `r${i}`);
   const blank = (kind: FlowRule['kind']): FlowRule =>
     kind === 'has_tag' || kind === 'not_tag' ? { kind, tagId: '' } : kind === 'var_equals' ? { kind, key: '', value: '' } : kind === 'var_set' ? { kind, key: '' } : { kind };
@@ -431,7 +516,7 @@ function ConditionSettings({ d, upd }: { d: NodeData['condition']; upd: Upd<Node
         <div key={i} className="flex flex-col gap-2 rounded-[8px] border border-line p-2.5">
           <div className="flex items-end gap-2">
             <Select className="min-w-0 flex-1" label={`Regra ${i + 1}`} value={r.kind} onChange={(e) => set(i, blank(e.target.value as FlowRule['kind']))}>
-              {Object.entries(RULE_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              {Object.entries(RULE_LABEL).filter(([k]) => !wa || (k !== 'follows' && k !== 'not_follows')).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
             </Select>
             <button type="button" aria-label={`Remover regra ${i + 1}`} onClick={() => upd({ rules: d.rules.filter((_, k) => k !== i) })}
               className="mb-1.5 flex size-8 items-center justify-center rounded-[6px] text-muted hover:bg-surface-2 hover:text-bad"><Trash2 size={15} aria-hidden /></button>
@@ -455,14 +540,16 @@ function ActionSettings({ d, upd }: { d: NodeData['action']; upd: Upd<NodeData['
   const pipelines = (usePipelines().data ?? []).filter((p) => !p.archived);
   const members = useDirectory().data?.members ?? [];
   const fields = useFields('contact').data ?? [];
+  const wa = useContext(ChannelCtx) === 'whatsapp';
+  const who = wa ? '{{nome_completo}}' : '{{usuario}}';
   const set = (i: number, o: FlowOp) => upd({ ops: d.ops.map((x, k) => (k === i ? o : x)) }, `o${i}`);
   const blank = (kind: FlowOp['kind']): FlowOp => {
     switch (kind) {
       case 'add_tag': case 'remove_tag': return { kind, tagId: '' };
       case 'set_field': return { kind, key: '', value: '' };
-      case 'create_lead': return { kind, title: 'Instagram: {{usuario}}' };
-      case 'create_deal': return { kind, pipelineId: pipelines[0]?.id ?? '', title: 'Instagram: {{usuario}}' };
-      case 'notify': return { kind, membershipId: null, text: '{{usuario}} passou pelo fluxo.' };
+      case 'create_lead': return { kind, title: `${wa ? 'WhatsApp' : 'Instagram'}: ${who}` };
+      case 'create_deal': return { kind, pipelineId: pipelines[0]?.id ?? '', title: `${wa ? 'WhatsApp' : 'Instagram'}: ${who}` };
+      case 'notify': return { kind, membershipId: null, text: `${who} passou pelo fluxo.` };
       case 'assign': return { kind, membershipId: '' };
     }
   };
@@ -521,10 +608,11 @@ function ActionSettings({ d, upd }: { d: NodeData['action']; upd: Upd<NodeData['
 }
 
 /** Paleta de passos para adicionar. */
-export const PALETTE: { type: Exclude<NodeType, 'trigger'>; title: string; desc: string; commentOnly?: boolean }[] = [
-  { type: 'comment_reply', title: 'Responder no comentário', desc: 'Resposta pública, sorteia até 3', commentOnly: true },
-  { type: 'private_reply', title: 'Responder no privado', desc: 'Abre o direct de quem comentou', commentOnly: true },
-  { type: 'text', title: 'Texto', desc: 'Mensagem no direct, até 3 botões' },
+export const PALETTE: { type: Exclude<NodeType, 'trigger'>; title: string; desc: string; commentOnly?: boolean; only?: FlowChannel }[] = [
+  { type: 'comment_reply', title: 'Responder no comentário', desc: 'Resposta pública, sorteia até 3', commentOnly: true, only: 'instagram' },
+  { type: 'private_reply', title: 'Responder no privado', desc: 'Abre o direct de quem comentou', commentOnly: true, only: 'instagram' },
+  { type: 'template', title: 'Modelo aprovado', desc: 'Chega mesmo fora das 24 h, com botões', only: 'whatsapp' },
+  { type: 'text', title: 'Texto', desc: 'Mensagem com até 3 botões' },
   { type: 'media', title: 'Imagem, vídeo, áudio ou PDF', desc: 'Da biblioteca de mídia' },
   { type: 'wait', title: 'Esperar', desc: 'Minutos, horas ou dias' },
   { type: 'question', title: 'Pergunta', desc: 'Guarda a resposta (e-mail, telefone…)' },
@@ -532,7 +620,7 @@ export const PALETTE: { type: Exclude<NodeType, 'trigger'>; title: string; desc:
   { type: 'action', title: 'Ações no CRM', desc: 'Etiqueta, lead, negócio, aviso' },
 ];
 
-export function Palette({ commentFlow, onAdd, from }: { commentFlow: boolean; onAdd: (t: Exclude<NodeType, 'trigger'>) => void; from: string | null }) {
+export function Palette({ commentFlow, onAdd, from, channel = 'instagram' }: { commentFlow: boolean; onAdd: (t: Exclude<NodeType, 'trigger'>) => void; from: string | null; channel?: FlowChannel }) {
   return (
     <section className="flex flex-col gap-2">
       <div>
@@ -540,7 +628,7 @@ export function Palette({ commentFlow, onAdd, from }: { commentFlow: boolean; on
         <p className="text-xs text-muted">{from ? 'Entra ligado ao bloco escolhido.' : 'Escolha um bloco na tela para já ligar o passo novo a ele.'}</p>
       </div>
       <ul className="grid grid-cols-1 gap-1.5">
-        {PALETTE.filter((p) => commentFlow || !p.commentOnly).map((p) => (
+        {PALETTE.filter((p) => (commentFlow || !p.commentOnly) && (!p.only || p.only === channel)).map((p) => (
           <li key={p.type}>
             <button type="button" onClick={() => onAdd(p.type)} className="flex w-full items-center gap-2.5 rounded-[8px] border border-line bg-surface px-2.5 py-2 text-left hover:border-primary hover:bg-accent-soft">
               <NodeIcon type={p.type} size={28} />

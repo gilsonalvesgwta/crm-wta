@@ -11,6 +11,8 @@ const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? 
 export type CloudMessage = {
   type: 'message'; phoneNumberId: string; id: string; from: string; name: string | null; kind: string; text: string | null;
   at: Date; media: { id: string; mimetype: string | null; fileName: string | null } | null;
+  /** Clique num botão: o dado do botão (resposta rápida do modelo ou botão da mensagem interativa). */
+  payload?: string | null;
 };
 export type CloudStatus = { type: 'status'; phoneNumberId: string; id: string; status: 'sent' | 'delivered' | 'read' | 'failed'; error: string | null };
 export type TemplateStatus = { type: 'template'; metaId: string | null; name: string | null; language: string | null; status: string; reason: string | null };
@@ -58,13 +60,15 @@ export function readCloudWebhook(body: unknown): CloudEvent[] {
         else if (t === 'button') text = str(obj(msg.button)?.text);
         else if (t === 'interactive') text = str(obj(obj(msg.interactive)?.button_reply)?.title) ?? str(obj(obj(msg.interactive)?.list_reply)?.title);
         else if (part) text = str(part.caption);
+        const payload = t === 'button' ? str(obj(msg.button)?.payload)
+          : t === 'interactive' ? (str(obj(obj(msg.interactive)?.button_reply)?.id) ?? str(obj(obj(msg.interactive)?.list_reply)?.id)) : null;
         if (t === 'location' && part) text = `Localização: ${str(part.latitude)}, ${str(part.longitude)}${str(part.name) ? ` (${str(part.name)})` : ''}`;
         if (t === 'reaction') continue;
         const media = part && str(part.id) && ['image', 'audio', 'voice', 'video', 'document', 'sticker'].includes(t)
           ? { id: str(part.id)!, mimetype: str(part.mime_type), fileName: str(part.filename) } : null;
         const ts = Number(str(msg.timestamp));
         out.push({ type: 'message', phoneNumberId, id, from, name: names.get(from) ?? null, kind: KINDS[t] ?? 'other', text,
-          at: Number.isFinite(ts) && ts > 0 ? new Date(ts * 1000) : new Date(), media });
+          at: Number.isFinite(ts) && ts > 0 ? new Date(ts * 1000) : new Date(), media, payload });
       }
       for (const s of arr(value.statuses)) {
         const st = obj(s);

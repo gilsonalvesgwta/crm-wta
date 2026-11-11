@@ -263,7 +263,13 @@ export class MetaService {
           const r = await this.messages.receiveWhatsapp(acc.tenant_id, a.id, {
             type: 'message', id: ev.id, fromMe: false, e164, pushName: ev.name, kind: ev.kind as never, text: ev.text, at: ev.at, media,
           });
-          if (r !== 'duplicate') handled++;
+          if (r !== 'duplicate') {
+            handled++;
+            // Fluxos do WhatsApp: clique em botão, resposta de pergunta ou palavra-chave (depois de a mensagem estar no histórico).
+            await this.flows.onWhatsapp(acc.tenant_id, { id: a.id, external_id: a.external_id!, secret: a.secret!, config: a.config },
+              { id: ev.id, from: ev.from, text: ev.text, payload: ev.payload ?? null })
+              .catch((err: unknown) => this.log.error(`fluxos do WhatsApp: ${String(err)}`));
+          }
         } catch (err) {
           this.log.error(`aviso do WhatsApp oficial não processado: ${String(err)}`);
         }

@@ -19,6 +19,9 @@ export type Campaign = {
   createdBy: { id: string; name: string } | null; startedBy: { id: string; name: string } | null;
   createdAt: string; updatedAt: string; stats: CampaignStats;
   templateId: string | null; templateParams: string[]; template: { id: string; name: string; language: string; body: string; header: string | null; status: string } | null;
+  /** WhatsApp oficial: fluxo de transmissão (o modelo e os botões vêm dele). */
+  flowId?: string | null; flow?: { id: string; name: string; status: string } | null;
+  flowStats?: { clicked: number; completed: number; waiting: number } | null;
 };
 
 export type AudiencePreview = { total: number; eligible: number; noAddress: number; revoked: number; noConsent: number; suppressed: number; sample: string[] };

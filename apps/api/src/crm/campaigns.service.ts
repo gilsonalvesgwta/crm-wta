@@ -10,6 +10,8 @@ import { Problem } from '../http/problem.js';
 import { Db, type Q } from '../infra/db.js';
 import { memberJson } from './fields.js';
 import { MessagesService } from './messages.service.js';
+import { IgFlowEngine } from './ig-flows.engine.js';
+import { graphSchema, nextNode, triggerOf } from '../domain/flows.js';
 import { Params } from './sql.js';
 
 type Channel = 'whatsapp' | 'email';
@@ -38,7 +40,12 @@ const COLUMNS = `
   k.created_at as "createdAt", k.updated_at as "updatedAt", ${STATS('k')} as stats,
   k.template_id as "templateId", k.template_params as "templateParams",
   (select json_build_object('id', t.id, 'name', t.name, 'language', t.language, 'body', t.body, 'header', t.header, 'headerFormat', t.header_format, 'status', t.status)
-     from whatsapp_templates t where t.id = k.template_id) as template`;
+     from whatsapp_templates t where t.id = k.template_id) as template,
+  k.flow_id as "flowId",
+  (select json_build_object('id', f.id, 'name', f.name, 'status', f.status) from ig_flows f where f.id = k.flow_id) as flow,
+  (select json_build_object('clicked', count(distinct e.run_id) filter (where e.kind = 'clicked'), 'completed', count(distinct e.run_id) filter (where e.kind = 'completed'),
+                            'waiting', (select count(*) from ig_flow_runs w where w.campaign_id = k.id and w.status = 'waiting'))
+     from ig_flow_events e join ig_flow_runs r on r.id = e.run_id where r.campaign_id = k.id) as "flowStats"`;
 
 /** Contatos do público, com o endereço do canal e o último consentimento de marketing. */
 function audienceSql(p: Params, a: Audience, channel: Channel): string {
@@ -84,6 +91,7 @@ export class CampaignsService {
     @Inject(Db) private readonly db: Db,
     @Inject(CONFIG) private readonly cfg: Config,
     @Inject(MessagesService) private readonly messages: MessagesService,
+    @Inject(IgFlowEngine) private readonly flows: IgFlowEngine,
   ) {}
 
   private async row(q: Q, id: string) {
@@ -151,17 +159,30 @@ export class CampaignsService {
   }
 
   private values(b: CampaignInput) {
+    const flow = b.channel === 'whatsapp' ? b.flowId ?? null : null;
     return [b.name, b.description, b.channel, JSON.stringify(b.audience), b.accountId ?? null, b.channel === 'email' ? b.subject : null,
-      b.body, b.perMinute, b.windowStart ?? null, b.windowEnd ?? null, b.optOutHint, b.templateId ?? null, JSON.stringify(b.templateParams)];
+      b.body, b.perMinute, b.windowStart ?? null, b.windowEnd ?? null, b.optOutHint, flow ? null : b.templateId ?? null, JSON.stringify(flow ? [] : b.templateParams), flow];
+  }
+
+  /** Fluxo de transmissão: do WhatsApp oficial, do mesmo número e com gatilho "transmissão". */
+  private async checkFlow(q: Q, b: CampaignInput) {
+    if (b.channel !== 'whatsapp' || !b.flowId) return;
+    const f = (await q.query<{ channel: string; trigger_type: string; channel_account_id: string }>(
+      'select channel, trigger_type, channel_account_id from ig_flows where id = $1', [b.flowId])).rows[0];
+    if (!f || f.channel !== 'whatsapp' || f.trigger_type !== 'wa_broadcast') {
+      throw Problem.badRequest('Fluxo inválido.', [{ field: 'flowId', message: 'Escolha um fluxo de transmissão do WhatsApp.' }]);
+    }
+    if (b.accountId && f.channel_account_id !== b.accountId) throw Problem.badRequest('Fluxo de outro número.', [{ field: 'flowId', message: 'O fluxo é de outro número de WhatsApp.' }]);
   }
 
   async create(actor: Actor, b: CampaignInput) {
     return this.db.app(tenantCtx(actor), async (q) => {
       await this.checkAccount(q, b.channel, b.accountId);
+      await this.checkFlow(q, b);
       const r = await q.query<{ id: string }>(
         `insert into campaigns (tenant_id, name, description, channel, audience, channel_account_id, subject, body, per_minute,
-                                window_start, window_end, opt_out_hint, template_id, template_params, created_by)
-         values (app.tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) returning id`,
+                                window_start, window_end, opt_out_hint, template_id, template_params, flow_id, created_by)
+         values (app.tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) returning id`,
         [...this.values(b), actor.membershipId]);
       return this.row(q, r.rows[0]!.id);
     });
@@ -172,9 +193,10 @@ export class CampaignsService {
       const cur = await this.row(q, id);
       if (cur.status !== 'draft' && cur.status !== 'scheduled') throw Problem.conflict('Só dá para editar a campanha antes de o envio começar.');
       await this.checkAccount(q, b.channel, b.accountId);
+      await this.checkFlow(q, b);
       await q.query(
         `update campaigns set name = $2, description = $3, channel = $4, audience = $5, channel_account_id = $6, subject = $7, body = $8,
-                per_minute = $9, window_start = $10, window_end = $11, opt_out_hint = $12, template_id = $13, template_params = $14 where id = $1`, [id, ...this.values(b)]);
+                per_minute = $9, window_start = $10, window_end = $11, opt_out_hint = $12, template_id = $13, template_params = $14, flow_id = $15 where id = $1`, [id, ...this.values(b)]);
       return this.row(q, id);
     });
   }
@@ -187,7 +209,7 @@ export class CampaignsService {
                                 window_start, window_end, opt_out_hint, created_by)
          select tenant_id, left(name || ' (cópia)', 120), description, channel, audience, channel_account_id, subject, body, per_minute,
                 window_start, window_end, opt_out_hint, $2 from campaigns where id = $1 returning id`, [id, actor.membershipId]);
-      await q.query('update campaigns k set template_id = o.template_id, template_params = o.template_params from campaigns o where k.id = $1 and o.id = $2',
+      await q.query('update campaigns k set template_id = o.template_id, template_params = o.template_params, flow_id = o.flow_id from campaigns o where k.id = $1 and o.id = $2',
         [r.rows[0]!.id, id]);
       return this.row(q, r.rows[0]!.id);
     });
@@ -207,14 +229,25 @@ export class CampaignsService {
   async start(actor: Actor, id: string, scheduledAt: string | null | undefined) {
     return this.db.app(tenantCtx(actor), async (q) => {
       const k = (await q.query<{ status: string; channel: Channel; audience: Audience; channel_account_id: string | null; subject: string | null; body: string | null;
-        template_id: string | null; template_params: string[] }>(
-        'select status, channel, audience, channel_account_id, subject, body, template_id, template_params from campaigns where id = $1 for update', [id])).rows[0];
+        template_id: string | null; template_params: string[]; flow_id: string | null }>(
+        'select status, channel, audience, channel_account_id, subject, body, template_id, template_params, flow_id from campaigns where id = $1 for update', [id])).rows[0];
       if (!k) throw Problem.notFound('Campanha não encontrada.');
       if (k.status !== 'draft' && k.status !== 'scheduled') throw Problem.conflict('Esta campanha já foi enviada ou cancelada.');
       const errors: { field: string; message: string }[] = [];
       if (!k.channel_account_id) errors.push({ field: 'accountId', message: k.channel === 'email' ? 'Escolha a conta de e-mail que envia.' : 'Escolha o WhatsApp que envia.' });
       const kind = k.channel_account_id ? (await q.query<{ kind: string }>('select kind from channel_accounts where id = $1', [k.channel_account_id])).rows[0]?.kind : null;
-      if (kind === 'whatsapp_cloud') {
+      if (kind === 'whatsapp_cloud' && k.flow_id) {
+        // Transmissão com fluxo: o fluxo precisa estar ativo, ser deste número e começar por um modelo aprovado.
+        const f = (await q.query<{ status: string; channel_account_id: string; published: unknown; trigger_type: string }>(
+          'select status, channel_account_id, published, trigger_type from ig_flows where id = $1', [k.flow_id])).rows[0];
+        const g = f ? graphSchema.safeParse(f.published) : null;
+        if (!f || f.trigger_type !== 'wa_broadcast' || f.channel_account_id !== k.channel_account_id) errors.push({ field: 'flowId', message: 'Escolha um fluxo de transmissão deste número.' });
+        else if (f.status !== 'active' || !g?.success) errors.push({ field: 'flowId', message: 'Publique o fluxo (e deixe ativo) antes de enviar.' });
+        else {
+          const first = nextNode(g.data, g.data.nodes.find((n) => n.type === 'trigger')!.id, 'next');
+          if (first?.type !== 'template' || !first.data.templateId || triggerOf(g.data).type !== 'wa_broadcast') errors.push({ field: 'flowId', message: 'O fluxo precisa começar por um modelo aprovado.' });
+        }
+      } else if (kind === 'whatsapp_cloud') {
         // WhatsApp oficial: campanha só com modelo aprovado deste número.
         const t = k.template_id ? (await q.query<{ body: string; status: string; channel_account_id: string }>(
           'select body, status, channel_account_id from whatsapp_templates where id = $1', [k.template_id])).rows[0] : null;
@@ -289,9 +322,9 @@ export class CampaignsService {
     const k = await this.db.app(ctx, async (q) => {
       const c = (await q.query<{ status: string; channel: Channel; audience: Audience; channel_account_id: string | null; subject: string | null;
         body: string | null; per_minute: number; prepared_at: Date | null; opt_out_hint: boolean; tenant_name: string;
-        template_id: string | null; template_params: string[] }>(
+        template_id: string | null; template_params: string[]; flow_id: string | null }>(
         `select k.status, k.channel, k.audience, k.channel_account_id, k.subject, k.body, k.per_minute, k.prepared_at, k.opt_out_hint,
-                k.template_id, k.template_params, t.name as tenant_name from campaigns k join tenants t on t.id = k.tenant_id where k.id = $1`, [campaignId])).rows[0];
+                k.template_id, k.template_params, k.flow_id, t.name as tenant_name from campaigns k join tenants t on t.id = k.tenant_id where k.id = $1`, [campaignId])).rows[0];
       if (!c || c.status !== 'sending') return null;
       if (!c.prepared_at) {
         const p = new Params();
@@ -334,10 +367,13 @@ export class CampaignsService {
       const vars = { nome: r.name, primeiro_nome: r.first_name, empresa: k.tenant_name, responsavel: r.owner_name };
       const text = k.template_id ? null : render(k.body ?? '', vars) + (k.channel === 'whatsapp' && k.opt_out_hint ? OPT_OUT_HINT : '');
       try {
-        const m = await this.messages.sendByCampaign(tenantId, campaignId, r.contact_id, {
-          accountId: k.channel_account_id!, to: r.address, text, subject: k.subject ? render(k.subject, vars) : null,
-          templateId: k.template_id, templateParams: k.template_id ? (k.template_params ?? []).map((v) => render(v, vars) || '-') : null,
-        }) as { id: string; status: string; error: string | null };
+        const m = k.flow_id
+          // Transmissão com fluxo: o fluxo manda o modelo (com o dado de cada botão) e segue com o clique.
+          ? await this.flows.startBroadcast(tenantId, { campaignId, flowId: k.flow_id, contactId: r.contact_id, to: r.address })
+          : await this.messages.sendByCampaign(tenantId, campaignId, r.contact_id, {
+            accountId: k.channel_account_id!, to: r.address, text, subject: k.subject ? render(k.subject, vars) : null,
+            templateId: k.template_id, templateParams: k.template_id ? (k.template_params ?? []).map((v) => render(v, vars) || '-') : null,
+          }) as { id: string | null; status: string; error: string | null };
         await this.db.app(ctx, (q) => q.query(
           `update campaign_recipients set status = $2, reason = $3, message_id = $4, sent_at = case when $2 = 'sent' then now() end where id = $1`,
           [r.id, m.status === 'failed' ? 'failed' : 'sent', m.status === 'failed' ? m.error : null, m.id]));

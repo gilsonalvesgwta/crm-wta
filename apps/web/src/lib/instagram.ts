@@ -1,8 +1,9 @@
-// Fluxos do Instagram (estilo Manychat): tipos e regras usadas pelas telas.
+// Fluxos do Instagram e do WhatsApp oficial (estilo Manychat): tipos e regras usadas pelas telas.
 // O desenho é o mesmo grafo que a API guarda (apps/api/src/domain/flows.ts).
 
-export type TriggerType = 'comment' | 'live_comment' | 'dm_keyword' | 'story_reply' | 'story_mention' | 'reaction';
-export type NodeType = 'trigger' | 'comment_reply' | 'private_reply' | 'text' | 'media' | 'wait' | 'question' | 'condition' | 'action';
+export type FlowChannel = 'instagram' | 'whatsapp';
+export type TriggerType = 'comment' | 'live_comment' | 'dm_keyword' | 'story_reply' | 'story_mention' | 'reaction' | 'wa_broadcast' | 'wa_keyword';
+export type NodeType = 'trigger' | 'comment_reply' | 'private_reply' | 'text' | 'template' | 'media' | 'wait' | 'question' | 'condition' | 'action';
 
 export type FlowButton = { id: string; title: string; url?: string | null };
 export type TriggerData = {
@@ -27,6 +28,8 @@ export type NodeData = {
   comment_reply: { variants: string[] };
   private_reply: { text: string; buttons: FlowButton[] };
   text: { text: string; buttons: FlowButton[] };
+  /** WhatsApp: modelo aprovado; os botões são as respostas rápidas do modelo (id "q" + posição). */
+  template: { templateId: string | null; name: string | null; params: string[]; buttons: FlowButton[] };
   media: { fileId: string | null; name: string | null; kind: 'image' | 'video' | 'audio' | 'file' | null };
   wait: { amount: number; unit: 'minutes' | 'hours' | 'days' };
   question: {
@@ -48,6 +51,7 @@ export type FlowItem = {
 };
 export type Flow = Omit<FlowItem, 'triggered7d' | 'triggeredTotal' | 'waiting'> & { draft: FlowGraph; published: FlowGraph | null; issues: FlowIssue[] };
 export type IgAccount = { id: string; name: string; status: string; igUserId: string; username: string | null };
+export type WaAccount = { id: string; name: string; status: string; address: string | null; phoneNumberId: string };
 export type IgPost = { id: string; caption: string; type: 'reels' | 'post' | 'story'; thumbnail: string | null; permalink: string | null; at: string | null };
 export type MediaItem = { id: string; name: string; contentType: string; size: number; createdAt: string; uploadedBy?: string | null };
 
@@ -59,9 +63,21 @@ export const TRIGGERS: { type: TriggerType; title: string; desc: string }[] = [
   { type: 'story_mention', title: 'Menção em story', desc: 'Alguém marca você no story dela.' },
   { type: 'reaction', title: 'Reação a mensagem', desc: 'Alguém reage com um emoji a uma mensagem sua.' },
 ];
-export const TRIGGER_TITLE = Object.fromEntries(TRIGGERS.map((t) => [t.type, t.title])) as Record<TriggerType, string>;
+export const WA_TRIGGERS: { type: TriggerType; title: string; desc: string }[] = [
+  { type: 'wa_broadcast', title: 'Quando você envia uma transmissão', desc: 'A campanha manda um modelo aprovado com botões; o clique continua a conversa.' },
+  { type: 'wa_keyword', title: 'Palavra na mensagem', desc: 'Alguém manda uma palavra-chave para o seu WhatsApp.' },
+];
+export const TRIGGER_TITLE = Object.fromEntries([...TRIGGERS, ...WA_TRIGGERS].map((t) => [t.type, t.title])) as Record<TriggerType, string>;
 export const COMMENT_TRIGGERS: TriggerType[] = ['comment', 'live_comment'];
-export const KEYWORD_TRIGGERS: TriggerType[] = ['comment', 'live_comment', 'dm_keyword', 'story_reply'];
+export const KEYWORD_TRIGGERS: TriggerType[] = ['comment', 'live_comment', 'dm_keyword', 'story_reply', 'wa_keyword'];
+
+export const channelOfTrigger = (t: TriggerType): FlowChannel => (t === 'wa_broadcast' || t === 'wa_keyword' ? 'whatsapp' : 'instagram');
+
+/** Onde ficam as telas e a API de cada canal. */
+export const FLOW_BASE: Record<FlowChannel, { api: string; path: string; name: string }> = {
+  instagram: { api: '/api/v1/instagram', path: '/instagram', name: 'Instagram' },
+  whatsapp: { api: '/api/v1/whatsapp', path: '/whatsapp', name: 'WhatsApp' },
+};
 
 export const FLOW_STATUS: Record<FlowStatus, { label: string; tone: 'neutral' | 'ok' | 'warn' }> = {
   draft: { label: 'Rascunho', tone: 'neutral' },
@@ -74,6 +90,7 @@ export const NODE_TITLE: Record<NodeType, string> = {
   comment_reply: 'Responder no comentário',
   private_reply: 'Responder no privado',
   text: 'Mandar no direct',
+  template: 'Modelo aprovado',
   media: 'Mandar mídia',
   wait: 'Esperar',
   question: 'Pergunta',
@@ -81,11 +98,23 @@ export const NODE_TITLE: Record<NodeType, string> = {
   action: 'Ações no CRM',
 };
 
+/** Título do bloco no canal (no WhatsApp não há "direct"). */
+export function nodeTitle(type: NodeType, channel: FlowChannel): string {
+  if (channel === 'whatsapp' && type === 'text') return 'Mandar mensagem';
+  return NODE_TITLE[type];
+}
+
 export const VARIABLES: { key: string; label: string }[] = [
   { key: 'nome', label: 'Primeiro nome' },
   { key: 'nome_completo', label: 'Nome completo' },
   { key: 'usuario', label: '@ da pessoa' },
   { key: 'comentario', label: 'Comentário ou mensagem' },
+];
+export const WA_VARIABLES: { key: string; label: string }[] = [
+  { key: 'nome', label: 'Primeiro nome' },
+  { key: 'nome_completo', label: 'Nome completo' },
+  { key: 'telefone', label: 'Telefone da pessoa' },
+  { key: 'mensagem', label: 'Mensagem que disparou' },
 ];
 
 const rid = () => Math.random().toString(36).slice(2, 8);
@@ -98,6 +127,7 @@ export function newNode(type: Exclude<NodeType, 'trigger'>, position: { x: numbe
     case 'comment_reply': return { id, type, position, data: { variants: [''] } };
     case 'private_reply': return { id, type, position, data: { text: '', buttons: [{ id: newId('b'), title: 'Quero', url: null }] } };
     case 'text': return { id, type, position, data: { text: '', buttons: [] } };
+    case 'template': return { id, type, position, data: { templateId: null, name: null, params: [], buttons: [] } };
     case 'media': return { id, type, position, data: { fileId: null, name: null, kind: null } };
     case 'wait': return { id, type, position, data: { amount: 5, unit: 'minutes' } };
     case 'question': return { id, type, position, data: { text: '', saveTo: 'var', key: 'resposta', validate: 'text', retryText: 'Não entendi. Pode mandar de novo?', timeoutHours: null } };
@@ -114,6 +144,10 @@ export function outputsOf(n: FlowNode): { handle: string; label: string | null; 
       const btns = n.data.buttons.filter((b) => !b.url).map((b) => ({ handle: `btn:${b.id}`, label: b.title || 'Botão' }));
       // Com botão, o fluxo segue pelo clique; texto sem botão segue direto.
       if (n.type === 'private_reply') return btns;
+      return btns.length ? btns : [{ handle: 'next', label: null }];
+    }
+    case 'template': {
+      const btns = n.data.buttons.map((b) => ({ handle: `btn:${b.id}`, label: b.title || 'Botão' }));
       return btns.length ? btns : [{ handle: 'next', label: null }];
     }
     case 'question': return [{ handle: 'next', label: 'Respondeu' }, { handle: 'timeout', label: 'Não respondeu', tone: 'muted' }];

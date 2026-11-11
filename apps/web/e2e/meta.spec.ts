@@ -320,3 +320,77 @@ test('mídia do direct no CRM: imagem ampliada, PDF e vídeo na janela, áudio n
   expect((last.body.message as { attachment: { type: string } }).attachment.type).toBe('audio');
   await expectAccessible(page);
 });
+
+test('WhatsApp: transmissão com fluxo — modelo com botões, o que cada botão responde, publicar e enviar', async ({ page }) => {
+  await loginAdmin(page);
+  // Modelo com duas respostas rápidas, aprovado pela Meta.
+  await page.goto('/configuracoes/canais/modelos');
+  await page.getByRole('button', { name: 'Novo modelo' }).click();
+  const t = page.getByRole('dialog', { name: 'Novo modelo de mensagem' });
+  await t.getByLabel('Nome', { exact: true }).fill('raio_x_e2e');
+  await t.getByLabel('Texto').fill('Quer receber o seu Raio X gratuito?');
+  await t.getByRole('button', { name: 'Botão', exact: true }).click();
+  await t.getByLabel('Texto do botão 1').fill('QUERO MEU RAIO X');
+  await t.getByRole('button', { name: 'Botão', exact: true }).click();
+  await t.getByLabel('Texto do botão 2').fill('COMO FUNCIONA?');
+  await t.getByRole('button', { name: 'Enviar para aprovação' }).click();
+  await expect(page.getByText('Modelo enviado para a Meta aprovar.')).toBeVisible();
+  await page.request.post(`${FAKE}/__fake/approve`);
+  await page.getByRole('button', { name: 'Sincronizar com a Meta' }).click();
+  await expect(page.getByRole('listitem').filter({ hasText: 'raio_x_e2e' })).toContainText('Aprovado');
+
+  // Novo fluxo de transmissão: já começa pelo bloco do modelo.
+  await page.getByRole('navigation', { name: 'Menu principal' }).getByRole('link', { name: 'WhatsApp' }).click();
+  await expect(page.getByRole('heading', { name: 'WhatsApp', level: 1 })).toBeVisible();
+  await page.getByRole('button', { name: 'Novo fluxo' }).first().click();
+  const d = page.getByRole('dialog', { name: 'Novo fluxo' });
+  await expect(d.getByRole('radio', { name: /Quando você envia uma transmissão/ })).toHaveAttribute('aria-checked', 'true');
+  await d.getByLabel('Nome do fluxo').fill('Raio X e2e');
+  await expectAccessible(page);
+  await shot(page, '80-whatsapp-novo-fluxo');
+  await d.getByRole('button', { name: 'Criar e abrir o editor' }).click();
+  await expect(page.getByLabel('Nome do fluxo')).toHaveValue('Raio X e2e');
+  await page.getByRole('group', { name: 'Modelo aprovado' }).getByRole('button').first().click();
+  await page.getByRole('combobox', { name: 'Modelo aprovado' }).selectOption({ label: 'raio_x_e2e (pt_BR)' });
+  const node = page.getByRole('group', { name: 'Modelo aprovado' });
+  await expect(node).toContainText('QUERO MEU RAIO X');
+  await expect(node).toContainText('COMO FUNCIONA?');
+  // O passo novo entra ligado ao primeiro botão.
+  await page.getByRole('button', { name: /^Texto/ }).click();
+  await page.getByLabel('Mensagem', { exact: true }).fill('Perfeito, {{nome}}! Já vamos preparar o seu Raio X.');
+  await expect(page.getByRole('status').filter({ hasText: 'Salvo' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Tudo certo' })).toBeVisible();
+  await expectAccessible(page);
+  await shot(page, '81-whatsapp-editor');
+
+  await page.getByRole('button', { name: 'Visualizar' }).click();
+  const sim = page.getByRole('dialog', { name: 'Visualizar o fluxo' });
+  await expect(sim.getByText('Nada é enviado ao WhatsApp.')).toBeVisible();
+  await sim.getByRole('button', { name: 'Simular' }).click();
+  await sim.getByRole('button', { name: 'QUERO MEU RAIO X' }).click();
+  await expect(sim.getByText('Perfeito, Maria! Já vamos preparar o seu Raio X.')).toBeVisible();
+  await expect(sim.getByText('Fim do fluxo.')).toBeVisible();
+  await sim.getByRole('button', { name: 'Fechar', exact: true }).first().click();
+
+  await page.getByRole('button', { name: 'Publicar' }).click();
+  await expect(page.getByText('Fluxo publicado: já pode ser usado numa transmissão.')).toBeVisible();
+
+  // Enviar transmissão: a campanha já vem com o WhatsApp oficial e o fluxo.
+  await page.getByRole('link', { name: 'Enviar transmissão' }).first().click();
+  await page.getByLabel('Nome *').fill('Transmissão Raio X');
+  await page.getByRole('button', { name: 'Continuar' }).click();
+  await page.getByRole('button', { name: 'Continuar' }).click();
+  await expect(page.getByRole('radio', { name: /Transmissão com fluxo/ })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByRole('combobox', { name: /Fluxo da transmissão/ }).locator('option:checked')).toHaveText(/Raio X e2e/);
+  await expectAccessible(page);
+  await shot(page, '82-whatsapp-transmissao');
+  await page.getByRole('button', { name: 'Continuar' }).click();
+  await page.getByRole('button', { name: 'Continuar' }).click();
+  await expect(page.getByText('Fluxo Raio X e2e')).toBeVisible();
+  await page.getByRole('button', { name: 'Salvar rascunho' }).click();
+  await expect(page.getByText(/Transmissão com o fluxo/)).toBeVisible();
+
+  await page.goto('/whatsapp/transmissoes');
+  await expect(page.getByRole('region', { name: 'Transmissões' })).toContainText('Transmissão Raio X');
+  await expectAccessible(page);
+});
