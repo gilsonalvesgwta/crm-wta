@@ -1,0 +1,4 @@
+commit: 928179fdb5f28ef87ba9f3a7d690d0def1b9dcff
+ramo: fix/confirmar-nome-funil
+execucao: 43022062095
+inicio: 2026-11-11T12:39:26Z
