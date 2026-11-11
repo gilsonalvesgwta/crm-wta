@@ -391,6 +391,21 @@ describe('Instagram', () => {
     assert.equal(again.status, 200, JSON.stringify(again.body));
     assert.equal(again.body.file.contentType, 'application/pdf');
 
+    // Reels compartilhado chega com o link do Instagram: vira texto com o link (não é arquivo).
+    await hook(igHook, att('mid.REEL1', 'ig_reel', 'https://www.instagram.com/reel/C1abc/'));
+    const reel = (await f.admin.query<{ id: string; kind: string; body: string }>("select id, kind, body from messages where external_id = 'mid.REEL1'")).rows[0]!;
+    assert.deepEqual([reel.kind, reel.body], ['text', 'Reels compartilhado: https://www.instagram.com/reel/C1abc/']);
+    // Mensagem antiga que ficou como vídeo com o link: abrir converte em link.
+    await f.admin.query("update messages set kind = 'video', body = null, media_url = 'https://www.instagram.com/reel/C1abc/' where id = $1", [reel.id]);
+    const conv1 = await admin.post(`/api/v1/messages/${reel.id}/media`);
+    assert.equal(conv1.status, 200, JSON.stringify(conv1.body));
+    assert.deepEqual([conv1.body.kind, conv1.body.body], ['text', 'Reels compartilhado: https://www.instagram.com/reel/C1abc/']);
+    // Sem endereço guardado, a Meta só devolve o link compartilhado (campo shares).
+    await f.admin.query("update messages set kind = 'video', body = null, media_url = null where id = $1", [reel.id]);
+    meta.igShares.set('mid.REEL1', ['https://www.instagram.com/p/XYZ/']);
+    const conv2 = await admin.post(`/api/v1/messages/${reel.id}/media`);
+    assert.equal(conv2.body.body, 'Reels compartilhado: https://www.instagram.com/p/XYZ/');
+
     // Responder com áudio gravado no navegador (WebM): vai como M4A pelo link assinado.
     const conv = (await admin.get('/api/v1/conversations?channel=instagram')).body.items[0].id;
     const boundary = '----crmvoz';

@@ -12,7 +12,7 @@ import { Meta, MetaError, type MetaHost } from '../infra/meta.js';
 import { AudioError, convertVoice } from '../infra/audio.js';
 import { enrichContact } from './contact-enrich.js';
 import { splitName } from '../domain/contact-info.js';
-import { kindFromContent, renderTemplate, templateVariables, type IgMessage } from '../domain/meta.js';
+import { igPermalink, kindFromContent, renderTemplate, templateVariables, type IgMessage } from '../domain/meta.js';
 import { sendTenantMail, SmtpError, textToHtml } from '../infra/tenant-mail.js';
 import { memberJson } from './fields.js';
 import { FilesService } from './files.service.js';
@@ -688,13 +688,23 @@ export class MessagesService {
           if ('error' in r) { reasons.push(r.error); return null; }
           return r;
         };
+        // Reels ou publicação compartilhada: é um link do Instagram, não arquivo; a mensagem vira o link.
+        const asLink = async (u: string) => {
+          await this.db.app(tenantCtx(actor), (q) => q.query(
+            `update messages set kind = 'text', body = coalesce(body || E'\n', '') || $2, media_url = null where id = $1`,
+            [messageId, `${m.kind === 'video' ? 'Reels compartilhado' : 'Publicação compartilhada'}: ${u}`]));
+          return this.db.app(tenantCtx(actor), (q) => this.row(q, messageId));
+        };
+        if (m.media_url && igPermalink(m.media_url)) return asLink(m.media_url);
         let media = m.media_url ? await tryUrl(m.media_url) : null;
         // Sem endereço guardado (mensagens antigas) ou link vencido: pede à Meta os anexos da mensagem.
         if (!media && m.external_id && m.account_id) {
           const { token } = this.metaCreds(m.account_id, m.secret);
           const urls = await this.meta.igMessageAttachments(m.external_id, token, (m.config?.host as MetaHost) ?? 'instagram')
             .catch((err: Error) => { reasons.push(`a Meta não mostrou os anexos (${err.message.slice(0, 160)})`); return [] as string[]; });
-          for (const u of urls) {
+          const files = urls.filter((u) => !igPermalink(u));
+          if (!files.length && urls.length) return asLink(urls[0]!);
+          for (const u of files) {
             media = await tryUrl(u);
             if (media) {
               await this.db.app(tenantCtx(actor), (q) => q.query('update messages set media_url = $2 where id = $1', [messageId, u.length <= 4000 ? u : null]));
@@ -705,7 +715,8 @@ export class MessagesService {
         const failed = media ? await this.db.app(tenantCtx(actor), (q) =>
           this.attachMedia(q, actor.tenantId!, m.contact_id, messageId, media!.data, media!.mimetype, null, `instagram-${m.kind}`, true)) : null;
         if (!media || failed) {
-          const why = [...new Set([...reasons, ...(failed ? [failed] : [])])].join('; ') || 'o Instagram não mandou o endereço do arquivo';
+          const why = [...new Set([...reasons, ...(failed ? [failed] : [])])].join('; ')
+            || 'o Instagram não entrega este anexo pela API (costuma ser publicação, story ou arquivo de conta privada); veja no app do Instagram';
           throw new Problem(409, `Não foi possível abrir o arquivo: ${why}. Se continuar, peça para a pessoa mandar de novo.`, 'media-unavailable');
         }
         return this.db.app(tenantCtx(actor), (q) => this.row(q, messageId));
