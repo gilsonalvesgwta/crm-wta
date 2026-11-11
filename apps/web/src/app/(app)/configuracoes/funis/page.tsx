@@ -1,29 +1,47 @@
 'use client';
 import { useEffect, useState, type FormEvent } from 'react';
-import { ArrowDown, ArrowUp, Lock, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Eraser, Lock, Plus, Trash2 } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { REQUIRED_LABEL, type Pipeline, type Stage } from '@/lib/crm';
 import { useDirectory, useFields, usePipelines } from '@/components/crm/data';
 import { Panel } from '@/components/ui/panel';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Field } from '@/components/ui/field';
-import { Confirm } from '@/components/ui/confirm';
+import { Dialog } from '@/components/ui/dialog';
+import { Select } from '@/components/ui/select';
+import { useSession } from '@/components/shell/session';
 import { Empty, Loading } from '@/components/ui/states';
 
 type StageDraft = Omit<Stage, 'id' | 'position' | 'allowedTargets'> & { id?: string; key: string };
 const KIND_LABEL = { open: 'Em andamento', won: 'Ganho', lost: 'Perdido' };
 
 export default function PipelinesSettings() {
-  const { data: all, refresh } = usePipelines();
+  const { refresh: refreshShared } = usePipelines();
+  // Esta tela mostra também os arquivados (as outras telas só os ativos).
+  const [all, setAll] = useState<Pipeline[] | null>(null);
+  const refresh = async () => {
+    setAll(await api<Pipeline[]>('GET', '/api/v1/pipelines?archived=true'));
+    void refreshShared();
+  };
   const [selected, setSelected] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => { void refresh(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const list = all ?? [];
-  const current = list.find((p) => p.id === selected) ?? list.find((p) => !p.archived) ?? list[0];
+  const activeList = list.filter((p) => !p.archived);
+  const archivedList = list.filter((p) => p.archived);
+  const current = list.find((p) => p.id === selected) ?? activeList[0] ?? list[0];
+  const item = (p: Pipeline) => (
+    <li key={p.id}>
+      <button type="button" aria-current={current?.id === p.id ? 'true' : undefined} onClick={() => setSelected(p.id)}
+        className={`flex h-10 w-full items-center justify-between gap-2 rounded-[6px] px-3 text-left text-sm ${current?.id === p.id ? 'bg-surface-2 font-semibold' : 'hover:bg-surface-2'}`}>
+        <span className={`truncate ${p.archived ? 'text-muted' : ''}`}>{p.name}</span>
+        <span className="flex shrink-0 items-center gap-1.5 text-[12px] text-muted">{p.restricted ? <Lock size={13} aria-label="Restrito" /> : null}{(p.dealCount ?? 0).toLocaleString('pt-BR')}</span>
+      </button>
+    </li>
+  );
 
   async function create(e: FormEvent) {
     e.preventDefault();
@@ -46,19 +64,13 @@ export default function PipelinesSettings() {
     <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
       <div className="flex flex-col gap-4">
         <Panel title="Funis">
-          {!list.length ? <p className="text-[13px] text-muted">Nenhum funil ainda.</p> : (
-            <ul className="flex flex-col gap-1">
-              {list.map((p) => (
-                <li key={p.id}>
-                  <button type="button" aria-current={current?.id === p.id ? 'true' : undefined} onClick={() => setSelected(p.id)}
-                    className={`flex h-10 w-full items-center justify-between gap-2 rounded-[6px] px-3 text-left text-sm ${current?.id === p.id ? 'bg-surface-2 font-semibold' : 'hover:bg-surface-2'}`}>
-                    <span className="truncate">{p.name}</span>
-                    <span className="flex items-center gap-1">{p.restricted ? <Lock size={13} aria-label="Restrito" /> : null}{p.archived ? <Badge>Arquivado</Badge> : null}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          {!activeList.length ? <p className="text-[13px] text-muted">Nenhum funil ativo.</p> : <ul className="flex flex-col gap-1" aria-label="Funis ativos">{activeList.map(item)}</ul>}
+          {archivedList.length ? (
+            <div className="mt-4 border-t border-line pt-3">
+              <p className="mb-1 px-1 text-[12px] font-semibold uppercase tracking-wide text-muted">Arquivados ({archivedList.length})</p>
+              <ul className="flex flex-col gap-1" aria-label="Funis arquivados">{archivedList.map(item)}</ul>
+            </div>
+          ) : null}
           <form onSubmit={create} className="mt-4 flex flex-col gap-2 border-t border-line pt-4">
             <Field label="Novo funil" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Vendas, Onboarding" hint="Nasce com etapas padrão, que você ajusta." />
             {err ? <Alert tone="error">{err}</Alert> : null}
@@ -83,13 +95,14 @@ function PipelineEditor({ pipeline, onChange }: { pipeline: Pipeline; onChange: 
 
 function GeneralPanel({ pipeline, onChange }: { pipeline: Pipeline; onChange: () => Promise<void> }) {
   const { data: dir } = useDirectory();
+  const { can } = useSession();
   const [name, setName] = useState(pipeline.name);
   const [restricted, setRestricted] = useState(pipeline.restricted);
   const [teams, setTeams] = useState<string[]>(pipeline.access?.teamIds ?? []);
   const [people, setPeople] = useState<string[]>(pipeline.access?.membershipIds ?? []);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
-  const [del, setDel] = useState(false);
+  const [danger, setDanger] = useState<null | 'clear' | 'delete'>(null);
 
   async function save(patch: Record<string, unknown>, ok: string) {
     setBusy(true);
@@ -104,23 +117,15 @@ function GeneralPanel({ pipeline, onChange }: { pipeline: Pipeline; onChange: ()
       setBusy(false);
     }
   }
-  async function remove() {
-    try {
-      await api('DELETE', `/api/v1/pipelines/${pipeline.id}`);
-      await onChange();
-    } catch (e) {
-      setMsg({ tone: 'error', text: e instanceof ApiError ? e.title : 'Não foi possível excluir.' });
-    }
-    setDel(false);
-  }
   const toggle = (list: string[], id: string, set: (v: string[]) => void) => set(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
+  const canDanger = can('deals:delete');
 
   return (
-    <Panel title={pipeline.name} actions={<div className="flex gap-2">
-      <Button variant="secondary" onClick={() => save({ archived: !pipeline.archived }, pipeline.archived ? 'Funil reativado.' : 'Funil arquivado: some das listas, os negócios continuam.')}>{pipeline.archived ? 'Reativar' : 'Arquivar'}</Button>
-      <Button variant="danger" onClick={() => setDel(true)} aria-label="Excluir funil"><Trash2 size={16} aria-hidden /></Button>
+    <Panel title={pipeline.name} description={`${(pipeline.dealCount ?? 0).toLocaleString('pt-BR')} negócio(s) neste funil`} actions={<div className="flex gap-2">
+      <Button variant="secondary" loading={busy} onClick={() => save({ archived: !pipeline.archived }, pipeline.archived ? 'Funil desarquivado: voltou para as listas.' : 'Funil arquivado: some das listas, os negócios continuam. Ele fica em "Arquivados".')}>{pipeline.archived ? 'Desarquivar' : 'Arquivar'}</Button>
     </div>}>
       <div className="flex flex-col gap-4">
+        {pipeline.archived ? <Alert tone="warning">Funil arquivado: não aparece em Negócios nem nas outras telas. Dá para renomear, desarquivar, limpar os negócios ou excluir.</Alert> : null}
         {msg ? <Alert tone={msg.tone}>{msg.text}</Alert> : null}
         <div className="flex flex-wrap items-end gap-2">
           <Field className="min-w-[240px] flex-1" label="Nome" value={name} onChange={(e) => setName(e.target.value)} />
@@ -146,10 +151,22 @@ function GeneralPanel({ pipeline, onChange }: { pipeline: Pipeline; onChange: ()
           <p className="text-[13px] text-muted">Quem administra funis sempre vê todos. Fora da lista, o funil e seus negócios somem das telas, da API e das exportações.</p>
           <div><Button variant="secondary" loading={busy} onClick={() => save({ restricted, access: { teamIds: teams, membershipIds: people } }, 'Acesso salvo.')}>Salvar acesso</Button></div>
         </fieldset>
+        {canDanger ? (
+          <fieldset className="flex flex-col gap-3 rounded-[8px] border border-bad/40 p-3">
+            <legend className="px-1 text-[13px] font-medium text-bad">Zona de risco</legend>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[13px] text-muted">Apagar de uma vez os negócios deste funil (todos ou por situação). Os contatos continuam.</p>
+              <Button variant="secondary" disabled={!pipeline.dealCount} onClick={() => setDanger('clear')}><Eraser size={16} aria-hidden />Limpar negócios</Button>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
+              <p className="text-[13px] text-muted">{pipeline.dealCount ? 'Excluir o funil junto com todos os negócios dele.' : 'Excluir o funil (está sem negócios).'}</p>
+              <Button variant="danger" onClick={() => setDanger('delete')}><Trash2 size={16} aria-hidden />Excluir funil</Button>
+            </div>
+          </fieldset>
+        ) : null}
       </div>
-      <Confirm open={del} title={`Excluir o funil ${pipeline.name}?`} confirmLabel="Excluir" onConfirm={remove} onCancel={() => setDel(false)}>
-        Só é possível excluir um funil sem negócios. Com negócios, arquive.
-      </Confirm>
+      {danger ? <DangerDialog mode={danger} pipeline={pipeline} onClose={() => setDanger(null)}
+        onDone={async (text) => { setDanger(null); setMsg({ tone: 'success', text }); await onChange(); }} /> : null}
     </Panel>
   );
 }
@@ -277,5 +294,60 @@ function TransitionsPanel({ pipeline, onChange }: { pipeline: Pipeline; onChange
       </div>
       <div className="mt-3 flex justify-end"><Button variant="secondary" loading={busy} onClick={save}>Salvar regras</Button></div>
     </Panel>
+  );
+}
+
+/** Limpar os negócios do funil ou excluir o funil: pede o nome do funil digitado. */
+function DangerDialog({ mode, pipeline, onClose, onDone }: {
+  mode: 'clear' | 'delete'; pipeline: Pipeline; onClose: () => void; onDone: (msg: string) => Promise<void>;
+}) {
+  const [confirm, setConfirm] = useState('');
+  const [status, setStatus] = useState<'all' | 'open' | 'won' | 'lost'>('all');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const n = pipeline.dealCount ?? 0;
+  const ok = confirm.trim().toLowerCase() === pipeline.name.trim().toLowerCase();
+  async function run() {
+    setBusy(true);
+    setErr(null);
+    try {
+      if (mode === 'clear') {
+        const r = await api<{ deleted: number }>('POST', `/api/v1/pipelines/${pipeline.id}/clear-deals`, { confirm, status });
+        await onDone(`${r.deleted.toLocaleString('pt-BR')} negócio(s) apagado(s).`);
+      } else if (n > 0) {
+        const r = await api<{ deleted: number }>('POST', `/api/v1/pipelines/${pipeline.id}/delete-with-deals`, { confirm });
+        await onDone(`Funil excluído com ${r.deleted.toLocaleString('pt-BR')} negócio(s).`);
+      } else {
+        await api('DELETE', `/api/v1/pipelines/${pipeline.id}`);
+        await onDone('Funil excluído.');
+      }
+    } catch (e) {
+      setErr(e instanceof ApiError ? (e.errors[0]?.message ?? e.title) : 'Não foi possível concluir.');
+      setBusy(false);
+    }
+  }
+  return (
+    <Dialog open onClose={onClose} title={mode === 'clear' ? `Limpar negócios de ${pipeline.name}` : `Excluir o funil ${pipeline.name}`}
+      description="Não dá para desfazer."
+      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button>
+        <Button variant="danger" loading={busy} disabled={!ok} onClick={run}>{mode === 'clear' ? 'Apagar negócios' : 'Excluir funil'}</Button></>}>
+      <div className="flex flex-col gap-4">
+        {mode === 'clear' ? (
+          <>
+            <Select label="Quais negócios" value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
+              <option value="all">Todos ({n.toLocaleString('pt-BR')})</option><option value="open">Só em andamento</option>
+              <option value="won">Só ganhos</option><option value="lost">Só perdidos</option>
+            </Select>
+            <p className="text-[13px] text-muted">Somem também as atividades, anotações e produtos desses negócios. Os contatos e as conversas continuam.</p>
+          </>
+        ) : (
+          <p className="text-[13px] text-muted">{n > 0
+            ? `O funil e os ${n.toLocaleString('pt-BR')} negócio(s) dele (com atividades, anotações e produtos) serão apagados. Os contatos e as conversas continuam.`
+            : 'O funil e as etapas dele serão apagados.'}</p>
+        )}
+        <Field label={`Para confirmar, digite o nome do funil: ${pipeline.name}`} value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="off" />
+        {err ? <Alert tone="error">{err}</Alert> : null}
+      </div>
+    </Dialog>
   );
 }

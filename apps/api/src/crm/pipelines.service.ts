@@ -58,6 +58,7 @@ export class PipelinesService {
     const admin = actor.permissions.get('pipelines:admin') === 'tenant';
     const rows = await q.query(
       `select pl.id, pl.name, pl.position, pl.currency, pl.restricted, pl.archived_at is not null as archived,
+              (select count(*)::int from deals d where d.pipeline_id = pl.id) as "dealCount",
               coalesce((select json_agg(json_build_object(
                   'id', s.id, 'name', s.name, 'position', s.position, 'color', s.color, 'probability', s.probability,
                   'kind', s.kind, 'requiredFields', s.required_fields, 'rottingDays', s.rotting_days,
@@ -156,7 +157,11 @@ export class PipelinesService {
             where id = $1`,
           [id, input.name ?? null, input.position ?? null, input.restricted ?? null, input.archived ?? null]);
       } catch (err) {
-        if (pgCode(err) === '23505') throw Problem.conflict('Já existe um funil com esse nome.');
+        if (pgCode(err) === '23505') {
+          throw Problem.conflict(input.archived === false
+            ? 'Já existe um funil ativo com esse nome. Renomeie este funil (ou o outro) antes de desarquivar.'
+            : 'Já existe um funil ativo com esse nome.');
+        }
         throw err;
       }
       if (input.access) {
@@ -250,9 +255,48 @@ export class PipelinesService {
     await this.db.app(tenantCtx(actor), async (q) => {
       await this.accessible(q, actor, id);
       const n = await q.query<{ n: number }>('select count(*)::int as n from deals where pipeline_id = $1', [id]);
-      if (n.rows[0]!.n > 0) throw Problem.conflict('O funil tem negócios. Arquive-o em vez de excluir.');
+      if (n.rows[0]!.n > 0) {
+        throw new Problem(409, `O funil tem ${n.rows[0]!.n.toLocaleString('pt-BR')} negócio(s). Limpe os negócios ou use "Excluir funil e negócios".`, 'pipeline-has-deals');
+      }
       const r = await q.query<{ name: string }>('delete from pipelines where id = $1 returning name', [id]);
       await audit(q, actor, 'pipeline.deleted', 'pipeline', id, { name: r.rows[0]?.name });
+    });
+  }
+
+  /** Confere o nome digitado e se a pessoa pode apagar negócios da empresa toda. */
+  private async confirmDanger(q: Q, actor: Actor, id: string, confirm: string): Promise<string> {
+    if (actor.permissions.get('deals:delete') !== 'tenant') throw Problem.forbidden('Só quem pode excluir negócios da empresa toda faz isso.');
+    await this.accessible(q, actor, id);
+    const name = (await q.query<{ name: string }>('select name from pipelines where id = $1', [id])).rows[0]!.name;
+    if (confirm.trim().toLowerCase() !== name.trim().toLowerCase()) {
+      throw Problem.badRequest('Confirmação não confere.', [{ field: 'confirm', message: `Digite o nome do funil (${name}) para confirmar.` }]);
+    }
+    return name;
+  }
+
+  /**
+   * Apaga de uma vez os negócios do funil (todos, ou só em andamento, ganhos
+   * ou perdidos), com as atividades, anotações e produtos deles. Os contatos
+   * continuam. Pede o nome do funil digitado.
+   */
+  async clearDeals(actor: Actor, id: string, input: { confirm: string; status: 'all' | 'open' | 'won' | 'lost' }): Promise<{ deleted: number }> {
+    return this.db.app(tenantCtx(actor), async (q) => {
+      const name = await this.confirmDanger(q, actor, id, input.confirm);
+      const r = await q.query('delete from deals where pipeline_id = $1 and ($2::text = \'all\' or status::text = $2::text)', [id, input.status]);
+      const deleted = r.rowCount ?? 0;
+      await audit(q, actor, 'pipeline.deals_cleared', 'pipeline', id, { name, status: input.status, deleted });
+      return { deleted };
+    });
+  }
+
+  /** Exclui o funil com todos os negócios dele. Pede o nome do funil digitado. */
+  async removeWithDeals(actor: Actor, id: string, confirm: string): Promise<{ deleted: number }> {
+    return this.db.app(tenantCtx(actor), async (q) => {
+      const name = await this.confirmDanger(q, actor, id, confirm);
+      const r = await q.query('delete from deals where pipeline_id = $1', [id]);
+      await q.query('delete from pipelines where id = $1', [id]);
+      await audit(q, actor, 'pipeline.deleted', 'pipeline', id, { name, deals: r.rowCount ?? 0 });
+      return { deleted: r.rowCount ?? 0 };
     });
   }
 }

@@ -37,3 +37,14 @@ select t.ctx(t.a(), t.ua());
 select t.throws($$insert into imports (tenant_id, entity, file_id, mapping, total_rows) values (t.a(), 'tarefas', gen_random_uuid(), '{}', 1)$$, '23514', 'tipo de importação fora da lista');
 select t.ctx(null, null);
 reset role;
+
+-- Nome de funil: único só entre os ativos.
+set role crm_app;
+select t.ctx(t.a(), t.ua());
+insert into pipelines (tenant_id, name) values (t.a(), 'Funil Repetido');
+select t.throws($$insert into pipelines (tenant_id, name) values (t.a(), 'funil repetido')$$, '23505', 'dois funis ativos com o mesmo nome não');
+update pipelines set archived_at = now() where tenant_id = t.a() and name = 'Funil Repetido';
+select t.ok(t.affected($$insert into pipelines (tenant_id, name) values (t.a(), 'Funil Repetido')$$) = 1, 'o nome de um funil arquivado pode ser usado de novo');
+select t.throws($$update pipelines set archived_at = null where tenant_id = t.a() and name = 'Funil Repetido' and archived_at is not null$$, '23505', 'desarquivar com nome repetido não');
+select t.ctx(null, null);
+reset role;
