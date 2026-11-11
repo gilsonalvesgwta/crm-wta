@@ -331,7 +331,9 @@ test('funis: arquivar, ver nos arquivados, renomear, desarquivar; limpar negóci
   await page.getByRole('button', { name: 'Limpar negócios' }).click();
   const d = page.getByRole('dialog', { name: /Limpar negócios de/ });
   await expect(d.getByRole('button', { name: 'Apagar negócios' })).toBeDisabled();
-  await d.getByLabel(/Para confirmar, digite o nome do funil/).fill('funil de teste e2e (antigo)');
+  // Maiúsculas e espaços a mais não atrapalham.
+  await d.getByLabel(/Para confirmar, digite o nome do funil/).fill('  FUNIL de teste\u00a0 e2e (antigo) ');
+  await expect(d.getByRole('button', { name: 'Apagar negócios' })).toBeEnabled();
   await expectAccessible(page);
   await shot(page, '29-limpar-negocios');
   await d.getByRole('button', { name: 'Apagar negócios' }).click();

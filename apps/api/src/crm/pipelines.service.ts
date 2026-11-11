@@ -268,7 +268,9 @@ export class PipelinesService {
     if (actor.permissions.get('deals:delete') !== 'tenant') throw Problem.forbidden('Só quem pode excluir negócios da empresa toda faz isso.');
     await this.accessible(q, actor, id);
     const name = (await q.query<{ name: string }>('select name from pipelines where id = $1', [id])).rows[0]!.name;
-    if (confirm.trim().toLowerCase() !== name.trim().toLowerCase()) {
+    // Sem ligar para maiúsculas, espaços repetidos ou invisíveis (igual à tela).
+    const n = (v: string) => v.normalize('NFKC').replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, ' ').trim().toLocaleLowerCase('pt-BR');
+    if (!n(confirm) || n(confirm) !== n(name)) {
       throw Problem.badRequest('Confirmação não confere.', [{ field: 'confirm', message: `Digite o nome do funil (${name}) para confirmar.` }]);
     }
     return name;

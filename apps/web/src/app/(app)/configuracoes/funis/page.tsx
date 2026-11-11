@@ -306,7 +306,7 @@ function DangerDialog({ mode, pipeline, onClose, onDone }: {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const n = pipeline.dealCount ?? 0;
-  const ok = confirm.trim().toLowerCase() === pipeline.name.trim().toLowerCase();
+  const ok = sameName(confirm, pipeline.name);
   async function run() {
     setBusy(true);
     setErr(null);
@@ -350,4 +350,13 @@ function DangerDialog({ mode, pipeline, onClose, onDone }: {
       </div>
     </Dialog>
   );
+}
+
+/**
+ * Compara o nome digitado com o do funil sem ligar para maiúsculas, espaços
+ * repetidos, espaço invisível (de copiar e colar) ou acentos escritos de jeitos diferentes.
+ */
+function sameName(a: string, b: string): boolean {
+  const n = (s: string) => s.normalize('NFKC').replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, ' ').trim().toLocaleLowerCase('pt-BR');
+  return n(a) !== '' && n(a) === n(b);
 }
