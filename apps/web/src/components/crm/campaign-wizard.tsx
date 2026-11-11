@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Check, Mail, MessageCircle, Send, CalendarClock, Save } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
@@ -337,7 +338,7 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
                   {accountFlows.map((f) => <option key={f.id} value={f.id}>{f.name} ({FLOW_STATUS[f.status].label.toLowerCase()})</option>)}
                 </Select>
                 {chosenFlow && chosenFlow.status !== 'active' ? <Alert tone="warning">Publique o fluxo antes de enviar: só fluxo ativo pode ser usado.</Alert> : null}
-                <p className="text-[13px] text-muted">O modelo, as variáveis e os botões vêm do fluxo. <a href={chosenFlow ? `/whatsapp/fluxos/${chosenFlow.id}` : '/whatsapp'} className="underline">{chosenFlow ? 'Abrir o fluxo' : 'Criar um fluxo de transmissão'}</a></p>
+                <p className="text-[13px] text-muted">O modelo, as variáveis e os botões vêm do fluxo. <Link href={chosenFlow ? `/whatsapp/fluxos/${chosenFlow.id}` : '/whatsapp'} className="underline">{chosenFlow ? 'Abrir o fluxo' : 'Criar um fluxo de transmissão'}</Link></p>
               </>
             ) : null}
             {isCloud && !d.useFlow ? (
