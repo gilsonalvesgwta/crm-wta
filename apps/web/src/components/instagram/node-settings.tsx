@@ -339,7 +339,7 @@ function TemplateSettings({ d, accountId, upd }: { d: NodeData['template']; acco
     upd({
       templateId: t.id, name: `${t.name} (${t.language})`,
       params: Array.from({ length: n }, (_, i) => d.params[i] ?? (i === 0 ? '{{nome}}' : '')),
-      buttons: t.buttons.map((b, i) => (b.type === 'QUICK_REPLY' ? { id: `q${i}`, title: b.text, url: null } : null)).filter((b): b is FlowButton => !!b),
+      buttons: t.buttons.flatMap((b, i): FlowButton[] => (b.type === 'QUICK_REPLY' ? [{ id: `q${i}`, title: b.text, url: null }] : [])),
     });
   }
   const linkButtons = chosen?.buttons.filter((b) => b.type !== 'QUICK_REPLY') ?? [];
