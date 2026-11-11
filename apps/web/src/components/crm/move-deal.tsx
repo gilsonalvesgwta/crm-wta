@@ -1,7 +1,7 @@
 'use client';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { ApiError, api } from '@/lib/api';
-import type { Deal, Stage } from '@/lib/crm';
+import type { Deal, Pipeline, Stage } from '@/lib/crm';
 import { Dialog } from '@/components/ui/dialog';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -92,5 +92,58 @@ function OutcomeForm({ pending, submit, onDone, explain }: {
         <Button type="submit" loading={busy} disabled={needsReason && !reason}>{pending.to.kind === 'won' ? 'Marcar como ganho' : 'Marcar como perdido'}</Button>
       </div>
     </form>
+  );
+}
+
+/** Transferir o negócio para outro funil, já na etapa escolhida. */
+export function TransferDealDialog({ open, deal, pipelines, onClose, onDone }: {
+  open: boolean; deal: Deal; pipelines: Pipeline[]; onClose: () => void; onDone: (d: Deal) => void;
+}) {
+  const targets = pipelines.filter((p) => !p.archived && p.id !== deal.pipeline.id);
+  const [pipelineId, setPipelineId] = useState('');
+  const [stageId, setStageId] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const target = targets.find((p) => p.id === pipelineId) ?? null;
+  const stages = (target?.stages ?? []).filter((s) => s.kind === 'open');
+  function pick(id: string) {
+    setPipelineId(id);
+    setStageId(targets.find((p) => p.id === id)?.stages.find((s) => s.kind === 'open')?.id ?? '');
+  }
+  async function go(e: FormEvent) {
+    e.preventDefault();
+    if (!pipelineId || !stageId) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      onDone(await api<Deal>('POST', `/api/v1/deals/${deal.id}/move`, { pipelineId, stageId }));
+      setPipelineId(''); setStageId('');
+    } catch (e2) {
+      setErr(e2 instanceof ApiError ? (e2.type === 'stage-requirements' ? `${e2.title} ${e2.errors.map((x) => x.message).join(' ')}` : e2.title) : 'Não foi possível transferir.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Dialog open={open} onClose={onClose} title="Transferir para outro funil" description={deal.title}>
+      <form onSubmit={go} className="flex flex-col gap-4">
+        {err ? <Alert tone="error">{err}</Alert> : null}
+        {!targets.length ? <Alert tone="info">Não há outro funil ativo. Crie um em Configurações › Funis.</Alert> : null}
+        <p className="text-[13px] text-muted">Hoje em <strong className="text-ink">{deal.pipeline.name}</strong> › {deal.stage.name}. O histórico, as atividades e os arquivos vão junto.</p>
+        <Select label="Funil de destino" value={pipelineId} onChange={(e) => pick(e.target.value)}>
+          <option value="">Escolha o funil</option>
+          {targets.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </Select>
+        <Select label="Etapa" value={stageId} onChange={(e) => setStageId(e.target.value)} disabled={!target}>
+          {!target ? <option value="">Escolha o funil primeiro</option> : null}
+          {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </Select>
+        {deal.status !== 'open' ? <p className="text-[13px] text-muted">O negócio está {deal.status === 'won' ? 'ganho' : 'perdido'}: ao transferir, ele volta a ficar em andamento.</p> : null}
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button type="submit" loading={busy} disabled={!pipelineId || !stageId}>Transferir</Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }

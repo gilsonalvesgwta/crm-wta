@@ -62,7 +62,24 @@ export function readCloudWebhook(body: unknown): CloudEvent[] {
         else if (part) text = str(part.caption);
         const payload = t === 'button' ? str(obj(msg.button)?.payload)
           : t === 'interactive' ? (str(obj(obj(msg.interactive)?.button_reply)?.id) ?? str(obj(obj(msg.interactive)?.list_reply)?.id)) : null;
-        if (t === 'location' && part) text = `Localização: ${str(part.latitude)}, ${str(part.longitude)}${str(part.name) ? ` (${str(part.name)})` : ''}`;
+        if (t === 'location' && part) {
+          const lat = part.latitude, lng = part.longitude;
+          text = `Localização: https://maps.google.com/?q=${String(lat)},${String(lng)}${str(part.name) ? ` (${str(part.name)})` : ''}`;
+        }
+        if (t === 'contacts') {
+          const c = obj(arr(msg.contacts)[0]);
+          const nm = str(obj(c?.name)?.formatted_name);
+          const ph = str(obj(arr(c?.phones)[0])?.phone);
+          text = `Contato: ${[nm, ph].filter(Boolean).join(' ') || 'compartilhado'}`;
+        }
+        if (t === 'interactive' && !text) text = str(obj(obj(msg.interactive)?.nfm_reply)?.body) ?? 'Resposta de formulário';
+        if (t === 'order') text = `Pedido${str(obj(msg.order)?.text) ? `: ${str(obj(msg.order)?.text)}` : ''}`;
+        if (t === 'system') text = str(obj(msg.system)?.body);
+        if (t === 'request_welcome') continue;
+        if (t === 'unsupported' || (!text && !part)) {
+          const why = str(obj(arr(msg.errors)[0])?.title) ?? str(obj(obj(arr(msg.errors)[0])?.error_data)?.details);
+          text = `Mensagem que o WhatsApp oficial não entrega pela API${why ? ` (${why})` : ''}. Veja no celular.`;
+        }
         if (t === 'reaction') continue;
         const media = part && str(part.id) && ['image', 'audio', 'voice', 'video', 'document', 'sticker'].includes(t)
           ? { id: str(part.id)!, mimetype: str(part.mime_type), fileName: str(part.filename) } : null;

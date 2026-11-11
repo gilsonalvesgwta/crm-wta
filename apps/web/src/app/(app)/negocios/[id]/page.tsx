@@ -2,14 +2,14 @@
 import { use, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Check, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react';
+import { ArrowRightLeft, Check, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { useLoad } from '@/lib/use-load';
 import { fmtDateTime, fmtIsoDate, money, moneyInput, parseMoney, type Deal, type Stage } from '@/lib/crm';
 import { useSession } from '@/components/shell/session';
 import { useFields, usePipelines, useProducts } from '@/components/crm/data';
 import { DealDialog } from '@/components/crm/deal-form';
-import { useMoveDeal } from '@/components/crm/move-deal';
+import { TransferDealDialog, useMoveDeal } from '@/components/crm/move-deal';
 import { CustomFieldValues } from '@/components/crm/custom-fields';
 import { ActivitiesPanel, FilesPanel, NotesPanel, TimelinePanel } from '@/components/crm/record-panels';
 import { Panel } from '@/components/ui/panel';
@@ -38,6 +38,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
   const { move, dialog, error, clearError } = useMoveDeal();
   const [editing, setEditing] = useState(false);
   const [del, setDel] = useState(false);
+  const [transfer, setTransfer] = useState(false);
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
 
@@ -72,6 +73,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
         subtitle={<span className="text-lg font-semibold text-ink tabular-nums">{money(d.valueCents, d.currency)}</span>}
         actions={<>
           {canEdit ? <Button variant="secondary" onClick={() => setEditing(true)}><Pencil size={16} aria-hidden />Editar</Button> : null}
+          {canEdit ? <Button variant="secondary" onClick={() => setTransfer(true)}><ArrowRightLeft size={16} aria-hidden />Transferir funil</Button> : null}
           {canEdit && d.status === 'open' && won ? <Button onClick={() => go(won)}><Check size={16} aria-hidden />Ganho</Button> : null}
           {canEdit && d.status === 'open' && lost ? <Button variant="danger" onClick={() => go(lost)}><X size={16} aria-hidden />Perdido</Button> : null}
           {canEdit && d.status !== 'open' && open[0] ? <Button variant="secondary" onClick={() => go(open[open.length - 1]!)}><RotateCcw size={16} aria-hidden />Reabrir</Button> : null}
@@ -142,6 +144,8 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
         </div>
       </div>
       <DealDialog open={editing} deal={d} onClose={() => setEditing(false)} onSaved={(x) => { setEditing(false); deal.setData(x); setTick((t) => t + 1); }} />
+      <TransferDealDialog open={transfer} deal={d} pipelines={pipelines ?? []} onClose={() => setTransfer(false)}
+        onDone={(r) => { setTransfer(false); deal.setData(r); setTick((t) => t + 1); }} />
       <Confirm open={del} title="Excluir o negócio?" confirmLabel="Excluir" loading={busy} onConfirm={remove} onCancel={() => setDel(false)}>
         Notas, atividades, arquivos e o histórico deste negócio são apagados. A exclusão fica na auditoria.
       </Confirm>

@@ -23,6 +23,13 @@ Atualizado em 9 de novembro de 2026.
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
 
+### Mensagens do WhatsApp sem conteúdo e transferência de negócio entre funis (11 nov 2026)
+
+- WhatsApp (Evolution): mensagens embrulhadas (temporárias, "ver uma vez", enviadas de outro aparelho) e tipos menos comuns (respostas a botões e listas, enquetes, pedidos) passam a mostrar o conteúdo.
+- Quando o aviso chega vazio (o WhatsApp ainda está decifrando), o CRM completa a mensagem assim que o conteúdo chega com o mesmo id, tenta de novo pela Evolution depois de 20 s e mostra "Carregar mensagem" para buscar sob demanda (mensagens antigas inclusive).
+- WhatsApp oficial: localização, contato, pedido e mensagens que a API não entrega passam a ter texto explicando.
+- Negócio › "Transferir funil": escolhe o funil ativo e a etapa; histórico, atividades e arquivos vão junto; ganho/perdido volta a ficar em andamento; o histórico registra os dois funis.
+
 ### Transmissões e fluxos do WhatsApp oficial, estilo Manychat (11 nov 2026)
 
 - Novo menu WhatsApp (Fluxos, Transmissões, Resultados, Modelos). O editor é o mesmo dos fluxos do Instagram, com o bloco "Modelo aprovado": escolhe um modelo aprovado do número (imagem/vídeo/documento no topo, variáveis e botões) e cada resposta rápida do modelo vira um caminho.

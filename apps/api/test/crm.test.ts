@@ -741,6 +741,25 @@ describe('importação e exportação', () => {
     assert.equal(ad.skippedCount, 4);
   });
 
+  test('transferir negócio para outro funil, na etapa escolhida (inclusive ganho ou perdido volta a andar)', async () => {
+    const a = (await manager.post('/api/v1/pipelines', { name: 'Origem T' })).body as { id: string; stages: { id: string; kind: string }[] };
+    const b = (await manager.post('/api/v1/pipelines', { name: 'Destino T' })).body as { id: string; stages: { id: string; kind: string; name: string }[] };
+    const d = (await manager.post('/api/v1/deals', { pipelineId: a.id, title: 'Vai mudar', stageId: a.stages.find((x) => x.kind === 'open')!.id })).body;
+    const target = b.stages.filter((x) => x.kind === 'open')[1]!;
+    // Etapa de outro funil sem dizer o funil: recusa.
+    assert.equal((await manager.post(`/api/v1/deals/${d.id}/move`, { stageId: target.id })).status, 422);
+    const r = await manager.post(`/api/v1/deals/${d.id}/move`, { pipelineId: b.id, stageId: target.id });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.deepEqual([r.body.pipeline.id, r.body.stage.id, r.body.status], [b.id, target.id, 'open']);
+    const tl = (await manager.get(`/api/v1/records/deal/${d.id}/timeline`)).body as { items?: { kind: string; data: Record<string, string> }[] } | { kind: string; data: Record<string, string> }[];
+    const items = Array.isArray(tl) ? tl : tl.items ?? [];
+    assert.ok(items.some((x) => x.kind === 'deal.stage_changed' && x.data.fromPipeline === 'Origem T' && x.data.toPipeline === 'Destino T'));
+    // Perdido e transferido: volta a ficar em andamento no funil novo.
+    await f.admin.query("update deals set status = 'lost', closed_at = now(), stage_id = $2 where id = $1", [d.id, b.stages.find((x) => x.kind === 'lost')!.id]);
+    const back = await manager.post(`/api/v1/deals/${d.id}/move`, { pipelineId: a.id, stageId: a.stages.find((x) => x.kind === 'open')!.id });
+    assert.deepEqual([back.body.pipeline.id, back.body.status], [a.id, 'open']);
+  });
+
   test('funis arquivados: listar, renomear, desarquivar, nome livre de novo; limpar negócios e excluir com negócios', async () => {
     const p = (await manager.post('/api/v1/pipelines', { name: 'Teste Arquivo' })).body as { id: string; stages: { id: string; kind: string }[] };
     const open = p.stages.find((x) => x.kind === 'open')!.id;

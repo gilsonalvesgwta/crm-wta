@@ -42,6 +42,24 @@ describe('avisos da Evolution', () => {
     assert.ok(lid.type === 'message' && lid.e164 === '+5511988887777');
   });
 
+  test('mensagens embrulhadas (temporária, ver uma vez, outro aparelho) e tipos menos comuns', () => {
+    const read = (message: Record<string, unknown>, messageType?: string) => {
+      const e = readEvolutionEvent({ event: 'messages.upsert', data: { key: { remoteJid: '5511999998888@s.whatsapp.net', id: 'W' }, message, messageType } }).events[0]!;
+      assert.equal(e.type, 'message');
+      return e.type === 'message' ? [e.kind, e.text] : [];
+    };
+    assert.deepEqual(read({ ephemeralMessage: { message: { extendedTextMessage: { text: 'temporária' } } } }, 'ephemeralMessage'), ['text', 'temporária']);
+    assert.deepEqual(read({ viewOnceMessageV2: { message: { imageMessage: { caption: 'uma vez' } } } }), ['image', 'uma vez']);
+    assert.deepEqual(read({ deviceSentMessage: { destinationJid: 'x', message: { conversation: 'do outro aparelho' } } }), ['text', 'do outro aparelho']);
+    assert.deepEqual(read({ documentWithCaptionMessage: { message: { documentMessage: { caption: 'contrato', fileName: 'c.pdf' } } } }), ['document', 'contrato']);
+    assert.deepEqual(read({ buttonsResponseMessage: { selectedDisplayText: 'Quero' } }), ['other', 'Quero']);
+    assert.deepEqual(read({ listResponseMessage: { title: 'Plano B' } }), ['other', 'Plano B']);
+    assert.deepEqual(read({ templateButtonReplyMessage: { selectedDisplayText: 'Sim' } }), ['other', 'Sim']);
+    assert.deepEqual(read({ pollCreationMessageV3: { name: 'Qual?', options: [{ optionName: 'A' }, { optionName: 'B' }] } }), ['other', 'Enquete: Qual? (A / B)']);
+    assert.deepEqual(read({ algumTipoNovo: { corpo: { text: 'texto achado' } } }), ['other', 'texto achado']);
+    assert.deepEqual(read({}), ['other', null]);
+  });
+
   test('reação, grupo e evento desconhecido são ignorados', () => {
     const r = readEvolutionEvent({ event: 'messages.upsert', data: { key: { remoteJid: '5511999998888@s.whatsapp.net', id: 'R' }, message: { reactionMessage: { text: '👍' } }, messageType: 'reactionMessage' } });
     assert.equal(r.events[0]!.type, 'ignored');

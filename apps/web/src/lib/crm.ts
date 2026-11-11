@@ -212,7 +212,7 @@ export function timelineText(e: TimelineEntry): string {
     case 'file.removed': return 'Removeu um arquivo';
     case 'deal.created': return `Criou o negócio "${d.title ?? e.deal?.title ?? ''}"`;
     case 'deal.updated': return `Editou o negócio (${fieldNames(d.fields)})`;
-    case 'deal.stage_changed': return `Moveu de ${d.fromStage} para ${d.toStage}`;
+    case 'deal.stage_changed': return d.toPipeline ? `Transferiu do funil ${d.fromPipeline} (${d.fromStage}) para ${d.toPipeline} (${d.toStage})` : `Moveu de ${d.fromStage} para ${d.toStage}`;
     case 'deal.won': return `Negócio ganho${d.fromStage ? ` (estava em ${d.fromStage})` : ''}`;
     case 'deal.lost': return 'Negócio perdido';
     case 'deal.items_updated': return 'Atualizou os produtos do negócio';

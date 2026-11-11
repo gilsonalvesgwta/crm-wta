@@ -9,6 +9,8 @@ export type EvoMessage = {
   type: 'message';
   id: string;
   fromMe: boolean;
+  /** Tipo original no WhatsApp (para explicar quando não dá para mostrar). */
+  msgType?: string | null;
   e164: string;
   pushName: string | null;
   kind: MessageKind;
@@ -68,7 +70,69 @@ const KIND_BY_TYPE: Record<string, MessageKind> = {
   contactsArrayMessage: 'contact',
 };
 // Não viram mensagem no histórico: reações, edições, apagamentos, enquetes internas.
-const SKIP_TYPES = new Set(['reactionMessage', 'protocolMessage', 'editedMessage', 'senderKeyDistributionMessage', 'pollUpdateMessage', 'messageContextInfo']);
+const SKIP_TYPES = new Set(['reactionMessage', 'protocolMessage', 'editedMessage', 'senderKeyDistributionMessage', 'pollUpdateMessage', 'messageContextInfo',
+  'encReactionMessage', 'keepInChatMessage', 'pinInChatMessage']);
+// Embrulhos: a mensagem de verdade está dentro (temporária, ver uma vez, enviada de outro aparelho, legenda de documento…).
+const WRAPPERS = ['ephemeralMessage', 'viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension', 'deviceSentMessage',
+  'documentWithCaptionMessage', 'associatedChildMessage', 'groupMentionedMessage', 'botInvokeMessage', 'lottieStickerMessage'];
+const IGNORED_KEYS = new Set(['messageContextInfo', 'base64', 'contextInfo']);
+
+/** Tira os embrulhos e devolve o tipo e o conteúdo da mensagem de verdade. */
+function unwrap(message: Record<string, unknown>, hint: string | null): { type: string; inner: Record<string, unknown>; message: Record<string, unknown> } {
+  let msg = message;
+  let type = hint && msg[hint] !== undefined ? hint : Object.keys(msg).find((k) => !IGNORED_KEYS.has(k)) ?? hint ?? '';
+  for (let i = 0; i < 4 && WRAPPERS.includes(type); i++) {
+    const inner = obj(obj(msg[type])?.message);
+    if (!inner) break;
+    // Documento com legenda continua documento.
+    if (type === 'documentWithCaptionMessage') return { type, inner: obj(inner.documentMessage) ?? {}, message: msg };
+    msg = inner;
+    type = Object.keys(msg).find((k) => !IGNORED_KEYS.has(k)) ?? '';
+  }
+  return { type, inner: obj(msg[type]) ?? {}, message: msg };
+}
+
+/** Texto de tipos menos comuns (respostas a botões e listas, enquete, evento, pedido, anúncio). */
+function otherText(type: string, inner: Record<string, unknown>): string | null {
+  switch (type) {
+    case 'buttonsResponseMessage': return str(inner.selectedDisplayText) ?? str(inner.selectedButtonId);
+    case 'templateButtonReplyMessage': return str(inner.selectedDisplayText) ?? str(inner.selectedId);
+    case 'listResponseMessage': return str(inner.title) ?? str(obj(inner.singleSelectReply)?.selectedRowId);
+    case 'interactiveResponseMessage': return str(obj(inner.body)?.text) ?? str(obj(inner.nativeFlowResponseMessage)?.paramsJson);
+    case 'pollCreationMessage': case 'pollCreationMessageV2': case 'pollCreationMessageV3': {
+      const opts = Array.isArray(inner.options) ? inner.options.map((o) => str(obj(o)?.optionName)).filter(Boolean) : [];
+      return `Enquete: ${str(inner.name) ?? ''}${opts.length ? ` (${opts.join(' / ')})` : ''}`;
+    }
+    case 'eventMessage': return `Evento: ${str(inner.name) ?? ''}`;
+    case 'orderMessage': return `Pedido${str(inner.message) ? `: ${str(inner.message)}` : ''}`;
+    case 'productMessage': return `Produto: ${str(obj(obj(inner.product)?.productImage)?.caption) ?? str(obj(inner.product)?.title) ?? ''}`;
+    case 'buttonsMessage': case 'templateMessage': case 'interactiveMessage': case 'listMessage': case 'highlyStructuredMessage':
+      return findText(inner);
+    case 'callLogMesssage': case 'callLogMessage': case 'bcallMessage': return 'Ligação do WhatsApp';
+    default: return findText(inner);
+  }
+}
+
+/** Procura um texto no conteúdo (para tipos novos que o WhatsApp inventar). */
+function findText(v: unknown, depth = 0): string | null {
+  const o = obj(v);
+  if (!o || depth > 4) return null;
+  for (const k of ['text', 'conversation', 'caption', 'contentText', 'hydratedContentText', 'body', 'title', 'description', 'selectedDisplayText']) {
+    const t = typeof o[k] === 'string' ? (o[k] as string).trim() : str(obj(o[k])?.text);
+    if (t) return t;
+  }
+  for (const [k, x] of Object.entries(o)) {
+    if (k === 'contextInfo' || k === 'jpegThumbnail') continue;
+    const t = findText(x, depth + 1);
+    if (t) return t;
+  }
+  return null;
+}
+
+/** Lê uma mensagem da Evolution (do aviso ou da busca no histórico). */
+export function readEvolutionMessage(d: Record<string, unknown>): EvoMessage | EvoIgnored {
+  return readMessage(d);
+}
 
 function readMessage(d: Record<string, unknown>): EvoMessage | EvoIgnored {
   const key = obj(d.key);
@@ -79,23 +143,26 @@ function readMessage(d: Record<string, unknown>): EvoMessage | EvoIgnored {
   if (/@(g\.us|broadcast|newsletter)$/.test(remote)) return { type: 'ignored', reason: 'grupo, status ou canal' };
   const e164 = jids.map(jidToE164).find((v) => v) ?? null;
   if (!e164) return { type: 'ignored', reason: 'número não identificado' };
-  const message = obj(d.message) ?? {};
-  const msgType = str(d.messageType) ?? Object.keys(message).find((k) => k !== 'messageContextInfo' && k !== 'base64') ?? '';
+  const raw = obj(d.message) ?? {};
+  const hint = str(d.messageType);
+  if (hint && SKIP_TYPES.has(hint)) return { type: 'ignored', reason: hint };
+  const u = unwrap(raw, hint && !WRAPPERS.includes(hint) ? hint : null);
+  const msgType = u.type;
   if (SKIP_TYPES.has(msgType)) return { type: 'ignored', reason: msgType };
   const kind = KIND_BY_TYPE[msgType] ?? 'other';
-  const inner = obj(message[msgType]) ?? {};
-  const docInner = msgType === 'documentWithCaptionMessage' ? obj(obj(inner.message)?.documentMessage) ?? {} : inner;
+  const inner = u.inner;
   let text: string | null = null;
-  if (msgType === 'conversation') text = str(message.conversation);
+  if (msgType === 'conversation') text = str(u.message.conversation);
   else if (msgType === 'extendedTextMessage') text = str(inner.text);
   else if (kind === 'location') {
     const lat = inner.degreesLatitude, lng = inner.degreesLongitude;
     text = typeof lat === 'number' && typeof lng === 'number' ? `Localização: https://maps.google.com/?q=${lat},${lng}` : 'Localização';
   } else if (kind === 'contact') text = str(inner.displayName) ? `Contato: ${str(inner.displayName)}` : 'Contato compartilhado';
-  else text = str(docInner.caption) ?? null;
-  const base64 = str(message.base64) ?? str(d.base64);
+  else if (kind === 'other') text = otherText(msgType, inner);
+  else text = str(inner.caption) ?? null;
+  const base64 = str(raw.base64) ?? str(d.base64);
   const media = base64 && ['image', 'audio', 'video', 'document', 'sticker'].includes(kind)
-    ? { base64, mimetype: str(docInner.mimetype), fileName: str(docInner.fileName) }
+    ? { base64, mimetype: str(inner.mimetype), fileName: str(inner.fileName) }
     : null;
   const ts = Number(d.messageTimestamp);
   return {
@@ -108,6 +175,7 @@ function readMessage(d: Record<string, unknown>): EvoMessage | EvoIgnored {
     text: text ? text.slice(0, 65536) : null,
     at: Number.isFinite(ts) && ts > 1_000_000_000 ? new Date(ts * 1000) : new Date(),
     media,
+    msgType: msgType || null,
   };
 }
 

@@ -3,7 +3,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Actor } from '../access/actor.js';
 import { tenantCtx } from '../access/decorators.js';
 import { CONFIG, type Config } from '../config.js';
-import { phoneVariants, statusAdvances, toEvolutionNumber, type EvoMessage, type EvoStatus } from '../domain/whatsapp.js';
+import { phoneVariants, readEvolutionMessage, statusAdvances, toEvolutionNumber, type EvoMessage, type EvoStatus } from '../domain/whatsapp.js';
 import { SecretBox } from '../domain/secrets.js';
 import { Problem } from '../http/problem.js';
 import { Db, pgCode, type Q } from '../infra/db.js';
@@ -532,8 +532,19 @@ export class MessagesService {
           returning id`, [ev.id, accountId, phoneVariants(ev.e164), ev.kind === 'text' ? ev.text : null]);
         if (claimed.rowCount) return 'claimed';
       }
-      const known = await q.query('select 1 from messages where channel_account_id = $1 and external_id = $2', [accountId, ev.id]);
-      if (known.rowCount) return 'duplicate';
+      const known = (await q.query<{ id: string; contact_id: string; kind: string; body: string | null; file_id: string | null }>(
+        'select id, contact_id, kind, body, file_id from messages where channel_account_id = $1 and external_id = $2', [accountId, ev.id])).rows[0];
+      if (known) {
+        // A mesma mensagem chegou de novo com o conteúdo (o WhatsApp manda primeiro um aviso vazio quando ainda está decifrando): completa.
+        if (known.kind === 'other' && !known.body && !known.file_id && (ev.text || ev.kind !== 'other' || ev.media)) {
+          await q.query('update messages set body = $2, kind = $3 where id = $1', [known.id, ev.text, ev.kind]);
+          if (ev.media) {
+            await this.attachMedia(q, tenantId, known.contact_id, known.id, Buffer.from(ev.media.base64, 'base64'), ev.media.mimetype, ev.media.fileName,
+              `whatsapp-${ev.kind}`);
+          }
+        }
+        return 'duplicate';
+      }
 
       let contactId = await this.contactByPhone(q, ev.e164);
       let created = false;
@@ -643,13 +654,30 @@ export class MessagesService {
    */
   async fetchMedia(actor: Actor, messageId: string) {
     const m = await this.db.app(tenantCtx(actor), async (q) => {
-      const r = (await q.query<{ contact_id: string; kind: string; file_id: string | null; external_id: string | null; account_kind: string | null; instance: string | null; account_id: string | null; media_url: string | null; secret: Buffer | null; config: Record<string, unknown> | null }>(
-        `select m.contact_id, m.kind, m.file_id, m.external_id, m.media_url, a.kind as account_kind, a.secret, a.config, a.external_id as instance, a.id as account_id
+      const r = (await q.query<{ contact_id: string; kind: string; body: string | null; file_id: string | null; external_id: string | null; account_kind: string | null; instance: string | null; account_id: string | null; media_url: string | null; secret: Buffer | null; config: Record<string, unknown> | null }>(
+        `select m.contact_id, m.kind, m.body, m.file_id, m.external_id, m.media_url, a.kind as account_kind, a.secret, a.config, a.external_id as instance, a.id as account_id
            from messages m left join channel_accounts a on a.id = m.channel_account_id where m.id = $1`, [messageId])).rows[0];
       if (!r) throw Problem.notFound('Mensagem não encontrada.');
       await this.records.assertAccess(q, actor, { kind: 'contact', id: r.contact_id }, false);
       return r;
     });
+    // Mensagem que chegou sem conteúdo (tipo novo ou ainda cifrada): busca de novo na Evolution.
+    if (!m.file_id && m.kind === 'other' && !m.body) {
+      if (m.account_kind !== 'whatsapp_evolution' || !m.instance || !m.external_id || !m.account_id) {
+        throw new Problem(409, 'O WhatsApp não mandou o conteúdo desta mensagem (tipo que a API não entrega). Veja no celular.', 'content-unavailable');
+      }
+      const raw = await this.evo.findMessage(m.instance, m.external_id).catch((err: Error) => {
+        throw new Problem(409, `A Evolution não respondeu (${err.message.slice(0, 160)}).`, 'content-unavailable');
+      });
+      const ev = raw ? readEvolutionMessage(raw) : null;
+      if (!ev || ev.type !== 'message' || (!ev.text && ev.kind === 'other')) {
+        const t = ev && ev.type === 'message' && ev.msgType ? ` (tipo "${ev.msgType}")` : '';
+        throw new Problem(409, `O WhatsApp não entregou o conteúdo desta mensagem${t}. Ela pode ter chegado cifrada ou ser de um tipo que só abre no celular.`, 'content-unavailable');
+      }
+      await this.db.app(tenantCtx(actor), (q) => q.query('update messages set body = $2, kind = $3 where id = $1', [messageId, ev.text, ev.kind]));
+      if (MEDIA_KINDS.has(ev.kind)) await this.recoverMedia(actor.tenantId!, m.account_id, m.instance, m.external_id);
+      return this.db.app(tenantCtx(actor), (q) => this.row(q, messageId));
+    }
     if (!m.file_id) {
       if (!MEDIA_KINDS.has(m.kind)) throw Problem.badRequest('Esta mensagem não tem arquivo.');
       if (m.account_kind === 'instagram') {
@@ -689,6 +717,18 @@ export class MessagesService {
       if (!ok) throw new Problem(409, 'O WhatsApp não devolveu o arquivo desta mensagem. Ele pode ter expirado no celular.', 'media-unavailable');
     }
     return this.db.app(tenantCtx(actor), (q) => this.row(q, messageId));
+  }
+
+  /** Mensagem da Evolution que chegou vazia: tenta de novo pelo histórico da Evolution (sem pessoa; usado logo depois do aviso). */
+  async reloadContent(tenantId: string, accountId: string, instance: string, externalId: string): Promise<boolean> {
+    const raw = await this.evo.findMessage(instance, externalId).catch(() => null);
+    const ev = raw ? readEvolutionMessage(raw) : null;
+    if (!ev || ev.type !== 'message' || (!ev.text && ev.kind === 'other')) return false;
+    const done = await this.db.app({ tenantId, userId: null }, async (q) => (await q.query(
+      `update messages set body = $3, kind = $4 where channel_account_id = $1 and external_id = $2 and kind = 'other' and body is null and file_id is null`,
+      [accountId, externalId, ev.text, ev.kind])).rowCount === 1);
+    if (done && MEDIA_KINDS.has(ev.kind)) await this.recoverMedia(tenantId, accountId, instance, externalId);
+    return done;
   }
 
   /** Guarda o arquivo de uma mensagem da Evolution que ainda está sem ele. Usado logo depois do aviso e sob demanda. */
