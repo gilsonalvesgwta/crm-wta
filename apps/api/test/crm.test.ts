@@ -765,7 +765,7 @@ describe('importação e exportação', () => {
     // Limpar só os perdidos; depois os outros. Confirmação pelo nome digitado.
     assert.equal((await manager.post(`/api/v1/pipelines/${p.id}/clear-deals`, { confirm: 'outro nome' })).status, 422);
     assert.equal((await sales1.post(`/api/v1/pipelines/${p.id}/clear-deals`, { confirm: 'Teste Arquivo (antigo)' })).status, 403);
-    const lost = await manager.post(`/api/v1/pipelines/${p.id}/clear-deals`, { confirm: 'teste arquivo (antigo)', status: 'lost' });
+    const lost = await manager.post(`/api/v1/pipelines/${p.id}/clear-deals`, { confirm: ' TESTE  arquivo\u00a0(antigo) ', status: 'lost' });
     assert.deepEqual(lost.body, { deleted: 1 });
     const rest = await manager.post(`/api/v1/pipelines/${p.id}/clear-deals`, { confirm: 'Teste Arquivo (antigo)' });
     assert.deepEqual(rest.body, { deleted: 2 });
