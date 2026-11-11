@@ -1,9 +1,9 @@
 Creating network crmwta_interna
+Creating service crmwta_backup
 Creating service crmwta_db
 Creating service crmwta_migrate
 Creating service crmwta_api
 Creating service crmwta_web
-Creating service crmwta_backup
 aguardando os serviços...
 crmwta_api 1/1
 crmwta_backup 1/1
@@ -21,7 +21,7 @@ OK   página interna renderiza
 OK   arquivo gravado no volume e baixado pelo endereço assinado
 OK   nenhuma porta da stack publicada
 OK   reimplantar não duplica a configuração inicial
-backup: crm-20261111-140214.dump (496K)
+backup: crm-20261111-193024.dump (496K)
 OK   cópia do banco
 restaurado em crm_restaurado: 23 migrações, 1 empresas
 OK   restauração em banco novo
@@ -43,18 +43,18 @@ OK   serviço db em 1/1
 OK   serviço api em 1/1
 OK   serviço web em 1/1
 OK   serviço backup em 1/1
-migrate| crmwta_migrate.1.xqyyrouq1c31@runnervmkb2gk    | aplicando 0013_resultado_das_calls
-migrate| crmwta_migrate.1.xqyyrouq1c31@runnervmkb2gk    | aplicando 0014_anuncios
-migrate| crmwta_migrate.1.xqyyrouq1c31@runnervmkb2gk    | aplicando 0015_kpis_fieis
-migrate| crmwta_migrate.1.xqyyrouq1c31@runnervmkb2gk    | aplicando 0016_kpi_funis
-migrate| crmwta_migrate.1.xqyyrouq1c31@runnervmkb2gk    | aplicando 0017_instagram_fluxos
-migrate| crmwta_migrate.1.xqyyrouq1c31@runnervmkb2gk    | aplicando 0018_modelos_midia
-migrate| crmwta_migrate.1.xqyyrouq1c31@runnervmkb2gk    | aplicando 0019_midia_instagram
-migrate| crmwta_migrate.1.xqyyrouq1c31@runnervmkb2gk    | aplicando 0020_aviso_equipe
-migrate| crmwta_migrate.1.xqyyrouq1c31@runnervmkb2gk    | aplicando 0021_importar_negocios
-migrate| crmwta_migrate.1.xqyyrouq1c31@runnervmkb2gk    | aplicando 0022_funis_arquivados
-migrate| crmwta_migrate.1.xqyyrouq1c31@runnervmkb2gk    | aplicando 0023_whatsapp_fluxos
-migrate| crmwta_migrate.1.xqyyrouq1c31@runnervmkb2gk    | migrações aplicadas agora: 23
-migrate| crmwta_migrate.1.xqyyrouq1c31@runnervmkb2gk    | papel crm_api pronto
-migrate| crmwta_migrate.1.xqyyrouq1c31@runnervmkb2gk    | pronto: empresa faba5b4e-9427-4a35-a3b0-bb231ccaf236, superadministrador 498cb302-ad0c-4880-a9b2-0ea51360d980
-migrate| crmwta_migrate.1.xqyyrouq1c31@runnervmkb2gk    | migrate: concluído
+migrate| crmwta_migrate.1.yxc0o0zp4he5@runnervmkb2gk    | aplicando 0013_resultado_das_calls
+migrate| crmwta_migrate.1.yxc0o0zp4he5@runnervmkb2gk    | aplicando 0014_anuncios
+migrate| crmwta_migrate.1.yxc0o0zp4he5@runnervmkb2gk    | aplicando 0015_kpis_fieis
+migrate| crmwta_migrate.1.yxc0o0zp4he5@runnervmkb2gk    | aplicando 0016_kpi_funis
+migrate| crmwta_migrate.1.yxc0o0zp4he5@runnervmkb2gk    | aplicando 0017_instagram_fluxos
+migrate| crmwta_migrate.1.yxc0o0zp4he5@runnervmkb2gk    | aplicando 0018_modelos_midia
+migrate| crmwta_migrate.1.yxc0o0zp4he5@runnervmkb2gk    | aplicando 0019_midia_instagram
+migrate| crmwta_migrate.1.yxc0o0zp4he5@runnervmkb2gk    | aplicando 0020_aviso_equipe
+migrate| crmwta_migrate.1.yxc0o0zp4he5@runnervmkb2gk    | aplicando 0021_importar_negocios
+migrate| crmwta_migrate.1.yxc0o0zp4he5@runnervmkb2gk    | aplicando 0022_funis_arquivados
+migrate| crmwta_migrate.1.yxc0o0zp4he5@runnervmkb2gk    | aplicando 0023_whatsapp_fluxos
+migrate| crmwta_migrate.1.yxc0o0zp4he5@runnervmkb2gk    | migrações aplicadas agora: 23
+migrate| crmwta_migrate.1.yxc0o0zp4he5@runnervmkb2gk    | papel crm_api pronto
+migrate| crmwta_migrate.1.yxc0o0zp4he5@runnervmkb2gk    | pronto: empresa 108fefa4-33b9-4c51-9e39-adbd7d2c08f2, superadministrador 3b494e4f-c6ec-4775-b697-b2856a1c88b6
+migrate| crmwta_migrate.1.yxc0o0zp4he5@runnervmkb2gk    | migrate: concluído
