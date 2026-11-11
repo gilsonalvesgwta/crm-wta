@@ -1,6 +1,6 @@
-instalar: cancelled
-tipos: skipped
-testes-api: skipped
-compilar: skipped
+instalar: success
+tipos: failure
+testes-api: success
+compilar: failure
 ponta-a-ponta: skipped
-fim: 2026-11-11T13:19:12Z
+fim: 2026-11-11T13:24:53Z

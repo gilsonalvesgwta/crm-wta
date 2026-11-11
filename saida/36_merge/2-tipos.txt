@@ -1,0 +1,21 @@
+
+> crm-wta@ typecheck /home/runner/work/crm-wta/crm-wta
+> pnpm -r --if-present typecheck
+
+Scope: 2 of 3 workspace projects
+apps/api typecheck$ tsc -p tsconfig.json --noEmit
+apps/web typecheck$ tsc --noEmit
+apps/api typecheck: Done
+apps/web typecheck: src/components/instagram/node-settings.tsx(342,7): error TS2322: Type '({ id: string; title: string; url: null; } | null)[]' is not assignable to type 'FlowButton[]'.
+apps/web typecheck:   Type '{ id: string; title: string; url: null; } | null' is not assignable to type 'FlowButton'.
+apps/web typecheck:     Type 'null' is not assignable to type 'FlowButton'.
+apps/web typecheck: src/components/instagram/node-settings.tsx(342,136): error TS2677: A type predicate's type must be assignable to its parameter's type.
+apps/web typecheck:   Type 'FlowButton' is not assignable to type '{ id: string; title: string; url: null; }'.
+apps/web typecheck:     Types of property 'url' are incompatible.
+apps/web typecheck:       Type 'string | null | undefined' is not assignable to type 'null'.
+apps/web typecheck:         Type 'undefined' is not assignable to type 'null'.
+apps/web typecheck: Failed
+/home/runner/work/crm-wta/crm-wta/apps/web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @crm/web@ typecheck: `tsc --noEmit`
+Exit status 2
+ ELIFECYCLE  Command failed with exit code 2.
