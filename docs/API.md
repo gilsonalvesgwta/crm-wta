@@ -168,6 +168,14 @@ Com chave de API não há cookie, então não há verificação de CSRF; chave i
 
 Envio com modelo: `POST /api/v1/conversations/:id/messages` com `{accountId, templateId, templateParams}`. Fora das 24 h sem modelo: 409 `outside-window`.
 
+### Funis: arquivados e limpeza (11 nov 2026)
+
+- `GET /api/v1/pipelines?archived=true` inclui os arquivados; cada funil traz `dealCount`.
+- `POST /api/v1/pipelines/:id/clear-deals` `{confirm: <nome do funil>, status: all|open|won|lost}` → `{deleted}`. Exige `pipelines:admin` e `deals:delete` da empresa toda.
+- `POST /api/v1/pipelines/:id/delete-with-deals` `{confirm}` → `{deleted}`: exclui o funil e os negócios.
+- `DELETE /api/v1/pipelines/:id` com negócios responde 409 `pipeline-has-deals`.
+- Nome do funil único só entre os ativos.
+
 ### Importação de negócios e do Pipedrive (10 nov 2026)
 
 - `POST /api/v1/imports/upload?entity=contacts|organizations|deals` devolve também `detectedEntity` (pelos prefixos "Pessoa - ", "Negócio - ", "Organização - ").

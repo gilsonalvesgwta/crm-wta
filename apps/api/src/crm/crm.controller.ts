@@ -325,6 +325,24 @@ export class PipelinesController {
   async remove(@CurrentActor() a: Actor, @Param('id') v: string) {
     await this.pipelines.remove(a, id(v));
   }
+
+  /** Apaga de uma vez os negócios do funil (todos ou por situação). Pede o nome do funil. */
+  @Require('pipelines:admin', 'tenant')
+  @Post(':id/clear-deals')
+  @HttpCode(200)
+  clearDeals(@CurrentActor() a: Actor, @Param('id') v: string, @Body() b: unknown) {
+    return this.pipelines.clearDeals(a, id(v), parse(z.object({
+      confirm: z.string().max(200), status: z.enum(['all', 'open', 'won', 'lost']).default('all'),
+    }), b));
+  }
+
+  /** Exclui o funil e todos os negócios dele. Pede o nome do funil. */
+  @Require('pipelines:admin', 'tenant')
+  @Post(':id/delete-with-deals')
+  @HttpCode(200)
+  removeWithDeals(@CurrentActor() a: Actor, @Param('id') v: string, @Body() b: unknown) {
+    return this.pipelines.removeWithDeals(a, id(v), parse(z.object({ confirm: z.string().max(200) }), b).confirm);
+  }
 }
 
 // ---- Negócios ----------------------------------------------------------------------------

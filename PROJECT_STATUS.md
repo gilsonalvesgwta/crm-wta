@@ -23,6 +23,13 @@ Atualizado em 9 de novembro de 2026.
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
 
+### Funis arquivados e limpeza de negócios (11 nov 2026)
+
+- Configurações › Funis mostra os funis arquivados numa seção própria, com renomear, desarquivar, limpar e excluir. Cada funil mostra quantos negócios tem.
+- O nome só precisa ser único entre os funis ativos: dá para criar um funil novo com o nome de um arquivado. Desarquivar com nome repetido pede para renomear.
+- Zona de risco (quem pode excluir negócios da empresa toda): "Limpar negócios" apaga de uma vez todos os negócios do funil (ou só em andamento, ganhos ou perdidos) e "Excluir funil" apaga o funil junto com os negócios. As duas pedem o nome do funil digitado; os contatos continuam.
+- Migração 0022 só troca o índice do nome do funil.
+
 ### Importar do Pipedrive (10 nov 2026)
 
 - Contatos › Importar (e Negócios › Importar) aceitam direto as exportações do Pipedrive: pessoas ("Pessoa - …") e negócios ("Negócio - …"). O tipo é reconhecido sozinho e as colunas já vêm ligadas.

@@ -37,6 +37,8 @@ export type Stage = {
 };
 export type Pipeline = {
   id: string; name: string; position: number; currency: string; restricted: boolean; archived: boolean; stages: Stage[];
+  /** Quantos negócios o funil tem (todas as situações). */
+  dealCount?: number;
   access?: { teamIds: string[]; membershipIds: string[] };
 };
 export type DealCard = {

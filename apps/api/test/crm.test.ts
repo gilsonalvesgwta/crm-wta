@@ -741,6 +741,46 @@ describe('importação e exportação', () => {
     assert.equal(ad.skippedCount, 4);
   });
 
+  test('funis arquivados: listar, renomear, desarquivar, nome livre de novo; limpar negócios e excluir com negócios', async () => {
+    const p = (await manager.post('/api/v1/pipelines', { name: 'Teste Arquivo' })).body as { id: string; stages: { id: string; kind: string }[] };
+    const open = p.stages.find((x) => x.kind === 'open')!.id;
+    for (const t of ['A1', 'A2', 'A3']) assert.equal((await manager.post('/api/v1/deals', { pipelineId: p.id, title: t, stageId: open })).status, 201);
+    await f.admin.query("update deals set status = 'lost', closed_at = now(), stage_id = (select id from pipeline_stages where pipeline_id = $1 and kind = 'lost') where title = 'A3' and pipeline_id = $1", [p.id]);
+    assert.equal((await manager.patch(`/api/v1/pipelines/${p.id}`, { archived: true })).status, 200);
+    assert.ok(!(await manager.get('/api/v1/pipelines')).body.some((x: { id: string }) => x.id === p.id), 'arquivado sai da lista normal');
+    const all = (await manager.get('/api/v1/pipelines?archived=true')).body as { id: string; archived: boolean; dealCount: number }[];
+    const mine = all.find((x) => x.id === p.id)!;
+    assert.deepEqual([mine.archived, mine.dealCount], [true, 3], 'aparece com os arquivados, com a contagem de negócios');
+    // O nome fica livre para um funil novo; desarquivar com o mesmo nome pede para renomear.
+    const twin = await manager.post('/api/v1/pipelines', { name: 'teste arquivo' });
+    assert.equal(twin.status, 201, JSON.stringify(twin.body));
+    const back = await manager.patch(`/api/v1/pipelines/${p.id}`, { archived: false });
+    assert.equal(back.status, 409);
+    assert.match(back.body.title, /Renomeie/);
+    assert.equal((await manager.patch(`/api/v1/pipelines/${p.id}`, { name: 'Teste Arquivo (antigo)', archived: false })).body.archived, false);
+    // Excluir funil com negócios: pede para limpar ou excluir junto.
+    const del = await manager.req('DELETE', `/api/v1/pipelines/${p.id}`);
+    assert.equal(del.status, 409);
+    assert.equal(del.body.type, 'pipeline-has-deals');
+    // Limpar só os perdidos; depois os outros. Confirmação pelo nome digitado.
+    assert.equal((await manager.post(`/api/v1/pipelines/${p.id}/clear-deals`, { confirm: 'outro nome' })).status, 422);
+    assert.equal((await sales1.post(`/api/v1/pipelines/${p.id}/clear-deals`, { confirm: 'Teste Arquivo (antigo)' })).status, 403);
+    const lost = await manager.post(`/api/v1/pipelines/${p.id}/clear-deals`, { confirm: 'teste arquivo (antigo)', status: 'lost' });
+    assert.deepEqual(lost.body, { deleted: 1 });
+    const rest = await manager.post(`/api/v1/pipelines/${p.id}/clear-deals`, { confirm: 'Teste Arquivo (antigo)' });
+    assert.deepEqual(rest.body, { deleted: 2 });
+    assert.equal((await manager.req('DELETE', `/api/v1/pipelines/${p.id}`)).status, 204, 'vazio, exclui normal');
+    // Excluir o funil junto com os negócios, de uma vez.
+    const t2 = twin.body as { id: string; stages: { id: string; kind: string }[] };
+    await manager.post('/api/v1/deals', { pipelineId: t2.id, title: 'B1', stageId: t2.stages.find((x) => x.kind === 'open')!.id });
+    assert.equal((await manager.post(`/api/v1/pipelines/${t2.id}/delete-with-deals`, { confirm: 'errado' })).status, 422);
+    assert.deepEqual((await manager.post(`/api/v1/pipelines/${t2.id}/delete-with-deals`, { confirm: 'teste arquivo' })).body, { deleted: 1 });
+    assert.equal((await manager.get(`/api/v1/pipelines/${t2.id}`)).status, 404);
+    // Outra empresa não alcança.
+    const other = (await manager.get('/api/v1/pipelines')).body[0].id as string;
+    assert.equal((await adminB.post(`/api/v1/pipelines/${other}/clear-deals`, { confirm: 'x' })).status, 404);
+  });
+
   test('comercial não importa nem exporta', async () => {
     assert.equal((await sales1.upload('/api/v1/imports/upload', 'x.csv', 'Nome\nA', 'text/csv')).status, 403);
     assert.equal((await sales1.raw('/api/v1/contacts/export.csv')).status, 403);

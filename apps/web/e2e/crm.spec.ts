@@ -312,6 +312,37 @@ test('Pipedrive: exportação de pessoas e de negócios entra sem erro', async (
   expect(r.items[0]!.phone).toBe('+5583999837655');
 });
 
+test('funis: arquivar, ver nos arquivados, renomear, desarquivar; limpar negócios e excluir', async ({ page }) => {
+  await loginAdmin(page);
+  const pipe = await (await page.request.post('/api/v1/pipelines', { data: { name: 'Funil de Teste E2E' }, headers: { 'x-crm-request': '1' } })).json() as { id: string };
+  for (const t of ['Lote 1', 'Lote 2']) await page.request.post('/api/v1/deals', { data: { pipelineId: pipe.id, title: t }, headers: { 'x-crm-request': '1' } });
+  await page.goto('/configuracoes/funis');
+  await page.getByRole('list', { name: 'Funis ativos' }).getByRole('button', { name: /Funil de Teste E2E/ }).click();
+  await page.getByRole('button', { name: 'Arquivar' }).click();
+  await expect(page.getByRole('list', { name: 'Funis arquivados' })).toContainText('Funil de Teste E2E');
+  await page.getByRole('list', { name: 'Funis arquivados' }).getByRole('button', { name: /Funil de Teste E2E/ }).click();
+  await expect(page.getByText(/Funil arquivado: não aparece em Negócios/)).toBeVisible();
+  await page.getByLabel('Nome', { exact: true }).fill('Funil de Teste E2E (antigo)');
+  await page.getByRole('button', { name: 'Salvar nome' }).click();
+  await expect(page.getByText('Nome salvo.')).toBeVisible();
+  await page.getByRole('button', { name: 'Desarquivar' }).click();
+  await expect(page.getByRole('list', { name: 'Funis ativos' })).toContainText('Funil de Teste E2E (antigo)');
+  // Limpar os negócios: só com o nome digitado.
+  await page.getByRole('button', { name: 'Limpar negócios' }).click();
+  const d = page.getByRole('dialog', { name: /Limpar negócios de/ });
+  await expect(d.getByRole('button', { name: 'Apagar negócios' })).toBeDisabled();
+  await d.getByLabel(/Para confirmar, digite o nome do funil/).fill('funil de teste e2e (antigo)');
+  await expectAccessible(page);
+  await shot(page, '29-limpar-negocios');
+  await d.getByRole('button', { name: 'Apagar negócios' }).click();
+  await expect(page.getByText('2 negócio(s) apagado(s).')).toBeVisible();
+  await page.getByRole('button', { name: 'Excluir funil' }).click();
+  const x = page.getByRole('dialog', { name: /Excluir o funil/ });
+  await x.getByLabel(/Para confirmar, digite o nome do funil/).fill('Funil de Teste E2E (antigo)');
+  await x.getByRole('button', { name: 'Excluir funil' }).click();
+  await expect(page.getByRole('list', { name: 'Funis ativos' })).not.toContainText('Funil de Teste E2E');
+});
+
 test('configurações do CRM: funis e campos', async ({ page }) => {
   await loginAdmin(page);
   await page.goto('/configuracoes/funis');
