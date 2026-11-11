@@ -6,7 +6,7 @@ Scope: 2 of 3 workspace projects
 apps/api build$ tsc -p tsconfig.build.json
 apps/web build$ next build
 apps/web build: ▲ Next.js 16.4.0 (Turbopack)
-apps/web build: ✓ Running next.config.ts took 37ms
+apps/web build: ✓ Running next.config.ts took 34ms
 apps/web build: ⚠ No build cache found. Please configure build caching for faster rebuilds. Read more: https://nextjs.org/docs/messages/no-cache
 apps/web build: Attention: Next.js now collects completely anonymous telemetry regarding usage.
 apps/web build: This information is used to shape Next.js' roadmap and prioritize features.
@@ -14,19 +14,76 @@ apps/web build: You can learn more, including how to opt-out if you'd not like t
 apps/web build: https://nextjs.org/telemetry
 apps/web build:   Creating an optimized production build ...
 apps/api build: Done
-apps/web build: ✓ Compiled successfully in 9.4s
+apps/web build: ✓ Compiled successfully in 5.8s
 apps/web build:   Running TypeScript ...
-apps/web build: src/components/instagram/node-settings.tsx(342,7): error TS2322: Type '({ id: string; title: string; url: null; } | null)[]' is not assignable to type 'FlowButton[]'.
-apps/web build:   Type '{ id: string; title: string; url: null; } | null' is not assignable to type 'FlowButton'.
-apps/web build:     Type 'null' is not assignable to type 'FlowButton'.
-apps/web build: src/components/instagram/node-settings.tsx(342,136): error TS2677: A type predicate's type must be assignable to its parameter's type.
-apps/web build:   Type 'FlowButton' is not assignable to type '{ id: string; title: string; url: null; }'.
-apps/web build:     Types of property 'url' are incompatible.
-apps/web build:       Type 'string | null | undefined' is not assignable to type 'null'.
-apps/web build:         Type 'undefined' is not assignable to type 'null'.
-apps/web build: Failed to type check.
-apps/web build: Failed
-/home/runner/work/crm-wta/crm-wta/apps/web:
- ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @crm/web@ build: `next build`
-Exit status 1
- ELIFECYCLE  Command failed with exit code 1.
+apps/web build:   Finished TypeScript in 5.9s ...
+apps/web build:   Collecting page data using 3 workers ...
+apps/web build:   Generating static pages using 3 workers (0/53) ...
+apps/web build:   Generating static pages using 3 workers (13/53) 
+apps/web build:   Generating static pages using 3 workers (26/53) 
+apps/web build:   Generating static pages using 3 workers (39/53) 
+apps/web build: ✓ Generating static pages using 3 workers (53/53) in 231ms
+apps/web build:   Finalizing page optimization ...
+apps/web build: Route (app)
+apps/web build: ┌ ƒ /
+apps/web build: ├ ƒ /_not-found
+apps/web build: ├ ƒ /agenda
+apps/web build: ├ ƒ /automacoes
+apps/web build: ├ ƒ /campanhas
+apps/web build: ├ ƒ /campanhas/[id]
+apps/web build: ├ ƒ /campanhas/nova
+apps/web build: ├ ƒ /configuracoes
+apps/web build: ├ ƒ /configuracoes/auditoria
+apps/web build: ├ ƒ /configuracoes/automacoes
+apps/web build: ├ ƒ /configuracoes/backup
+apps/web build: ├ ƒ /configuracoes/campos
+apps/web build: ├ ƒ /configuracoes/canais
+apps/web build: ├ ƒ /configuracoes/canais/guia
+apps/web build: ├ ƒ /configuracoes/canais/modelos
+apps/web build: ├ ƒ /configuracoes/distribuicao
+apps/web build: ├ ƒ /configuracoes/dominio
+apps/web build: ├ ƒ /configuracoes/empresa
+apps/web build: ├ ƒ /configuracoes/equipes
+apps/web build: ├ ƒ /configuracoes/etiquetas
+apps/web build: ├ ƒ /configuracoes/funis
+apps/web build: ├ ƒ /configuracoes/identidade-visual
+apps/web build: ├ ƒ /configuracoes/integracoes
+apps/web build: ├ ƒ /configuracoes/motivos
+apps/web build: ├ ƒ /configuracoes/perfis
+apps/web build: ├ ƒ /configuracoes/produtos
+apps/web build: ├ ƒ /configuracoes/usuarios
+apps/web build: ├ ƒ /conta
+apps/web build: ├ ƒ /contatos
+apps/web build: ├ ƒ /contatos/[id]
+apps/web build: ├ ƒ /contatos/agendadas
+apps/web build: ├ ƒ /contatos/importar
+apps/web build: ├ ƒ /conversas
+apps/web build: ├ ƒ /conversas/respostas
+apps/web build: ├ ƒ /convite
+apps/web build: ├ ƒ /entrar
+apps/web build: ├ ƒ /entrar/empresa
+apps/web build: ├ ƒ /entrar/verificacao
+apps/web build: ├ ○ /icon.svg
+apps/web build: ├ ƒ /inicio
+apps/web build: ├ ƒ /instagram
+apps/web build: ├ ƒ /instagram/contatos
+apps/web build: ├ ƒ /instagram/diagnostico
+apps/web build: ├ ƒ /instagram/fluxos/[id]
+apps/web build: ├ ƒ /instagram/midias
+apps/web build: ├ ƒ /instagram/resultados
+apps/web build: ├ ƒ /leads
+apps/web build: ├ ƒ /leads/[id]
+apps/web build: ├ ƒ /negocios
+apps/web build: ├ ƒ /negocios/[id]
+apps/web build: ├ ƒ /organizacoes
+apps/web build: ├ ƒ /organizacoes/[id]
+apps/web build: ├ ƒ /plataforma
+apps/web build: ├ ƒ /recuperar-senha
+apps/web build: ├ ƒ /redefinir-senha
+apps/web build: ├ ƒ /whatsapp
+apps/web build: ├ ƒ /whatsapp/fluxos/[id]
+apps/web build: ├ ƒ /whatsapp/resultados
+apps/web build: └ ƒ /whatsapp/transmissoes
+apps/web build: ○  (Static)   prerendered as static content
+apps/web build: ƒ  (Dynamic)  server-rendered on demand
+apps/web build: Done
