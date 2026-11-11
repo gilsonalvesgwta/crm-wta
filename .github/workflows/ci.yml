@@ -180,7 +180,8 @@ jobs:
             done
             curl -fsS http://localhost:3000/api/readyz
             echo
-            pnpm --filter @crm/web exec playwright install --with-deps chromium > /dev/null
+            # O espelho do apt às vezes trava: sem ele, instala só o navegador (a imagem do GitHub já tem as bibliotecas).
+          timeout 300 pnpm --filter @crm/web exec playwright install --with-deps chromium > /dev/null 2>&1 || pnpm --filter @crm/web exec playwright install chromium > /dev/null
             pnpm --filter @crm/web e2e
           } 2>&1 | tee "$SAIDA/6-ponta-a-ponta.txt"
 
