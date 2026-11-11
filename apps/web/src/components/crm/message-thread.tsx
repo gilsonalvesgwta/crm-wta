@@ -111,6 +111,20 @@ function MissingContent({ m, out }: { m: Message; out: boolean }) {
   );
 }
 
+/** Texto com os links clicáveis (abrem em outra aba). */
+function Linked({ text }: { text: string }) {
+  const parts = text.split(/(https?:\/\/[^\s<>"]+)/g);
+  return (
+    <>
+      {parts.map((p, i) => {
+        if (i % 2 === 0) return p;
+        const url = p.replace(/[.,;:!?)]+$/, '');
+        return <span key={i}><a href={url} target="_blank" rel="noopener noreferrer" className="break-all underline">{url}</a>{p.slice(url.length)}</span>;
+      })}
+    </>
+  );
+}
+
 function Bubble({ m }: { m: Message }) {
   const out = m.direction === 'out';
   return (
@@ -127,7 +141,7 @@ function Bubble({ m }: { m: Message }) {
         {m.file || MEDIA_ACTION[m.kind] ? <MessageMedia m={m} out={out} />
           : !m.body && m.kind === 'other' && m.channel === 'whatsapp' ? <MissingContent m={m} out={out} />
             : !m.body ? <p className="italic text-muted">{KIND_LABEL[m.kind] ?? 'Mensagem'}</p> : null}
-        {m.body ? <p className="whitespace-pre-wrap break-words">{m.body}</p> : null}
+        {m.body ? <p className="whitespace-pre-wrap break-words"><Linked text={m.body} /></p> : null}
         {m.status === 'failed' && m.error ? <p className="text-[12px] font-medium text-bad">{m.error}</p> : null}
         <p className="flex items-center justify-end gap-1.5 text-[11px] text-muted">
           <time dateTime={m.createdAt}>{fmtDateTime.format(new Date(m.createdAt))}</time>

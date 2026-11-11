@@ -305,8 +305,12 @@ export class Meta {
    */
   async igMessageAttachments(mid: string, token: string, host: MetaHost): Promise<string[]> {
     if (!/^[0-9A-Za-z_.-]{5,400}$/.test(mid)) return [];
-    const r = await this.call<{ attachments?: { data?: Record<string, unknown>[] } }>('GET', host, `${mid}?fields=attachments`, token);
+    // Os campos do anexo só vêm quando pedidos um a um; "shares" traz o link de reels/publicação compartilhada.
+    const r = await this.call<{ attachments?: { data?: Record<string, unknown>[] }; shares?: { data?: Record<string, unknown>[] } }>(
+      'GET', host, `${mid}?fields=attachments{id,mime_type,name,file_url,image_data,video_data,audio_data,animated_gif_data,generic_template,url},shares{link,name}`, token)
+      .catch(() => this.call<{ attachments?: { data?: Record<string, unknown>[] }; shares?: { data?: Record<string, unknown>[] } }>('GET', host, `${mid}?fields=attachments`, token));
     const out: string[] = [];
+    for (const sh of r.shares?.data ?? []) if (typeof sh.link === 'string' && /^https?:\/\//.test(sh.link)) out.push(sh.link);
     for (const a of r.attachments?.data ?? []) {
       // O domínio é conferido na hora de baixar (só os da Meta).
       const pick = (v: unknown) => { if (typeof v === 'string' && /^https?:\/\//.test(v)) out.push(v); };
@@ -316,6 +320,7 @@ export class Meta {
       }
       pick(a.file_url);
       pick(a.url);
+      pick((a.generic_template as Record<string, unknown> | undefined)?.url);
     }
     return out;
   }

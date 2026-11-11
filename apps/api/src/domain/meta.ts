@@ -185,12 +185,19 @@ export function readInstagramWebhook(body: unknown): IgMessage[] {
       const recipient = str(obj(m?.recipient)?.id);
       const id = str(message?.mid);
       if (!message || !sender || !recipient || !id || message.is_deleted) continue;
-      const attachments = arr(message.attachments).map((a) => ({ type: str(obj(a)?.type) ?? 'file', url: str(obj(obj(a)?.payload)?.url) ?? '' })).filter((a) => a.url);
-      const kind = message.text ? 'text' : attachments.length ? igKind(attachments[0]!.type) : 'other';
+      const all = arr(message.attachments).map((a) => ({
+        type: str(obj(a)?.type) ?? 'file', url: str(obj(obj(a)?.payload)?.url) ?? '', title: str(obj(obj(a)?.payload)?.title),
+      })).filter((a) => a.url);
+      // Reels ou publicação compartilhada chegam com o link do Instagram (não é arquivo): vira texto com o link.
+      const links = all.filter((a) => igPermalink(a.url));
+      const attachments = all.filter((a) => !igPermalink(a.url)).map(({ type, url }) => ({ type, url }));
+      const linkText = links.map((l) => `${IG_SHARE_LABEL[l.type] ?? 'Link do Instagram'}${l.title ? ` (${l.title.slice(0, 200)})` : ''}: ${l.url}`).join('\n');
+      const text = [str(message.text), linkText].filter(Boolean).join('\n') || null;
+      const kind = text && !attachments.length ? 'text' : message.text ? 'text' : attachments.length ? igKind(attachments[0]!.type) : 'other';
       const ts = Number(m?.timestamp);
       const story = obj(obj(message.reply_to)?.story);
       const mention = arr(message.attachments).map(obj).find((a) => a?.type === 'story_mention');
-      out.push({ type: 'message', igUserId, id, sender, recipient, fromMe: message.is_echo === true, text: str(message.text), kind,
+      out.push({ type: 'message', igUserId, id, sender, recipient, fromMe: message.is_echo === true, text, kind,
         at: Number.isFinite(ts) && ts > 0 ? new Date(ts > 1e12 ? ts : ts * 1000) : new Date(), attachments,
         quickReply: str(obj(message.quick_reply)?.payload),
         replyToStory: story ? { id: str(story.id), url: str(story.url) } : null,
@@ -198,6 +205,16 @@ export function readInstagramWebhook(body: unknown): IgMessage[] {
     }
   }
   return out;
+}
+
+const IG_SHARE_LABEL: Record<string, string> = { ig_reel: 'Reels compartilhado', reel: 'Reels compartilhado', share: 'Publicação compartilhada', ig_post: 'Publicação compartilhada', story_mention: 'Menção no story' };
+
+/** Link de página do Instagram (reels, publicação, perfil), não arquivo da Meta. */
+export function igPermalink(url: string): boolean {
+  try {
+    const h = new URL(url).hostname;
+    return /(^|\.)(instagram\.com|instagr\.am)$/.test(h) && !/cdninstagram|fbcdn/.test(h);
+  } catch { return false; }
 }
 
 /**

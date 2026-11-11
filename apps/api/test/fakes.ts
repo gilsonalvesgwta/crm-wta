@@ -205,6 +205,8 @@ export class FakeMeta {
   readonly uploads = new Map<string, { name: string; type: string; length: number }>();
   /** Instagram: anexos de cada mensagem (GET /{mid}?fields=attachments). */
   readonly igAttachments = new Map<string, Record<string, unknown>[]>();
+  /** Instagram: links de reels/publicação compartilhados em cada mensagem (campo shares). */
+  readonly igShares = new Map<string, string[]>();
   readonly calls: FakeMetaSend[] = [];
   readonly refreshed: string[] = [];
   /** Gasto da conta de anúncios falsa, por dia (AAAA-MM-DD → valor na moeda da conta). */
@@ -302,9 +304,11 @@ export class FakeMeta {
           if (!up || req.headers.file_offset !== '0' || raw.length !== up.length) return send(400, { error: { message: 'Invalid upload', code: 100 } });
           return send(200, { h: `4::${Buffer.from(sid).toString('base64url')}` });
         }
-        if (req.method === 'GET' && !edge && u.searchParams.get('fields') === 'attachments') {
+        if (req.method === 'GET' && !edge && (u.searchParams.get('fields') ?? '').startsWith('attachments')) {
           const a = this.igAttachments.get(id!);
-          return a ? send(200, { id, attachments: { data: a } }) : send(400, { error: { message: 'Unsupported get request', code: 100 } });
+          const sh = this.igShares.get(id!);
+          return a || sh ? send(200, { id, attachments: { data: a ?? [] }, ...(sh ? { shares: { data: sh.map((link) => ({ link })) } } : {}) })
+            : send(400, { error: { message: 'Unsupported get request', code: 100 } });
         }
         if (req.method === 'GET' && id === 'me' && edge === 'media') return send(200, { data: this.posts });
         if (id === 'me' && edge === 'subscribed_apps') {
