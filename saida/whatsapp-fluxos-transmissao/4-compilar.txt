@@ -6,7 +6,7 @@ Scope: 2 of 3 workspace projects
 apps/api build$ tsc -p tsconfig.build.json
 apps/web build$ next build
 apps/web build: ▲ Next.js 16.4.0 (Turbopack)
-apps/web build: ✓ Running next.config.ts took 27ms
+apps/web build: ✓ Running next.config.ts took 30ms
 apps/web build: ⚠ No build cache found. Please configure build caching for faster rebuilds. Read more: https://nextjs.org/docs/messages/no-cache
 apps/web build: Attention: Next.js now collects completely anonymous telemetry regarding usage.
 apps/web build: This information is used to shape Next.js' roadmap and prioritize features.
@@ -14,7 +14,7 @@ apps/web build: You can learn more, including how to opt-out if you'd not like t
 apps/web build: https://nextjs.org/telemetry
 apps/web build:   Creating an optimized production build ...
 apps/api build: Done
-apps/web build: ✓ Compiled successfully in 6.1s
+apps/web build: ✓ Compiled successfully in 7.7s
 apps/web build:   Running TypeScript ...
 apps/web build: src/components/instagram/node-settings.tsx(342,7): error TS2322: Type '({ id: string; title: string; url: null; } | null)[]' is not assignable to type 'FlowButton[]'.
 apps/web build:   Type '{ id: string; title: string; url: null; } | null' is not assignable to type 'FlowButton'.
