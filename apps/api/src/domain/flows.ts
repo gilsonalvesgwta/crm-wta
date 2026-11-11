@@ -1,13 +1,22 @@
 import { z } from 'zod';
 
 /**
- * Fluxos do Instagram (estilo Manychat): o desenho guardado é um grafo com um
- * bloco "gatilho" e os passos, ligados por setas. Tudo aqui é puro (sem banco
- * nem rede) para ser testado sozinho.
+ * Fluxos do Instagram e do WhatsApp oficial (estilo Manychat): o desenho
+ * guardado é um grafo com um bloco "gatilho" e os passos, ligados por setas.
+ * Tudo aqui é puro (sem banco nem rede) para ser testado sozinho.
  */
 
-export const TRIGGERS = ['comment', 'live_comment', 'dm_keyword', 'story_reply', 'story_mention', 'reaction'] as const;
+export const IG_TRIGGERS = ['comment', 'live_comment', 'dm_keyword', 'story_reply', 'story_mention', 'reaction'] as const;
+/** WhatsApp oficial: transmissão (campanha que manda um modelo) e palavra-chave na mensagem. */
+export const WA_TRIGGERS = ['wa_broadcast', 'wa_keyword'] as const;
+export const TRIGGERS = [...IG_TRIGGERS, ...WA_TRIGGERS] as const;
 export type TriggerType = (typeof TRIGGERS)[number];
+export type FlowChannel = 'instagram' | 'whatsapp';
+
+/** Canal de um gatilho. */
+export function channelOfTrigger(t: TriggerType): FlowChannel {
+  return (WA_TRIGGERS as readonly string[]).includes(t) ? 'whatsapp' : 'instagram';
+}
 
 export const TRIGGER_NAME: Record<TriggerType, string> = {
   comment: 'Comentário em post ou reels',
@@ -16,6 +25,8 @@ export const TRIGGER_NAME: Record<TriggerType, string> = {
   story_reply: 'Resposta a story',
   story_mention: 'Menção em story',
   reaction: 'Reação a mensagem',
+  wa_broadcast: 'Quando você envia uma transmissão',
+  wa_keyword: 'Palavra na mensagem do WhatsApp',
 };
 
 /** Gatilhos que vêm de um comentário: a conversa privada só abre pela resposta no privado. */
@@ -73,6 +84,16 @@ const nodeSchema = z.discriminatedUnion('type', [
   z.object({ id, type: z.literal('comment_reply'), position, data: z.object({ variants: z.array(text(300)).max(3).default(['']) }) }),
   z.object({ id, type: z.literal('private_reply'), position, data: z.object({ text: text(640).default(''), buttons: z.array(button).max(3).default([]) }) }),
   z.object({ id, type: z.literal('text'), position, data: z.object({ text: text(1000).default(''), buttons: z.array(button).max(3).default([]) }) }),
+  // WhatsApp oficial: modelo aprovado pela Meta (chega mesmo fora das 24 h). Os botões são as respostas rápidas do modelo ("q" + posição).
+  z.object({
+    id, type: z.literal('template'), position,
+    data: z.object({
+      templateId: z.string().uuid().nullable().default(null),
+      name: text(512).nullable().default(null),
+      params: z.array(text(1000)).max(20).default([]),
+      buttons: z.array(button).max(10).default([]),
+    }),
+  }),
   z.object({
     id, type: z.literal('media'), position,
     data: z.object({ fileId: z.string().nullable().default(null), name: text(255).nullable().default(null), kind: z.enum(['image', 'video', 'audio', 'file']).nullable().default(null) }),
@@ -135,6 +156,8 @@ export function triggerOf(g: FlowGraph): TriggerData {
 export type FlowIssue = { nodeId: string | null; level: 'error' | 'warning'; message: string };
 
 const DM_NODES: readonly NodeType[] = ['text', 'media', 'question'];
+/** Botão de resposta rápida de um modelo: "q" + posição do botão no modelo. */
+export const TEMPLATE_BUTTON_RE = /^q([0-9])$/;
 const URL_RE = /^https?:\/\/[^\s]+\.[^\s]+$/i;
 
 /** O que falta ou pode dar errado no desenho, por bloco. */
@@ -142,29 +165,47 @@ export function flowIssues(g: FlowGraph): FlowIssue[] {
   const out: FlowIssue[] = [];
   const t = triggerOf(g);
   const trig = g.nodes.find((n) => n.type === 'trigger')!;
+  const wa = channelOfTrigger(t.type) === 'whatsapp';
   const fromComment = COMMENT_TRIGGERS.includes(t.type);
   const add = (nodeId: string | null, level: FlowIssue['level'], message: string) => out.push({ nodeId, level, message });
 
   // Gatilho
-  if (['comment', 'live_comment', 'dm_keyword', 'story_reply'].includes(t.type) && t.match !== 'any' && !t.keywords.some((k) => k.trim())) {
+  if (['comment', 'live_comment', 'dm_keyword', 'story_reply', 'wa_keyword'].includes(t.type) && t.match !== 'any' && !t.keywords.some((k) => k.trim())) {
     add(trig.id, 'warning', 'Adicione pelo menos uma palavra-chave, ou escolha "qualquer".');
   }
   if (t.type === 'comment' && t.posts === 'chosen' && !t.postIds.length) add(trig.id, 'error', 'Escolha ao menos uma publicação, ou "qualquer post ou reels".');
   if (!g.edges.some((e) => e.source === trig.id)) add(trig.id, 'warning', 'Ligue o gatilho ao primeiro passo.');
+  if (t.type === 'wa_broadcast') {
+    const first = nextNode(g, trig.id, 'next');
+    if (first && first.type !== 'template') {
+      add(first.id, 'error', 'A transmissão começa com um modelo aprovado: fora das 24 h, o WhatsApp só entrega modelo.');
+    }
+  }
 
   const reach = reachable(g);
   // Blocos que podem rodar sem a conversa estar aberta (antes de qualquer clique ou resposta da pessoa).
-  const closed = fromComment ? closedWindowNodes(g) : new Set<string>();
+  const closed = fromComment || t.type === 'wa_broadcast' ? closedWindowNodes(g) : new Set<string>();
 
   for (const n of g.nodes) {
     if (n.type === 'trigger') continue;
     if (!reach.has(n.id)) add(n.id, 'warning', 'Este bloco não está ligado ao fluxo e não vai rodar.');
     switch (n.type) {
+      case 'template':
+        if (!wa) { add(n.id, 'error', 'Modelo aprovado só existe no WhatsApp oficial.'); break; }
+        if (!n.data.templateId) add(n.id, 'error', 'Escolha o modelo aprovado.');
+        if (n.data.params.some((p) => !p.trim())) add(n.id, 'warning', 'Preencha todas as variáveis do modelo.');
+        if (n.data.buttons.some((b) => !TEMPLATE_BUTTON_RE.test(b.id))) add(n.id, 'error', 'Escolha o modelo de novo: os botões não conferem.');
+        if (n.data.buttons.length && !g.edges.some((e) => e.source === n.id && e.sourceHandle.startsWith('btn:'))) {
+          add(n.id, 'warning', 'Ligue os botões do modelo aos próximos passos: o clique é o que continua a conversa.');
+        }
+        break;
       case 'comment_reply':
+        if (wa) { add(n.id, 'error', 'Responder no comentário só existe no Instagram.'); break; }
         if (!fromComment) add(n.id, 'error', 'Responder no comentário só funciona com gatilho de comentário.');
         if (!n.data.variants.some((v) => v.trim())) add(n.id, 'warning', 'Escreva a resposta do comentário.');
         break;
       case 'private_reply':
+        if (wa) { add(n.id, 'error', 'Responder no privado só existe no Instagram. Use "Texto".'); break; }
         if (!fromComment) add(n.id, 'error', 'Responder no privado só funciona com gatilho de comentário. Use "Texto".');
         if (!n.data.text.trim()) add(n.id, 'warning', 'Escreva a mensagem.');
         checkButtons(n.id, n.data.buttons, add);
@@ -175,13 +216,18 @@ export function flowIssues(g: FlowGraph): FlowIssue[] {
       case 'text':
         if (!n.data.text.trim()) add(n.id, 'warning', 'Escreva a mensagem.');
         checkButtons(n.id, n.data.buttons, add);
+        if (wa && n.data.buttons.some((b) => b.url)) add(n.id, 'warning', 'No WhatsApp, o botão de link vai como link no fim do texto.');
         break;
       case 'media':
         if (!n.data.fileId) add(n.id, 'warning', 'Escolha o arquivo na biblioteca de mídia.');
         break;
       case 'wait': {
         const minutes = n.data.amount * (n.data.unit === 'days' ? 1440 : n.data.unit === 'hours' ? 60 : 1);
-        if (minutes > 23 * 60) add(n.id, 'warning', 'O Instagram só deixa mandar mensagem até 24 h depois da última mensagem da pessoa: depois disso, o próximo passo pode não chegar.');
+        if (minutes > 23 * 60) {
+          add(n.id, 'warning', wa
+            ? 'O WhatsApp só deixa mandar mensagem livre até 24 h depois da última mensagem da pessoa: depois disso, use um bloco "Modelo aprovado".'
+            : 'O Instagram só deixa mandar mensagem até 24 h depois da última mensagem da pessoa: depois disso, o próximo passo pode não chegar.');
+        }
         break;
       }
       case 'question':
@@ -193,6 +239,7 @@ export function flowIssues(g: FlowGraph): FlowIssue[] {
       case 'condition':
         if (!n.data.rules.length) add(n.id, 'warning', 'Adicione pelo menos uma regra.');
         if (n.data.rules.some((r) => ('tagId' in r && !r.tagId) || ('key' in r && !r.key))) add(n.id, 'warning', 'Complete as regras.');
+        if (wa && n.data.rules.some((r) => r.kind === 'follows' || r.kind === 'not_follows')) add(n.id, 'error', '"Segue a conta" só existe no Instagram.');
         break;
       case 'action':
         if (!n.data.ops.length) add(n.id, 'warning', 'Adicione pelo menos uma ação.');
@@ -203,6 +250,9 @@ export function flowIssues(g: FlowGraph): FlowIssue[] {
     }
     if (fromComment && DM_NODES.includes(n.type) && closed.has(n.id)) {
       add(n.id, 'warning', 'A conversa ainda não está aberta aqui: no comentário, o direct só abre pela "Resposta no privado" e o clique no botão.');
+    }
+    if (t.type === 'wa_broadcast' && DM_NODES.includes(n.type) && closed.has(n.id)) {
+      add(n.id, 'warning', 'A pessoa ainda não respondeu aqui: fora das 24 h, só o modelo aprovado chega. Ligue este passo depois de um botão do modelo.');
     }
   }
   return out;
@@ -311,10 +361,16 @@ export function starterGraph(type: TriggerType): FlowGraph {
   const trigger: FlowNode = {
     id: 'trigger', type: 'trigger', position: { x: 0, y: 0 },
     data: {
-      type, posts: 'any', postIds: [], match: type === 'story_mention' || type === 'reaction' ? 'any' : 'contains', keywords: [],
+      type, posts: 'any', postIds: [], match: type === 'story_mention' || type === 'reaction' || type === 'wa_broadcast' ? 'any' : 'contains', keywords: [],
       frequency: COMMENT_TRIGGERS.includes(type) ? 'once_per_post' : 'every',
     },
   };
+  if (type === 'wa_broadcast') {
+    return {
+      nodes: [trigger, { id: 'n1', type: 'template', position: { x: 380, y: 80 }, data: { templateId: null, name: null, params: [], buttons: [] } }],
+      edges: [{ id: 'e1', source: 'trigger', sourceHandle: 'next', target: 'n1' }],
+    };
+  }
   if (COMMENT_TRIGGERS.includes(type)) {
     return {
       nodes: [

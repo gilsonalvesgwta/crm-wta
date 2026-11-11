@@ -208,6 +208,22 @@ Ver: `campaigns:view`. Criar, mudar, publicar e subir mídia: `campaigns:edit`. 
 
 Desenho (`draft`): `{nodes: [{id, type, position, data}], edges: [{id, source, sourceHandle: next|yes|no|timeout|btn:<id>, target}]}`. Tipos: `trigger` (comment, live_comment, dm_keyword, story_reply, story_mention, reaction; publicações, palavras-chave, frequência), `comment_reply` (sorteia até 3), `private_reply` (uma por comentário, até 3 botões), `text`, `media`, `wait`, `question` (guarda em variável, campo, e-mail ou telefone), `condition` (etiqueta, segue a conta, variável), `action` (etiqueta, campo, lead, negócio, aviso, passar a conversa).
 
+### Fluxos e transmissões do WhatsApp oficial (11 nov 2026)
+
+Mesmo desenho, motor e permissões dos fluxos do Instagram; só contas `whatsapp_cloud`. A biblioteca de mídia é a mesma (`/api/v1/instagram/media`).
+
+| Endpoint | O que faz |
+| --- | --- |
+| `GET /api/v1/whatsapp/accounts` | WhatsApp oficial da empresa |
+| `GET`, `POST /api/v1/whatsapp/flows` | Lista; cria `{accountId, name, triggerType: wa_broadcast \| wa_keyword}` (`wa_broadcast` já vem com o bloco de modelo) |
+| `GET`, `PATCH`, `DELETE /api/v1/whatsapp/flows/:id` | Como no Instagram; fluxo de um canal não abre pelo outro (404) |
+| `POST …/:id/publish` | Publica: além dos erros do desenho, confere que cada modelo é deste número, está aprovado, tem as variáveis preenchidas e que os botões são respostas rápidas do modelo (422 `flow-errors`) |
+| `POST …/:id/pause`, `…/resume`, `…/duplicate`, `GET …/:id/results?from&to` | Como no Instagram |
+
+Blocos do WhatsApp: `template` (`{templateId, name, params, buttons: [{id: "q<posição no modelo>", title}]}`; chega fora das 24 h; cada resposta rápida é uma saída `btn:q<n>`), `text` (até 3 botões de resposta, mandados como mensagem interativa; link vai no fim do texto), `media`, `wait`, `question`, `condition` (sem "segue a conta") e `action`. A transmissão (`wa_broadcast`) precisa começar por um modelo. O clique volta pelo dado do botão (`f:<execução>:<botão>`) no aviso da Cloud API (`button.payload` ou `interactive.button_reply.id`); escrever exatamente o nome de um botão que espera clique também vale.
+
+Campanhas: `flowId` (WhatsApp oficial, fluxo `wa_broadcast` do mesmo número). Com fluxo, o modelo e os botões vêm do fluxo; ao iniciar, o fluxo precisa estar ativo. A campanha devolve `flow` e `flowStats` (`clicked`, `completed`, `waiting`).
+
 ### Operação e ações agendadas (bloco 3 dos ajustes)
 
 | Endpoint | Permissão | O que faz |

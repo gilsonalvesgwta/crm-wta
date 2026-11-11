@@ -37,6 +37,8 @@ export const campaignBody = z.object({
   /** WhatsApp oficial: modelo aprovado e o valor de cada variável (aceita {{primeiro_nome}} etc.). */
   templateId: uuid.nullable().optional(),
   templateParams: z.array(z.string().trim().max(1000)).max(20).default([]),
+  /** WhatsApp oficial: fluxo de transmissão (o modelo e os botões vêm do fluxo; o clique continua a conversa). */
+  flowId: uuid.nullable().optional(),
 }).refine((v) => !!v.windowStart === !!v.windowEnd, { message: 'Informe o início e o fim da janela.', path: ['windowEnd'] });
 export type CampaignInput = z.infer<typeof campaignBody>;
 

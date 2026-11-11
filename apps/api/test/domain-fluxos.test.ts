@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  checkAnswer, flowIssues, graphSchema, keywordScore, nextNode, normalize, parsePayload, payloadFor, renderText, starterGraph, waitMinutes,
+  channelOfTrigger, checkAnswer, flowIssues, graphSchema, keywordScore, nextNode, normalize, parsePayload, payloadFor, renderText, starterGraph, waitMinutes,
   type FlowGraph,
 } from '../src/domain/flows.js';
 
@@ -81,4 +81,42 @@ test('desenho inválido é recusado: dois gatilhos, seta para bloco inexistente'
   for (const t of ['live_comment', 'dm_keyword', 'story_reply', 'story_mention', 'reaction'] as const) {
     assert.equal(graphSchema.safeParse(starterGraph(t)).success, true, t);
   }
+});
+
+test('WhatsApp: transmissão começa pelo modelo; blocos só do Instagram dão erro; janela fechada antes do clique', () => {
+  const start = starterGraph('wa_broadcast');
+  assert.deepEqual(start.nodes.map((n) => n.type), ['trigger', 'template']);
+  assert.ok(flowIssues(start).some((i) => i.nodeId === 'n1' && i.level === 'error' && /Escolha o modelo/.test(i.message)));
+  const tpl = '018f0000-0000-7000-8000-000000000001';
+  const g = graphSchema.parse({
+    nodes: [
+      { id: 'trigger', type: 'trigger', data: { type: 'wa_broadcast', match: 'any' } },
+      { id: 't', type: 'template', data: { templateId: tpl, name: 'raio_x', params: ['{{nome}}'], buttons: [{ id: 'q0', title: 'Quero' }] } },
+      { id: 'a', type: 'text', data: { text: 'Depois do clique', buttons: [{ id: 'l', title: 'Site', url: 'https://exemplo.com' }] } },
+      { id: 'b', type: 'text', data: { text: 'Sem clique' } },
+      { id: 'c', type: 'comment_reply', data: { variants: ['oi'] } },
+      { id: 'd', type: 'condition', data: { rules: [{ kind: 'follows' }] } },
+    ],
+    edges: [
+      { id: '1', source: 'trigger', target: 't' }, { id: '2', source: 't', sourceHandle: 'btn:q0', target: 'a' },
+      { id: '3', source: 'a', target: 'd' }, { id: '4', source: 'd', sourceHandle: 'yes', target: 'c' },
+    ],
+  });
+  const issues = flowIssues(g);
+  const of = (id: string) => issues.filter((i) => i.nodeId === id);
+  assert.equal(of('t').filter((i) => i.level === 'error').length, 0, 'modelo escolhido e botão ligado');
+  assert.ok(of('a').some((i) => /link no fim do texto/.test(i.message)));
+  assert.ok(of('c').some((i) => i.level === 'error' && /só existe no Instagram/.test(i.message)));
+  assert.ok(of('d').some((i) => i.level === 'error' && /Segue a conta/.test(i.message)));
+  // Texto ligado direto ao modelo sem botão: a pessoa ainda não respondeu.
+  const closed = graphSchema.parse({ ...g, edges: [...g.edges, { id: '5', source: 't', sourceHandle: 'next', target: 'b' }] });
+  assert.ok(flowIssues(closed).some((i) => i.nodeId === 'b' && /fora das 24 h/.test(i.message)));
+  // O primeiro passo da transmissão precisa ser modelo.
+  const first = graphSchema.parse({ ...g, edges: [{ id: '1', source: 'trigger', target: 'b' }] });
+  assert.ok(flowIssues(first).some((i) => i.nodeId === 'b' && i.level === 'error'));
+  // Modelo num fluxo do Instagram não.
+  const ig = graphSchema.parse({ ...g, nodes: g.nodes.map((n) => (n.type === 'trigger' ? { ...n, data: { ...n.data, type: 'dm_keyword' } } : n)) });
+  assert.ok(flowIssues(ig).some((i) => i.nodeId === 't' && i.level === 'error'));
+  assert.equal(channelOfTrigger('wa_keyword'), 'whatsapp');
+  assert.equal(channelOfTrigger('comment'), 'instagram');
 });

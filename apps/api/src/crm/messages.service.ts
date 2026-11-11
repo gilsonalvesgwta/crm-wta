@@ -26,6 +26,16 @@ export type SendInput = {
   voice?: boolean | null;
 };
 
+/** Envio feito por um fluxo do WhatsApp oficial: botões e mídia da biblioteca. */
+export type FlowSendExtras = {
+  /** Modelo: dado de cada botão de resposta rápida (posição do botão no modelo e o dado que volta no clique). */
+  buttonPayloads?: { index: number; payload: string }[];
+  /** Mensagem interativa com até 3 botões de resposta (o id volta no clique). */
+  replyButtons?: { id: string; title: string }[];
+  /** Arquivo da biblioteca de mídia (vai por link assinado). */
+  mediaFileId?: string | null;
+};
+
 /** Canal de cada tipo de conta. */
 export function channelOf(kind: string): 'whatsapp' | 'email' | 'instagram' {
   return kind === 'email_smtp' ? 'email' : kind === 'instagram' ? 'instagram' : 'whatsapp';
@@ -82,7 +92,7 @@ function igMediaUrl(u: string | undefined): string | null {
 
 type TemplateRow = {
   name: string; language: string; body: string; header: string | null; header_format: string | null; header_file_id: string | null;
-  header_media_url: string | null; file_name: string | null;
+  header_media_url: string | null; file_name: string | null; buttons: { type: string; text: string }[] | null;
 };
 
 @Injectable()
@@ -244,6 +254,11 @@ export class MessagesService {
     return this.sendAs({ tenantId: actor.tenantId!, actor, automationRuleId: null, checked: true, channel }, contactId, input, file);
   }
 
+  /** Envio de um fluxo do WhatsApp oficial (transmissão): sem pessoa, respeitando a lista de supressão. */
+  sendByFlow(tenantId: string, flowId: string, campaignId: string | null, contactId: string, input: SendInput, extras: FlowSendExtras = {}) {
+    return this.sendAs({ tenantId, actor: null, automationRuleId: null, flowId, ...(campaignId ? { campaignId } : {}) }, contactId, input, undefined, extras);
+  }
+
   /** Envio de uma automação: sem pessoa, respeitando a lista de supressão. */
   sendByAutomation(tenantId: string, ruleId: string, contactId: string, input: SendInput) {
     return this.sendAs({ tenantId, actor: null, automationRuleId: ruleId }, contactId, input);
@@ -253,15 +268,17 @@ export class MessagesService {
     by: {
       tenantId: string; actor: Actor | null; automationRuleId: string | null; checked?: boolean; channel?: 'whatsapp' | 'email' | 'instagram';
       campaignId?: string;
+      /** Fluxo que mandou (aparece em Conversas). */
+      flowId?: string;
       /** Mensagem agendada por uma pessoa: sai em nome dela, sem a lista de supressão. */
       sentBy?: string | null;
     },
-    contactId: string, input: SendInput, file?: Upload,
+    contactId: string, input: SendInput, file?: Upload, extras: FlowSendExtras = {},
   ) {
     const actor = by.actor;
     const ctx = actor ? tenantCtx(actor) : { tenantId: by.tenantId, userId: null };
     let text = input.text?.trim() || null;
-    if (!text && !file && !input.templateId) throw Problem.badRequest('Mensagem vazia.', [{ field: 'text', message: 'Escreva a mensagem ou anexe um arquivo.' }]);
+    if (!text && !file && !input.templateId && !extras.mediaFileId) throw Problem.badRequest('Mensagem vazia.', [{ field: 'text', message: 'Escreva a mensagem ou anexe um arquivo.' }]);
     // Áudio gravado no CRM: Ogg/Opus para o WhatsApp (mensagem de voz) e M4A para o Instagram.
     if (file && input.voice) {
       const kind = (await this.db.app(ctx, (q) => q.query<{ kind: string }>('select kind from channel_accounts where id = $1', [input.accountId]))).rows[0]?.kind;
@@ -318,7 +335,7 @@ export class MessagesService {
         const open = !!last && Date.now() - last.getTime() < WINDOW_MS;
         if (a.kind === 'whatsapp_cloud' && input.templateId) {
           template = (await q.query<TemplateRow>(
-            `select t.name, t.language, t.body, t.header, t.header_format, t.header_file_id, t.header_media_url,
+            `select t.name, t.language, t.body, t.header, t.header_format, t.header_file_id, t.header_media_url, t.buttons,
                     (select f.original_name from files f where f.id = t.header_file_id and f.deleted_at is null) as file_name
                from whatsapp_templates t where t.id = $1 and t.channel_account_id = $2 and t.status = 'APPROVED'`,
             [input.templateId, a.id])).rows[0] ?? null;
@@ -346,12 +363,25 @@ export class MessagesService {
           throw Problem.badRequest('Arquivo não aceito pelo Instagram.', [{ field: 'file', message: 'O Instagram aceita imagem (JPG, PNG, GIF), vídeo (MP4, MOV), áudio (M4A, AAC, WAV) e PDF.' }]);
         }
       }
-      const kind = input.voice && file ? 'audio' : contentType ? kindOf(contentType) : 'text';
+      // Mídia da biblioteca (fluxo do WhatsApp oficial): vai por link assinado; no histórico fica o nome do arquivo.
+      let library: { name: string; contentType: string } | null = null;
+      if (extras.mediaFileId) {
+        if (a.kind !== 'whatsapp_cloud') throw Problem.badRequest('Arquivo da biblioteca só pelo WhatsApp oficial.', [{ field: 'accountId', message: 'Escolha o WhatsApp oficial.' }]);
+        const lf = (await q.query<{ original_name: string; content_type: string }>(
+          `select original_name, content_type from files where id = $1 and purpose = 'media' and deleted_at is null`, [extras.mediaFileId])).rows[0];
+        if (!lf) throw new Problem(409, 'O arquivo saiu da biblioteca de mídia.', 'media-missing');
+        library = { name: lf.original_name, contentType: lf.content_type };
+      }
+      const kind = input.voice && file ? 'audio' : contentType ? kindOf(contentType) : library ? kindOf(library.contentType) : 'text';
+      // Botões no histórico: "[Quero] [Saber mais]" depois do texto (só nos envios de fluxo).
+      const buttons: string[] = extras.replyButtons?.length ? extras.replyButtons.map((b) => b.title)
+        : extras.buttonPayloads?.length ? (template?.buttons ?? []).filter((b) => b.type === 'QUICK_REPLY').map((b) => b.text) : [];
+      const body = library && !text ? `[${library.name}]` : buttons.length && text ? `${text}\n${buttons.map((b) => `[${b}]`).join(' ')}` : text;
       const m = await q.query<{ id: string }>(
-        `insert into messages (tenant_id, channel_account_id, channel, direction, status, contact_id, remote, subject, body, kind, file_id, sent_by, automation_rule_id, campaign_id)
-         values (app.tenant_id(), $1, $2, 'out', 'queued', $3, $4, $5, $6, $7, $8, $9, $10, $11) returning id`,
-        [a.id, channel, contactId, to, channel === 'email' ? input.subject!.trim() : null, text, kind, fileId, actor?.membershipId ?? by.sentBy ?? null, by.automationRuleId, by.campaignId ?? null]);
-      return { id: m.rows[0]!.id, account: a, channel, to, kind, contentType, template, fileId };
+        `insert into messages (tenant_id, channel_account_id, channel, direction, status, contact_id, remote, subject, body, kind, file_id, sent_by, automation_rule_id, campaign_id, ig_flow_id)
+         values (app.tenant_id(), $1, $2, 'out', 'queued', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) returning id`,
+        [a.id, channel, contactId, to, channel === 'email' ? input.subject!.trim() : null, body, kind, fileId, actor?.membershipId ?? by.sentBy ?? null, by.automationRuleId, by.campaignId ?? null, by.flowId ?? null]);
+      return { id: m.rows[0]!.id, account: a, channel, to, kind, contentType, template, fileId, library };
     });
 
     // 2. Entrega pelo canal, fora da transação.
@@ -375,8 +405,23 @@ export class MessagesService {
             components.push({ type: 'header', parameters: [{ type: kind, [kind]: { link, ...(fmt === 'DOCUMENT' ? { filename: prep.template.file_name ?? 'documento.pdf' } : {}) } }] });
           }
           if (params.length) components.push({ type: 'body', parameters: params.map((v) => ({ type: 'text', text: v })) });
+          // Fluxo: cada resposta rápida leva o dado que volta no clique (para continuar a conversa certa).
+          for (const b of extras.buttonPayloads ?? []) {
+            components.push({ type: 'button', sub_type: 'quick_reply', index: String(b.index), parameters: [{ type: 'payload', payload: b.payload }] });
+          }
           externalId = await this.meta.sendWhatsapp(phoneId, c.token, { to, type: 'template', template: {
             name: prep.template.name, language: { code: prep.template.language }, components,
+          } });
+        } else if (extras.mediaFileId && prep.library) {
+          const t = prep.kind === 'image' || prep.kind === 'video' || prep.kind === 'audio' ? prep.kind : 'document';
+          externalId = await this.meta.sendWhatsapp(phoneId, c.token, { to, type: t, [t]: {
+            link: this.files.publicUrl(by.tenantId, extras.mediaFileId, 3 * 86400),
+            ...(t !== 'audio' && text ? { caption: text } : {}), ...(t === 'document' ? { filename: prep.library.name } : {}) } });
+        } else if (extras.replyButtons?.length) {
+          // Mensagem interativa: até 3 botões de resposta; o clique volta com o id do botão.
+          externalId = await this.meta.sendWhatsapp(phoneId, c.token, { to, type: 'interactive', interactive: {
+            type: 'button', body: { text: text!.slice(0, 1024) },
+            action: { buttons: extras.replyButtons.slice(0, 3).map((b) => ({ type: 'reply', reply: { id: b.id.slice(0, 256), title: b.title.slice(0, 20) } })) },
           } });
         } else if (file) {
           const mediaId = await this.meta.uploadMedia(phoneId, c.token, { data: file.data, type: prep.contentType!, name: file.name });

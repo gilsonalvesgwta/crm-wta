@@ -23,6 +23,16 @@ Atualizado em 9 de novembro de 2026.
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
 
+### Transmissões e fluxos do WhatsApp oficial, estilo Manychat (11 nov 2026)
+
+- Novo menu WhatsApp (Fluxos, Transmissões, Resultados, Modelos). O editor é o mesmo dos fluxos do Instagram, com o bloco "Modelo aprovado": escolhe um modelo aprovado do número (imagem/vídeo/documento no topo, variáveis e botões) e cada resposta rápida do modelo vira um caminho.
+- Gatilhos: "Quando você envia uma transmissão" (a campanha manda o modelo para todo o público e o clique continua a conversa) e "Palavra na mensagem".
+- Depois do clique: texto com até 3 botões (mensagem interativa), mídia da biblioteca, esperar, pergunta (e-mail, telefone, campo), condição e ações no CRM (etiqueta, campo, lead, negócio, aviso, passar a conversa). Escrever o nome do botão também vale como clique; a Meta mandar o número sem o nono dígito também.
+- Campanhas › Nova (ou "Enviar transmissão" no fluxo): no WhatsApp oficial, escolha "Transmissão com fluxo". Público, ritmo, agendamento e aprovação continuam os mesmos; a campanha mostra quantos tocaram num botão e os resultados por botão ficam em WhatsApp › Resultados.
+- Mensagens dos fluxos ficam em Conversas, com a campanha. Mensagem livre fora das 24 h é recusada pela própria regra do WhatsApp (o passo falha com o motivo).
+- Migração 0023: coluna `channel` nos fluxos (os do Instagram ficam como estão), gatilhos `wa_broadcast` e `wa_keyword`, `campaign_id` na execução e `flow_id` na campanha.
+- Validação real com a Meta (modelo com botões aprovado, transmissão e clique) depende do número oficial conectado; os testes usam a Cloud API simulada.
+
 ### Funis arquivados e limpeza de negócios (11 nov 2026)
 
 - Configurações › Funis mostra os funis arquivados numa seção própria, com renomear, desarquivar, limpar e excluir. Cada funil mostra quantos negócios tem.

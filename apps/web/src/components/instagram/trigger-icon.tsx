@@ -1,4 +1,4 @@
-import { AtSign, Heart, MessageCircle, MessageSquareText, Radio, Reply } from 'lucide-react';
+import { AtSign, Heart, Megaphone, MessageCircle, MessageSquareText, Radio, Reply } from 'lucide-react';
 import type { TriggerType } from '@/lib/instagram';
 import { TRIGGER_TONE } from './tabs';
 
@@ -9,6 +9,8 @@ const ICONS: Record<TriggerType, typeof MessageCircle> = {
   story_reply: Reply,
   story_mention: AtSign,
   reaction: Heart,
+  wa_broadcast: Megaphone,
+  wa_keyword: MessageSquareText,
 };
 
 export function TriggerIcon({ type, size = 36 }: { type: TriggerType; size?: number }) {

@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Check, Mail, MessageCircle, Send, CalendarClock, Save } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
@@ -7,6 +8,7 @@ import { phone } from '@/lib/crm';
 import { dateTime } from '@/lib/admin-types';
 import { channelOfKind, fillTemplate, renderTemplate, templateVariables, type Channel, type QuickReply, type SendAccount, type WaTemplate } from '@/lib/messages';
 import { CAMPAIGN_VARIABLES, emptyAudience, type Audience, type AudiencePreview, type Campaign } from '@/lib/campaigns';
+import { FLOW_STATUS, type FlowItem } from '@/lib/instagram';
 import { useSession } from '@/components/shell/session';
 import { useDirectory, usePipelines } from './data';
 import { TagPicker } from './pickers';
@@ -23,9 +25,13 @@ type Draft = {
   name: string; description: string; channel: Channel | ''; audience: Audience; accountId: string; subject: string; body: string;
   perMinute: number; useWindow: boolean; windowStart: string; windowEnd: string; optOutHint: boolean; when: 'now' | 'later'; scheduledAt: string;
   templateId: string; templateParams: string[];
+  /** WhatsApp oficial: transmissão com fluxo (modelo com botões que continuam a conversa). */
+  useFlow: boolean; flowId: string;
 };
 
-function fromCampaign(c: Campaign | null): Draft {
+export type CampaignPreset = { flowId?: string | null; broadcast?: boolean };
+
+function fromCampaign(c: Campaign | null, preset?: CampaignPreset): Draft {
   return {
     name: c?.name ?? '', description: c?.description ?? '', channel: c?.channel ?? '',
     audience: { ...emptyAudience(), ...(c?.audience ?? {}) }, accountId: c?.accountId ?? '', subject: c?.subject ?? '', body: c?.body ?? '',
@@ -33,6 +39,8 @@ function fromCampaign(c: Campaign | null): Draft {
     optOutHint: c?.optOutHint ?? true, when: c?.scheduledAt && c.status === 'scheduled' ? 'later' : 'now',
     scheduledAt: c?.scheduledAt ? toLocalInput(new Date(c.scheduledAt)) : '',
     templateId: c?.templateId ?? '', templateParams: c?.templateParams ?? [],
+    useFlow: !!c?.flowId || (!c && !!(preset?.flowId || preset?.broadcast)), flowId: c?.flowId ?? (!c ? preset?.flowId ?? '' : ''),
+    ...(!c && (preset?.flowId || preset?.broadcast) ? { channel: 'whatsapp' as const } : {}),
   };
 }
 
@@ -42,7 +50,7 @@ function toLocalInput(d: Date): string {
 }
 
 /** Os campos de um passo que impedem seguir, com a mensagem. */
-function problems(d: Draft, step: number, preview: AudiencePreview | null, cloud: WaTemplate | null | 'pick'): Record<string, string> {
+function problems(d: Draft, step: number, preview: AudiencePreview | null, cloud: WaTemplate | null | 'pick' | 'flow'): Record<string, string> {
   const e: Record<string, string> = {};
   if (step === 0) {
     if (!d.name.trim()) e.name = 'Informe o nome da campanha.';
@@ -52,7 +60,8 @@ function problems(d: Draft, step: number, preview: AudiencePreview | null, cloud
   if (step === 2) {
     if (!d.accountId) e.accountId = d.channel === 'email' ? 'Escolha a conta de e-mail.' : 'Escolha o WhatsApp.';
     if (d.channel === 'email' && !d.subject.trim()) e.subject = 'Escreva o assunto.';
-    if (cloud === 'pick') e.templateId = 'No WhatsApp oficial, escolha um modelo aprovado.';
+    if (cloud === 'flow') { if (!d.flowId) e.flowId = 'Escolha o fluxo da transmissão.'; }
+    else if (cloud === 'pick') e.templateId = 'No WhatsApp oficial, escolha um modelo aprovado.';
     else if (cloud) {
       if (d.templateParams.slice(0, templateVariables(cloud.body)).filter((v) => v.trim()).length < templateVariables(cloud.body)) e.templateParams = 'Preencha todas as variáveis do modelo.';
     } else if (!d.body.trim()) e.body = 'Escreva a mensagem.';
@@ -62,12 +71,13 @@ function problems(d: Draft, step: number, preview: AudiencePreview | null, cloud
   return e;
 }
 
-export function CampaignWizard({ initial }: { initial: Campaign | null }) {
+export function CampaignWizard({ initial, preset }: { initial: Campaign | null; preset?: CampaignPreset }) {
   const router = useRouter();
   const { can, me } = useSession();
   const dir = useDirectory();
   const pipelines = usePipelines();
-  const [d, setD] = useState<Draft>(() => fromCampaign(initial));
+  const [d, setD] = useState<Draft>(() => fromCampaign(initial, preset));
+  const [flows, setFlows] = useState<FlowItem[]>([]);
   const [id, setId] = useState<string | null>(initial?.id ?? null);
   const [step, setStep] = useState(0);
   const [done, setDone] = useState<number>(initial ? 3 : 0);
@@ -95,11 +105,28 @@ export function CampaignWizard({ initial }: { initial: Campaign | null }) {
     if (!isCloud) return;
     api<{ items: WaTemplate[] }>('GET', `/api/v1/whatsapp-templates?accountId=${d.accountId}&approved=1`).then((r) => setTemplates(r.items)).catch(() => setTemplates([]));
   }, [isCloud, d.accountId]);
-  const chosen = isCloud ? templates.find((t) => t.id === d.templateId) ?? null : null;
+  const flowMode = isCloud && d.useFlow;
+  const chosen = isCloud && !d.useFlow ? templates.find((t) => t.id === d.templateId) ?? null : null;
+  // Fluxos de transmissão (WhatsApp oficial) para escolher; o fluxo indicado no endereço já escolhe o número.
+  const anyCloud = accounts.some((a) => a.kind === 'whatsapp_cloud');
+  useEffect(() => {
+    if (!anyCloud) return;
+    api<FlowItem[]>('GET', '/api/v1/whatsapp/flows').then((r) => setFlows(r.filter((f) => f.triggerType === 'wa_broadcast'))).catch(() => setFlows([]));
+  }, [anyCloud]);
+  const accountFlows = flows.filter((f) => f.accountId === d.accountId);
+  const chosenFlow = flowMode ? flows.find((f) => f.id === d.flowId) ?? null : null;
   useEffect(() => {
     if (d.channel && !usable.some((a) => a.id === d.accountId) && usable[0]) set({ accountId: usable[0].id });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [d.channel, accounts.length]);
+  // Transmissão aberta pelo fluxo ("Enviar transmissão"): o número é o do fluxo.
+  const presetDone = useRef(false);
+  useEffect(() => {
+    if (presetDone.current || initial || !preset?.flowId) return;
+    const fa = flows.find((f) => f.id === preset.flowId)?.accountId;
+    if (fa && accounts.some((a) => a.id === fa)) { presetDone.current = true; set({ accountId: fa, useFlow: true, flowId: preset.flowId }); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flows.length, accounts.length]);
 
   // Prévia do público a cada mudança (com uma pequena espera).
   const audienceKey = JSON.stringify([d.channel, d.audience]);
@@ -114,7 +141,7 @@ export function CampaignWizard({ initial }: { initial: Campaign | null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audienceKey]);
 
-  const errs = problems(d, step, preview, isCloud ? (chosen ?? 'pick') : null);
+  const errs = problems(d, step, preview, flowMode ? 'flow' : isCloud ? (chosen ?? 'pick') : null);
   const pct = Math.round((done / STEPS.length) * 100);
 
   function body() {
@@ -122,7 +149,8 @@ export function CampaignWizard({ initial }: { initial: Campaign | null }) {
       name: d.name, description: d.description || null, channel: d.channel, audience: d.audience, accountId: d.accountId || null,
       subject: d.channel === 'email' ? d.subject || null : null, body: d.body || null, perMinute: d.perMinute,
       windowStart: d.useWindow ? d.windowStart : null, windowEnd: d.useWindow ? d.windowEnd : null, optOutHint: d.optOutHint,
-      templateId: isCloud && d.templateId ? d.templateId : null, templateParams: isCloud ? d.templateParams : [],
+      templateId: isCloud && !d.useFlow && d.templateId ? d.templateId : null, templateParams: isCloud && !d.useFlow ? d.templateParams : [],
+      flowId: flowMode && d.flowId ? d.flowId : null,
     };
   }
 
@@ -290,6 +318,30 @@ export function CampaignWizard({ initial }: { initial: Campaign | null }) {
               {usable.map((a) => <option key={a.id} value={a.id}>{a.name}{a.kind === 'whatsapp_cloud' ? ' (oficial)' : ''}{a.address ? ` · ${a.address.startsWith('+') ? phone(a.address) : a.address}` : ''}</option>)}
             </Select>
             {isCloud ? (
+              <div role="radiogroup" aria-label="Conteúdo da campanha" className="grid gap-2 sm:grid-cols-2">
+                {[
+                  { v: false, t: 'Modelo aprovado', s: 'Uma mensagem para todos.' },
+                  { v: true, t: 'Transmissão com fluxo', s: 'Modelo com botões; cada clique continua a conversa.' },
+                ].map((o) => (
+                  <button key={String(o.v)} type="button" role="radio" aria-checked={d.useFlow === o.v}
+                    onClick={() => set({ useFlow: o.v, ...(o.v && !d.flowId && accountFlows[0] ? { flowId: accountFlows[0].id } : {}) })}
+                    className={`flex flex-col rounded-[10px] border p-3 text-left ${d.useFlow === o.v ? 'border-primary bg-accent-soft' : 'border-line hover:bg-surface-2'}`}>
+                    <span className="text-sm font-semibold">{o.t}</span><span className="text-[13px] text-muted">{o.s}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {flowMode ? (
+              <>
+                <Select label="Fluxo da transmissão *" value={d.flowId} error={fieldErr('flowId')} onChange={(e) => set({ flowId: e.target.value })}>
+                  <option value="">{accountFlows.length ? 'Escolha o fluxo' : 'Nenhum fluxo de transmissão neste número'}</option>
+                  {accountFlows.map((f) => <option key={f.id} value={f.id}>{f.name} ({FLOW_STATUS[f.status].label.toLowerCase()})</option>)}
+                </Select>
+                {chosenFlow && chosenFlow.status !== 'active' ? <Alert tone="warning">Publique o fluxo antes de enviar: só fluxo ativo pode ser usado.</Alert> : null}
+                <p className="text-[13px] text-muted">O modelo, as variáveis e os botões vêm do fluxo. <Link href={chosenFlow ? `/whatsapp/fluxos/${chosenFlow.id}` : '/whatsapp'} className="underline">{chosenFlow ? 'Abrir o fluxo' : 'Criar um fluxo de transmissão'}</Link></p>
+              </>
+            ) : null}
+            {isCloud && !d.useFlow ? (
               <>
                 <Alert tone="info">No WhatsApp oficial, campanhas saem só com modelo aprovado pela Meta. Crie modelos em Configurações › Canais › Modelos.</Alert>
                 <Select label="Modelo aprovado *" value={d.templateId} error={fieldErr('templateId')} onChange={(e) => {
@@ -400,7 +452,7 @@ export function CampaignWizard({ initial }: { initial: Campaign | null }) {
             <dt className="text-muted">Canal</dt><dd className="flex items-center gap-1.5">{d.channel === 'email' ? <Mail size={14} aria-hidden /> : <MessageCircle size={14} aria-hidden />}{d.channel === 'email' ? 'E-mail' : 'WhatsApp'}{account ? ` · ${account.name}` : ''}</dd>
             <dt className="text-muted">Público</dt><dd>{preview ? `${preview.eligible} contato(s)` : '…'}</dd>
             {d.channel === 'email' ? <><dt className="text-muted">Assunto</dt><dd>{d.subject}</dd></> : null}
-            <dt className="text-muted">Mensagem</dt><dd className="whitespace-pre-wrap">{chosen ? `Modelo ${chosen.name}: ${fillTemplate(chosen.body, d.templateParams)}` : d.body}</dd>
+            <dt className="text-muted">Mensagem</dt><dd className="whitespace-pre-wrap">{chosenFlow ? `Fluxo ${chosenFlow.name}` : chosen ? `Modelo ${chosen.name}: ${fillTemplate(chosen.body, d.templateParams)}` : d.body}</dd>
             <dt className="text-muted">Ritmo</dt><dd>{d.perMinute} por minuto{d.useWindow ? `, das ${d.windowStart} às ${d.windowEnd}` : ''}</dd>
             <dt className="text-muted">Quando</dt><dd>{d.when === 'later' && d.scheduledAt ? dateTime.format(new Date(d.scheduledAt)) : 'Assim que aprovar'}</dd>
           </dl>
