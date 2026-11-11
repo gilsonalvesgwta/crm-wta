@@ -75,6 +75,42 @@ function MessageMedia({ m, out }: { m: Message; out: boolean }) {
   );
 }
 
+/** Mensagem que chegou sem conteúdo (tipo novo ou ainda cifrada): busca de novo no WhatsApp. */
+function MissingContent({ m, out }: { m: Message; out: boolean }) {
+  const [got, setGot] = useState<Message | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  if (got) {
+    return (
+      <>
+        {got.file ? <MediaPreview file={got.file} kind={got.kind} out={out} autoPlay={false} /> : null}
+        {got.body ? <p className="whitespace-pre-wrap break-words">{got.body}</p> : null}
+      </>
+    );
+  }
+  async function load() {
+    setBusy(true);
+    setErr(null);
+    try {
+      setGot(await api<Message>('POST', `/api/v1/messages/${m.id}/media`));
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.title : 'Não foi possível carregar a mensagem.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="italic text-muted">Mensagem sem conteúdo no CRM</p>
+      <button type="button" onClick={() => void load()} disabled={busy}
+        className={`flex items-center gap-2 self-start rounded-full px-3 py-1.5 text-[13px] font-medium ${out ? 'bg-black/10' : 'bg-surface-2'} hover:underline disabled:opacity-70`}>
+        {busy ? <Spinner /> : <Download size={14} aria-hidden />}Carregar mensagem
+      </button>
+      {err ? <p role="alert" className="text-[12px] text-bad">{err}</p> : null}
+    </div>
+  );
+}
+
 function Bubble({ m }: { m: Message }) {
   const out = m.direction === 'out';
   return (
@@ -89,7 +125,8 @@ function Bubble({ m }: { m: Message }) {
         </p>
         {m.subject ? <p className="font-semibold">{m.subject}</p> : null}
         {m.file || MEDIA_ACTION[m.kind] ? <MessageMedia m={m} out={out} />
-          : !m.body ? <p className="italic text-muted">{KIND_LABEL[m.kind] ?? 'Mensagem'}</p> : null}
+          : !m.body && m.kind === 'other' && m.channel === 'whatsapp' ? <MissingContent m={m} out={out} />
+            : !m.body ? <p className="italic text-muted">{KIND_LABEL[m.kind] ?? 'Mensagem'}</p> : null}
         {m.body ? <p className="whitespace-pre-wrap break-words">{m.body}</p> : null}
         {m.status === 'failed' && m.error ? <p className="text-[12px] font-medium text-bad">{m.error}</p> : null}
         <p className="flex items-center justify-end gap-1.5 text-[11px] text-muted">

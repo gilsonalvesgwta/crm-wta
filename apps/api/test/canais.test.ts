@@ -296,6 +296,32 @@ describe('WhatsApp pela Evolution', () => {
     assert.equal((await admin.post(`/api/v1/messages/${txt.id}/media`, {})).status, 422);
   });
 
+  test('mensagem que chega vazia: completa quando o conteúdo chega e sob demanda pela Evolution', async () => {
+    const id = await contact(admin, { firstName: 'Vazia', phones: [{ number: '+5519958720050' }] });
+    const hist = async () => (await admin.get(`/api/v1/contacts/${id}/messages`)).body.items as { id: string; kind: string; body: string | null }[];
+    // Primeiro o aviso sem conteúdo (ainda cifrada); depois o mesmo id com o texto.
+    await upsert({ key: { remoteJid: '5519958720050@s.whatsapp.net', fromMe: false, id: 'EMPTY-1' }, message: {}, messageTimestamp: 1762800000 });
+    let h = await hist();
+    assert.deepEqual([h[0]!.kind, h[0]!.body], ['other', null]);
+    await upsert({ key: { remoteJid: '5519958720050@s.whatsapp.net', fromMe: false, id: 'EMPTY-1' },
+      message: { ephemeralMessage: { message: { extendedTextMessage: { text: 'Oi, quero saber do consórcio' } } } }, messageType: 'ephemeralMessage' });
+    h = await hist();
+    assert.equal(h.length, 1);
+    assert.deepEqual([h[0]!.kind, h[0]!.body], ['text', 'Oi, quero saber do consórcio']);
+    // Vazia que nunca chegou de novo: "Carregar mensagem" busca na Evolution.
+    await upsert({ key: { remoteJid: '5519958720050@s.whatsapp.net', fromMe: false, id: 'EMPTY-2' }, message: {} });
+    const empty = (await hist()).find((m) => m.kind === 'other')!;
+    const no = await admin.post(`/api/v1/messages/${empty.id}/media`, {});
+    assert.equal(no.status, 409);
+    assert.equal(no.body.type, 'content-unavailable');
+    evo.stored.set('EMPTY-2', { key: { remoteJid: '5519958720050@s.whatsapp.net', fromMe: false, id: 'EMPTY-2' },
+      message: { viewOnceMessageV2: { message: { imageMessage: { caption: 'Simulação', mimetype: 'image/png' } } } }, messageType: 'viewOnceMessageV2' });
+    evo.media.set('EMPTY-2', { base64: PNG.toString('base64'), mimetype: 'image/png' });
+    const ok = await admin.post(`/api/v1/messages/${empty.id}/media`, {});
+    assert.equal(ok.status, 200, JSON.stringify(ok.body));
+    assert.deepEqual([ok.body.kind, ok.body.body, ok.body.file?.contentType], ['image', 'Simulação', 'image/png']);
+  });
+
   test('falha no envio fica registrada com o motivo', async () => {
     const id = await contact(admin, { firstName: 'Sem Zap', phones: [{ number: '+5511900001111' }] });
     evo.failNext = { status: 400, body: { status: 400, error: 'Bad Request', response: { message: [{ exists: false, jid: '5511900001111@s.whatsapp.net', number: '5511900001111' }] } } };

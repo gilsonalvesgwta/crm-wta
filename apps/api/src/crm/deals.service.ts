@@ -386,6 +386,9 @@ export class DealsService {
         }
       }
       const from = await q.query<{ name: string }>('select name from pipeline_stages where id = $1', [cur.stage_id]);
+      // Transferência entre funis: guarda os nomes no histórico.
+      const pipes = pipelineId !== cur.pipeline_id ? (await q.query<{ id: string; name: string }>(
+        'select id, name from pipelines where id = any($1::uuid[])', [[cur.pipeline_id, pipelineId]])).rows : [];
       try {
         await q.query(
           `update deals set pipeline_id = $2, stage_id = $3,
@@ -403,7 +406,8 @@ export class DealsService {
       }
       const kind = to.kind === 'won' ? 'deal.won' : to.kind === 'lost' ? 'deal.lost' : 'deal.stage_changed';
       await timeline(q, actor, kind, { dealId: id, contactId: cur.contact_id, organizationId: cur.organization_id },
-        { fromStage: from.rows[0]?.name, toStage: to.name, toStageId: to.id, pipelineId, reasonId: input.reasonId ?? null });
+        { fromStage: from.rows[0]?.name, toStage: to.name, toStageId: to.id, pipelineId, reasonId: input.reasonId ?? null,
+          ...(pipes.length ? { fromPipeline: pipes.find((x) => x.id === cur.pipeline_id)?.name, toPipeline: pipes.find((x) => x.id === pipelineId)?.name } : {}) });
       return this.detail(q, id);
     });
   }

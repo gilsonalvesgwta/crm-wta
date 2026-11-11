@@ -305,6 +305,11 @@ export class ChannelsService {
           const stored = await this.messages.receiveWhatsapp(acc.tenant_id, acc.account_id, ev);
           if (stored !== 'duplicate') handled++;
           // O aviso veio sem o arquivo (áudio, foto...): busca na Evolution sem segurar a resposta do aviso.
+          // Chegou vazia (o WhatsApp ainda estava decifrando ou é um tipo novo): busca de novo daqui a pouco.
+          if (stored === 'stored' && ev.kind === 'other' && !ev.text && acc.external_id) {
+            const inst = acc.external_id;
+            setTimeout(() => { void this.messages.reloadContent(acc.tenant_id, acc.account_id, inst, ev.id).catch(() => false); }, 20_000).unref();
+          }
           if (stored === 'stored' && !ev.media && ['image', 'audio', 'video', 'document', 'sticker'].includes(ev.kind) && acc.external_id) {
             void this.messages.recoverMedia(acc.tenant_id, acc.account_id, acc.external_id, ev.id);
           }

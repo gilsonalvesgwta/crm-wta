@@ -16,6 +16,8 @@ export class FakeEvolution {
   url = '';
   /** Mídias que a Evolution devolve em getBase64FromMediaMessage, pelo id da mensagem. */
   readonly media = new Map<string, { base64: string; mimetype: string }>();
+  /** Mensagens guardadas na Evolution (busca pelo identificador). */
+  readonly stored = new Map<string, Record<string, unknown>>();
   readonly key: string;
 
   constructor(key: string) {
@@ -78,6 +80,11 @@ export class FakeEvolution {
             const m = this.media.get(String((body.message as { key?: { id?: string } } | undefined)?.key?.id));
             return m ? send(201, { mediaType: 'audioMessage', fileName: null, mimetype: m.mimetype, base64: m.base64 })
               : send(400, { status: 400, error: 'Bad Request', response: { message: ['Message not found'] } });
+          }
+          case 'POST /chat/findMessages': {
+            const id = String(((body.where as { key?: { id?: string } } | undefined)?.key?.id) ?? '');
+            const m = this.stored.get(id);
+            return send(200, { messages: { total: m ? 1 : 0, pages: 1, currentPage: 1, records: m ? [m] : [] } });
           }
           case 'POST /webhook/set': inst.webhook = (body.webhook as { url: string }).url; return send(201, { webhook: body.webhook });
           case 'POST /message/sendText':

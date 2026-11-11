@@ -139,6 +139,17 @@ export class Evolution {
     return idOf(r);
   }
 
+  /** Busca uma mensagem guardada na Evolution pelo identificador (formato do aviso). */
+  async findMessage(name: string, messageId: string): Promise<Json | null> {
+    const r = await this.call<unknown>('POST', `/chat/findMessages/${name}`, { where: { key: { id: messageId } } }, 30_000);
+    const root = r as Json | unknown[] | null;
+    const list: unknown[] = Array.isArray(root) ? root
+      : Array.isArray((root as Json | null)?.messages) ? (root as Json).messages as unknown[]
+        : Array.isArray(((root as Json | null)?.messages as Json | undefined)?.records) ? ((root as Json).messages as Json).records as unknown[] : [];
+    const hit = list.find((m) => ((m as Json)?.key as Json | undefined)?.id === messageId) as Json | undefined;
+    return hit ?? null;
+  }
+
   /** Baixa a mídia de uma mensagem que a Evolution guardou (quando o aviso chegou sem o arquivo). */
   async mediaOf(name: string, messageId: string): Promise<{ base64: string; mimetype: string | null; fileName: string | null } | null> {
     const r = await this.call<Json>('POST', `/chat/getBase64FromMediaMessage/${name}`, { message: { key: { id: messageId } }, convertToMp4: false }, 60_000);
