@@ -1,0 +1,32 @@
+
+> crm-wta@ build /home/runner/work/crm-wta/crm-wta
+> pnpm -r --if-present build
+
+Scope: 2 of 3 workspace projects
+apps/api build$ tsc -p tsconfig.build.json
+apps/web build$ next build
+apps/web build: ▲ Next.js 16.4.0 (Turbopack)
+apps/web build: ✓ Running next.config.ts took 27ms
+apps/web build: ⚠ No build cache found. Please configure build caching for faster rebuilds. Read more: https://nextjs.org/docs/messages/no-cache
+apps/web build: Attention: Next.js now collects completely anonymous telemetry regarding usage.
+apps/web build: This information is used to shape Next.js' roadmap and prioritize features.
+apps/web build: You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+apps/web build: https://nextjs.org/telemetry
+apps/web build:   Creating an optimized production build ...
+apps/api build: Done
+apps/web build: ✓ Compiled successfully in 6.1s
+apps/web build:   Running TypeScript ...
+apps/web build: src/components/instagram/node-settings.tsx(342,7): error TS2322: Type '({ id: string; title: string; url: null; } | null)[]' is not assignable to type 'FlowButton[]'.
+apps/web build:   Type '{ id: string; title: string; url: null; } | null' is not assignable to type 'FlowButton'.
+apps/web build:     Type 'null' is not assignable to type 'FlowButton'.
+apps/web build: src/components/instagram/node-settings.tsx(342,136): error TS2677: A type predicate's type must be assignable to its parameter's type.
+apps/web build:   Type 'FlowButton' is not assignable to type '{ id: string; title: string; url: null; }'.
+apps/web build:     Types of property 'url' are incompatible.
+apps/web build:       Type 'string | null | undefined' is not assignable to type 'null'.
+apps/web build:         Type 'undefined' is not assignable to type 'null'.
+apps/web build: Failed to type check.
+apps/web build: Failed
+/home/runner/work/crm-wta/crm-wta/apps/web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @crm/web@ build: `next build`
+Exit status 1
+ ELIFECYCLE  Command failed with exit code 1.
