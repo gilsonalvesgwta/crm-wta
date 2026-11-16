@@ -1,9 +1,9 @@
 Creating network crmwta_interna
-Creating service crmwta_migrate
-Creating service crmwta_api
 Creating service crmwta_web
 Creating service crmwta_backup
 Creating service crmwta_db
+Creating service crmwta_migrate
+Creating service crmwta_api
 aguardando os serviços...
 crmwta_api 1/1
 crmwta_backup 1/1
