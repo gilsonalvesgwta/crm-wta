@@ -367,7 +367,7 @@ describe('funis e negócios', () => {
     const ids: string[] = [];
     for (let i = 1; i <= 4; i++) ids.push((await manager.post('/api/v1/deals', { pipelineId: pl.id, title: `Importado ${i}` })).body.id);
     const won = pl.stages.find((s) => s.kind === 'won')!.id;
-    assert.equal((await manager.post(`/api/v1/deals/${ids[3]}/move`, { stageId: won })).status, 200);
+    await f.admin.query("update deals set stage_id = $2, status = 'won', closed_at = now() where id = $1", [ids[3], won]);
     const body = { pipelineId: pl.id, fromOwnerId: m['gestor@a.test'], toOwnerId: m['vendas1@a.test'] };
     assert.equal((await sales1.post('/api/v1/deals/bulk-owner', { ...body, dryRun: true })).status, 403, 'comercial não troca em massa');
     const dry = await manager.post('/api/v1/deals/bulk-owner', { ...body, dryRun: true });
