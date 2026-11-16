@@ -208,6 +208,12 @@ Ver: `campaigns:view`. Criar, mudar, publicar e subir mídia: `campaigns:edit`. 
 
 Desenho (`draft`): `{nodes: [{id, type, position, data}], edges: [{id, source, sourceHandle: next|yes|no|timeout|btn:<id>, target}]}`. Tipos: `trigger` (comment, live_comment, dm_keyword, story_reply, story_mention, reaction; publicações, palavras-chave, frequência), `comment_reply` (sorteia até 3), `private_reply` (uma por comentário, até 3 botões), `text`, `media`, `wait`, `question` (guarda em variável, campo, e-mail ou telefone), `condition` (etiqueta, segue a conta, variável), `action` (etiqueta, campo, lead, negócio, aviso, passar a conversa).
 
+### Responsável em massa e aviso de negócio parado (16 nov 2026)
+
+- `POST /api/v1/deals/bulk-owner { pipelineId?, fromOwnerId?: <id>|"none", status: "open"|"all", toOwnerId, dryRun }` (permissão `deals:assign`): troca o responsável de todos os negócios no alcance que batem com os filtros. `dryRun: true` só conta. Resposta `{count, updated}`.
+- `GET /api/v1/deals?stale=1`: só os negócios parados; `pipelineId` agora é opcional na lista.
+- `PATCH /api/v1/pipelines/:id { stale: { …, recipients: "creator"|"owner"|"fixed"|"owner_fixed", memberIds: [], whatsapp, inApp } }`: quem recebe e por onde. Com `notifyDays`, precisa de pelo menos um canal, do número quando `whatsapp`, e de pessoas quando `fixed`/`owner_fixed`. O aviso no CRM é a notificação `deal.stale`.
+
 ### Notas de áudio e negócio parado (16 nov 2026)
 
 - `POST /api/v1/records/:kind/:id/notes/audio` (multipart `file`, até 25 MB, só áudio): cria a nota com o áudio; o texto vem depois por `PATCH /api/v1/notes/:id`. As notas trazem `audio` (`id`, `name`, `contentType`, `sizeBytes`).

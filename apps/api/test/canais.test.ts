@@ -355,7 +355,7 @@ describe('WhatsApp pela Evolution', () => {
     assert.equal((await admin.patch(`/api/v1/pipelines/${pl.id}`, { stale: { days: 7, notifyDays: 2, accountId: null } })).status, 422);
     const r = await admin.patch(`/api/v1/pipelines/${pl.id}`, { stale: { days: 7, notifyDays: 2, accountId: waAccount } });
     assert.equal(r.status, 200, JSON.stringify(r.body));
-    assert.deepEqual(r.body.stale, { days: 7, notifyDays: 2, accountId: waAccount });
+    assert.deepEqual(r.body.stale, { days: 7, notifyDays: 2, accountId: waAccount, recipients: 'creator', memberIds: [], whatsapp: true, inApp: false });
     const card = (await admin.get(`/api/v1/deals/${deal.id}`)).body;
     assert.deepEqual([card.rotting, card.idleDays], [true, 9]);
     const before = evo.sent.length;
@@ -363,6 +363,9 @@ describe('WhatsApp pela Evolution', () => {
     const msgs = evo.sent.slice(before).filter((x) => x.type === 'text' && String(x.body.number) === '5531988887777');
     assert.equal(msgs.length, 1, JSON.stringify(evo.sent.slice(before)));
     assert.match(String(msgs[0]!.body.text), /"Consórcio Imóvel 300k" está sem movimentação há 9 dias/);
+    // Filtro "só parados" na lista.
+    const parados = (await admin.get(`/api/v1/deals?pipelineId=${pl.id}&stale=1`)).body;
+    assert.deepEqual(parados.items.map((x: { id: string }) => x.id), [deal.id]);
     // Não repete antes do prazo.
     await app.get(DispatcherService).runOnce();
     assert.equal(evo.sent.slice(before).filter((x) => String(x.body.number) === '5531988887777').length, 1);
@@ -373,6 +376,56 @@ describe('WhatsApp pela Evolution', () => {
     // Andou de etapa: deixa de estar parado.
     const moved = await admin.post(`/api/v1/deals/${deal.id}/move`, { stageId: pl.stages[1]!.id });
     assert.deepEqual([moved.body.rotting, moved.body.idleDays], [false, 0]);
+    await f.admin.query("update tenants set timezone = 'America/Sao_Paulo' where id = $1", [f.tenantA]);
+  });
+
+  test('negócio parado em massa: um resumo por pessoa (responsável + fixa), no WhatsApp e no CRM', async () => {
+    const off = 12 - new Date().getUTCHours();
+    await f.admin.query('update tenants set timezone = $2 where id = $1', [f.tenantA, off === 0 ? 'UTC' : `Etc/GMT${off > 0 ? '-' : '+'}${Math.abs(off)}`]);
+    const salesId = (await f.admin.query<{ id: string }>(
+      "select m.id from memberships m join users u on u.id = m.user_id where u.email = 'vendas@a.test'")).rows[0]!.id;
+    await f.admin.query("update memberships set notify_phone = '+5531966665555' where id = $1", [salesId]);
+    const pl = (await admin.post('/api/v1/pipelines', { name: 'Importados 500' })).body as { id: string; stages: { id: string }[] };
+    const ids: string[] = [];
+    for (let i = 1; i <= 12; i++) {
+      ids.push((await admin.post('/api/v1/deals', { pipelineId: pl.id, title: `Importado ${i}`, stageId: pl.stages[0]!.id })).body.id);
+    }
+    await f.admin.query("update deals set stage_entered_at = now() - interval '20 days', last_activity_at = null where id = any($1::uuid[])", [ids]);
+    // Pessoas fixas: precisa escolher alguém; e precisa de pelo menos um canal.
+    assert.equal((await admin.patch(`/api/v1/pipelines/${pl.id}`, { stale: { days: 5, notifyDays: 3, accountId: waAccount, recipients: 'fixed', memberIds: [] } })).status, 422);
+    assert.equal((await admin.patch(`/api/v1/pipelines/${pl.id}`, { stale: { days: 5, notifyDays: 3, accountId: null, whatsapp: false, inApp: false } })).status, 422);
+    const r = await admin.patch(`/api/v1/pipelines/${pl.id}`, {
+      stale: { days: 5, notifyDays: 3, accountId: waAccount, recipients: 'owner_fixed', memberIds: [salesId], whatsapp: true, inApp: true },
+    });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.deepEqual([r.body.stale.recipients, r.body.stale.memberIds, r.body.stale.inApp], ['owner_fixed', [salesId], true]);
+    const before = evo.sent.length;
+    const notesBefore = (await f.admin.query("select count(*)::int as n from notifications where kind = 'deal.stale'")).rows[0]!.n as number;
+    await app.get(DispatcherService).runOnce();
+    const sent = evo.sent.slice(before).filter((x) => x.type === 'text');
+    const toOwner = sent.filter((x) => String(x.body.number) === '5531988887777');
+    const toFixed = sent.filter((x) => String(x.body.number) === '5531966665555');
+    assert.equal(toOwner.length, 1, 'uma mensagem só para o responsável, não doze');
+    assert.equal(toFixed.length, 1, 'uma mensagem só para a pessoa fixa');
+    assert.match(String(toFixed[0]!.body.text), /12 negócios sem movimentação/);
+    assert.match(String(toFixed[0]!.body.text), /e mais 2\./);
+    assert.match(String(toFixed[0]!.body.text), /parados=1/);
+    // Aviso no CRM: um por pessoa, com link para a lista de parados.
+    const notes = await f.admin.query<{ membership_id: string; title: string; link: string }>(
+      "select membership_id, title, link from notifications where kind = 'deal.stale' order by created_at desc, membership_id limit 10");
+    const notesAfter = (await f.admin.query("select count(*)::int as n from notifications where kind = 'deal.stale'")).rows[0]!.n as number;
+    assert.equal(notesAfter - notesBefore, 2, 'um aviso no CRM para cada pessoa');
+    assert.ok(notes.rows.some((x) => x.membership_id === salesId && x.title === '12 negócios sem movimentação' && x.link.includes('parados=1')));
+    // Histórico de cada negócio registra o aviso.
+    const tl = await f.admin.query("select count(*)::int as n from timeline_entries where kind = 'deal.stale_notified' and deal_id = any($1::uuid[])", [ids]);
+    assert.equal(tl.rows[0]!.n, 12);
+    // Rodar de novo não repete.
+    await app.get(DispatcherService).runOnce();
+    assert.equal(evo.sent.slice(before).filter((x) => x.type === 'text' && String(x.body.number) === '5531966665555').length, 1);
+    // A pessoa fixa vê o aviso no sininho.
+    const mine = await sales.get('/api/v1/notifications');
+    assert.equal(mine.status, 200);
+    assert.ok(JSON.stringify(mine.body).includes('12 negócios sem movimentação'));
     await f.admin.query("update tenants set timezone = 'America/Sao_Paulo' where id = $1", [f.tenantA]);
   });
 

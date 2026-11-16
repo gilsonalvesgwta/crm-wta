@@ -374,6 +374,20 @@ export class DealsController {
     sendCsv(res, 'negocios', (await this.io.exportDeals(a, f)).data);
   }
 
+  /** Trocar o responsável de vários negócios de uma vez ("dryRun" só conta). */
+  @Require('deals:assign')
+  @Post('bulk-owner')
+  @HttpCode(200)
+  bulkOwner(@CurrentActor() a: Actor, @Body() b: unknown) {
+    return this.deals.bulkOwner(a, parse(z.object({
+      pipelineId: S.uuid.nullable().optional(),
+      fromOwnerId: z.union([S.uuid, z.literal('none')]).nullable().optional(),
+      status: z.enum(['open', 'all']).default('open'),
+      toOwnerId: S.uuid,
+      dryRun: z.boolean().default(false),
+    }), b));
+  }
+
   @Require('deals:edit')
   @Post()
   create(@CurrentActor() a: Actor, @Body() b: unknown) {

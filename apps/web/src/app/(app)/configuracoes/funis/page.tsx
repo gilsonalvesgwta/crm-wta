@@ -108,6 +108,12 @@ function GeneralPanel({ pipeline, onChange }: { pipeline: Pipeline; onChange: ()
   const [notifyOn, setNotifyOn] = useState(!!pipeline.stale?.notifyDays);
   const [notifyDays, setNotifyDays] = useState(String(pipeline.stale?.notifyDays ?? 3));
   const [staleAccount, setStaleAccount] = useState(pipeline.stale?.accountId ?? '');
+  const [recipients, setRecipients] = useState<'creator' | 'owner' | 'fixed' | 'owner_fixed'>(pipeline.stale?.recipients ?? 'creator');
+  const [fixed, setFixed] = useState<string[]>(pipeline.stale?.memberIds ?? []);
+  const [viaWa, setViaWa] = useState(pipeline.stale?.whatsapp ?? true);
+  const [viaApp, setViaApp] = useState(pipeline.stale?.inApp ?? false);
+  const needsFixed = recipients === 'fixed' || recipients === 'owner_fixed';
+  const staleInvalid = notifyOn && ((!viaWa && !viaApp) || (viaWa && !staleAccount) || (needsFixed && fixed.length === 0));
   const [waAccounts, setWaAccounts] = useState<{ id: string; name: string; kind: string; address: string | null }[]>([]);
   useEffect(() => {
     api<{ id: string; name: string; kind: string; address: string | null }[]>('GET', '/api/v1/conversations/accounts')
@@ -168,20 +174,61 @@ function GeneralPanel({ pipeline, onChange }: { pipeline: Pipeline; onChange: ()
             onChange={(e) => setStaleDays(e.target.value)} />
           <label className="flex min-h-9 items-center gap-2 text-sm">
             <input type="checkbox" className="size-4 accent-[var(--primary)]" checked={notifyOn} onChange={(e) => setNotifyOn(e.target.checked)} />
-            Avisar por WhatsApp quem cadastrou o negócio (ou o responsável)
+            Avisar quando um negócio ficar parado
           </label>
           {notifyOn ? (
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Repetir o aviso a cada (dias)" type="number" min={1} max={365} value={notifyDays} onChange={(e) => setNotifyDays(e.target.value)} />
-              <Select label="Enviar pelo número" value={staleAccount} onChange={(e) => setStaleAccount(e.target.value)}>
-                <option value="">{waAccounts.length ? 'Escolha o WhatsApp' : 'Nenhum WhatsApp conectado'}</option>
-                {waAccounts.map((a) => <option key={a.id} value={a.id}>{a.name}{a.address ? ` · ${a.address}` : ''}</option>)}
+              <Select label="Quem recebe" value={recipients} onChange={(e) => setRecipients(e.target.value as typeof recipients)}>
+                <option value="creator">Quem cadastrou o negócio (ou o responsável)</option>
+                <option value="owner">O responsável pelo negócio</option>
+                <option value="fixed">Pessoas fixas (sempre as mesmas)</option>
+                <option value="owner_fixed">O responsável e as pessoas fixas</option>
               </Select>
-              <p className="text-[13px] text-muted sm:col-span-2">O aviso vai para o WhatsApp de aviso de cada pessoa (Configurações › Usuários), em horário comercial. Pelo WhatsApp oficial, só chega se a pessoa falou com o número nas últimas 24 h; prefira o WhatsApp por QR code.</p>
+              <Field label="Repetir o aviso a cada (dias)" type="number" min={1} max={365} value={notifyDays} onChange={(e) => setNotifyDays(e.target.value)} />
+              {needsFixed ? (
+                <fieldset className="flex flex-col gap-1 sm:col-span-2">
+                  <legend className="mb-1 text-[13px] font-medium">Pessoas fixas</legend>
+                  <div className="flex max-h-44 flex-col gap-0.5 overflow-y-auto rounded-[6px] border border-line p-2">
+                    {(dir?.members ?? []).map((m) => (
+                      <label key={m.id} className="flex min-h-8 items-center gap-2 text-sm">
+                        <input type="checkbox" className="size-4 accent-[var(--primary)]" checked={fixed.includes(m.id)}
+                          onChange={(e) => setFixed((cur) => e.target.checked ? [...cur, m.id] : cur.filter((x) => x !== m.id))} />
+                        {m.name}
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-[13px] text-muted">Recebem o aviso de todos os negócios parados deste funil, seja quem for o responsável.</p>
+                </fieldset>
+              ) : null}
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <span className="text-[13px] font-medium">Por onde</span>
+                <label className="flex min-h-8 items-center gap-2 text-sm">
+                  <input type="checkbox" className="size-4 accent-[var(--primary)]" checked={viaApp} onChange={(e) => setViaApp(e.target.checked)} />
+                  Aviso no CRM (sininho de notificações)
+                </label>
+                <label className="flex min-h-8 items-center gap-2 text-sm">
+                  <input type="checkbox" className="size-4 accent-[var(--primary)]" checked={viaWa} onChange={(e) => setViaWa(e.target.checked)} />
+                  WhatsApp
+                </label>
+              </div>
+              {viaWa ? (
+                <Select label="Enviar pelo número" value={staleAccount} onChange={(e) => setStaleAccount(e.target.value)}>
+                  <option value="">{waAccounts.length ? 'Escolha o WhatsApp' : 'Nenhum WhatsApp conectado'}</option>
+                  {waAccounts.map((a) => <option key={a.id} value={a.id}>{a.name}{a.address ? ` · ${a.address}` : ''}</option>)}
+                </Select>
+              ) : null}
+              <p className="text-[13px] text-muted sm:col-span-2">
+                Cada pessoa recebe <strong className="text-ink">uma mensagem só</strong> com o resumo dos seus negócios parados (os 10 mais antigos e um link para ver todos), em vez de uma por negócio. Sai em horário comercial (8h às 20h, no fuso da empresa).
+                {viaWa ? ' O WhatsApp vai para o número de aviso de cada pessoa (Configurações › Usuários). Pelo WhatsApp oficial, só chega se a pessoa falou com o número nas últimas 24 h; prefira o WhatsApp por QR code.' : ''}
+              </p>
             </div>
           ) : null}
-          <div><Button variant="secondary" loading={busy} disabled={notifyOn && !staleAccount}
-            onClick={() => save({ stale: { days: staleDays ? Number(staleDays) : null, notifyDays: notifyOn ? Number(notifyDays) || 3 : null, accountId: notifyOn ? staleAccount || null : null } }, 'Aviso de negócio parado salvo.')}>Salvar aviso</Button></div>
+          <div><Button variant="secondary" loading={busy} disabled={staleInvalid}
+            onClick={() => save({ stale: {
+              days: staleDays ? Number(staleDays) : null, notifyDays: notifyOn ? Number(notifyDays) || 3 : null,
+              accountId: notifyOn && viaWa ? staleAccount || null : null,
+              recipients, memberIds: needsFixed ? fixed : [], whatsapp: viaWa, inApp: viaApp,
+            } }, 'Aviso de negócio parado salvo.')}>Salvar aviso</Button></div>
         </fieldset>
         {canDanger ? (
           <fieldset className="flex flex-col gap-3 rounded-[8px] border border-bad/40 p-3">

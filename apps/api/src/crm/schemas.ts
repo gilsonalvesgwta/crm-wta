@@ -140,6 +140,12 @@ export const pipelinePatch = z.object({
     days: z.number().int().min(1, { message: 'De 1 a 365 dias.' }).max(365, { message: 'De 1 a 365 dias.' }).nullable(),
     notifyDays: z.number().int().min(1, { message: 'De 1 a 365 dias.' }).max(365, { message: 'De 1 a 365 dias.' }).nullable(),
     accountId: uuid.nullable(),
+    /** Quem recebe: quem cadastrou, o responsável, pessoas fixas ou o responsável + as fixas. */
+    recipients: z.enum(['creator', 'owner', 'fixed', 'owner_fixed']).optional(),
+    memberIds: z.array(uuid).max(20).optional(),
+    /** Por onde: WhatsApp e/ou aviso no próprio CRM (o sininho). */
+    whatsapp: z.boolean().optional(),
+    inApp: z.boolean().optional(),
   }).optional(),
 });
 export const stagesBody = z.object({ stages: z.array(stageBody).min(3).max(30) });
@@ -173,6 +179,8 @@ export const dealQuery = z.object({
   ownerId: z.union([uuid, z.literal('none')]).optional(), tagId: uuid.optional(), q: z.string().trim().max(200).optional(),
   contactId: uuid.optional(), organizationId: uuid.optional(), closeFrom: isoDate.optional(), closeTo: isoDate.optional(),
   sort: z.enum(['created', 'value', 'close', 'activity', 'title']).default('created'), dir: z.enum(['asc', 'desc']).default('desc'),
+  /** Só os negócios parados. */
+  stale: z.enum(['1', 'true']).transform(() => true).optional(),
   page, pageSize,
 });
 export const boardQuery = z.object({

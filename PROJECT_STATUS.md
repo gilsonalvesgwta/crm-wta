@@ -23,6 +23,13 @@ Atualizado em 9 de novembro de 2026.
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
 
+### Responsável em massa e aviso de negócio parado agrupado (16 nov 2026)
+
+- Negócios › Trocar responsável: passa vários negócios de uma vez para outra pessoa, filtrando por funil (ou todos), responsável atual (qualquer, sem responsável ou alguém) e situação (só em andamento ou todos). Mostra quantos vão mudar antes de confirmar; o histórico de cada negócio, a auditoria (`deal.bulk_owner`) e o aviso para o novo responsável registram a troca. Precisa de "Atribuir negócios e leads"; o líder só passa para alguém da equipe.
+- Aviso de negócio parado: quem recebe (quem cadastrou, o responsável, pessoas fixas ou o responsável + as fixas) e por onde (WhatsApp e/ou aviso no CRM, no sininho). Cada pessoa recebe **uma mensagem só** por rodada com o resumo dos seus negócios parados (os 10 mais antigos, "e mais N" e o link da lista de parados), em vez de uma por negócio; entre um WhatsApp e outro há uma pausa de 1,5 s.
+- Lista de negócios: filtro "Só parados" e "Todos os funis".
+- Migração 0026: `pipelines.stale_recipients/stale_member_ids/stale_whatsapp/stale_in_app`; `app.claim_stale_deals` também atende o aviso só no CRM e pega até 2.000 negócios por rodada. Funis existentes continuam como estavam (quem cadastrou, por WhatsApp).
+
 ### Negócio: notas de áudio, conversas no card, excluir atividade e negócio parado (16 nov 2026)
 
 - Notas: editar o texto (quem escreveu) e gravar áudio no navegador; a equipe ouve na própria nota. O áudio não aparece em Arquivos e sai junto quando a nota é apagada.
