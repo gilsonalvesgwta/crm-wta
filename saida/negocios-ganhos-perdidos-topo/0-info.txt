@@ -1,4 +1,4 @@
-commit: 580ad6ee5d84a5a8c0472ab60d684f4be437f01e
+commit: 2873e6b5cb39860969b94d20e0c66ca18aef007f
 ramo: negocios-ganhos-perdidos-topo
-execucao: 43971321456
-inicio: 2026-11-16T22:35:01Z
+execucao: 43973701307
+inicio: 2026-11-16T22:50:36Z
