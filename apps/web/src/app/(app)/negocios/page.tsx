@@ -1,5 +1,5 @@
 'use client';
-import { Suspense, useEffect, useMemo, useState, type PointerEventHandler, type ReactNode } from 'react';
+import { Suspense, useEffect, useMemo, useState, type CSSProperties, type PointerEventHandler, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -207,13 +207,21 @@ function Column({ stage, canMove }: { stage: Board['stages'][number]; canMove: b
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   return (
     <section ref={setNodeRef} aria-label={`Etapa ${stage.name}`}
-      className={`flex w-[292px] shrink-0 flex-col rounded-[10px] border bg-surface-2 ${isOver ? 'border-primary ring-2 ring-primary/30' : 'border-line'}`}>
-      <header className="flex flex-col gap-0.5 border-b border-line px-3 py-2.5" style={{ boxShadow: `inset 0 3px 0 ${stage.color}` }}>
+      style={{ '--stage': stage.color || 'var(--border-strong)' } as CSSProperties}
+      className={`flex w-[292px] shrink-0 flex-col overflow-hidden rounded-[12px] border bg-[color-mix(in_srgb,var(--surface-2)_70%,var(--bg))] transition-shadow ${isOver ? 'border-primary ring-2 ring-primary/30' : 'border-line'}`}>
+      {/* Cabeçalho da etapa: faixa e fundo na cor da etapa, para separar bem dos cartões. */}
+      <header className="relative flex flex-col gap-1 border-b border-[color-mix(in_srgb,var(--stage)_35%,var(--border))] px-3.5 pb-3 pt-3.5
+        bg-[linear-gradient(180deg,color-mix(in_srgb,var(--stage)_22%,var(--surface))_0%,color-mix(in_srgb,var(--stage)_10%,var(--surface))_100%)]">
+        <span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-[var(--stage)]" />
         <div className="flex items-center justify-between gap-2">
-          <h2 className="truncate text-sm font-semibold">{stage.name}</h2>
-          <span className="text-[12px] text-muted">{stage.count}</span>
+          <h2 className="flex min-w-0 items-center gap-2 text-[13px] font-bold uppercase tracking-[0.04em]">
+            <span aria-hidden className="size-2.5 shrink-0 rounded-full bg-[var(--stage)] ring-2 ring-[color-mix(in_srgb,var(--stage)_30%,transparent)]" />
+            <span className="truncate">{stage.name}</span>
+          </h2>
+          <span className="min-w-7 rounded-full bg-[color-mix(in_srgb,var(--stage)_20%,var(--surface))] px-2 py-0.5 text-center text-[12px] font-semibold tabular-nums ring-1 ring-[color-mix(in_srgb,var(--stage)_40%,transparent)]"
+            aria-label={`${stage.count} negócios`}>{stage.count}</span>
         </div>
-        <p className="text-[12px] text-muted"><span className="font-medium text-ink tabular-nums">{money(stage.totalCents, 'BRL', true)}</span>{stage.probability ? ` · ${stage.probability}%` : ''}</p>
+        <p className="text-[12px] text-ink"><span className="text-[15px] font-semibold tabular-nums">{money(stage.totalCents, 'BRL', true)}</span>{stage.probability ? ` · ${stage.probability}%` : ''}</p>
       </header>
       <ol className="flex min-h-[120px] flex-col gap-2 p-2">
         {stage.deals.map((d) => <li key={d.id}>{canMove ? <DraggableCard deal={d} /> : <Card deal={d} />}</li>)}
@@ -243,7 +251,7 @@ function DraggableCard({ deal }: { deal: DealCard }) {
 
 function Card({ deal, overlay = false, handle }: { deal: DealCard; overlay?: boolean; handle?: ReactNode }) {
   return (
-    <article className={`flex flex-col gap-1.5 rounded-[8px] border bg-surface p-3 text-sm ${overlay ? 'rotate-1 border-primary shadow-xl' : 'border-line shadow-[0_1px_0_rgba(5,22,40,0.04)]'}`}>
+    <article className={`flex flex-col gap-1.5 rounded-[8px] border bg-surface p-3 text-sm ${overlay ? 'rotate-1 border-primary shadow-xl' : 'border-line shadow-[0_1px_2px_rgba(5,22,40,0.06),0_1px_1px_rgba(5,22,40,0.04)] transition-shadow hover:shadow-[0_6px_16px_rgba(5,22,40,0.10)]'}`}>
       <div className="flex items-start justify-between gap-2">
         <Link href={`/negocios/${deal.id}`} className="font-medium leading-snug hover:underline" onPointerDown={(e) => e.stopPropagation()}>{deal.title}</Link>
         {handle}

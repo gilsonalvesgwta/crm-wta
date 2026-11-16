@@ -26,6 +26,7 @@ Atualizado em 9 de novembro de 2026.
 ### Ganhos e perdidos no topo do quadro (16 nov 2026)
 
 - Os atalhos "Ganhos" e "Perdidos" (quantidade e valor dos últimos 30 dias, clique abre a lista) ficam na barra de filtros do quadro. As áreas para soltar como ganho ou perdido aparecem fixas no rodapé só enquanto se arrasta um cartão.
+- Cabeçalho das etapas com fundo na cor da etapa (faixa, ponto e contador), separado dos cartões; cartões com sombra suave.
 
 ### Editar notas já inseridas (16 nov 2026)
 
