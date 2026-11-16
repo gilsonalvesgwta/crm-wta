@@ -67,7 +67,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen">
       <nav aria-label="Menu principal"
-        className={`fixed inset-y-0 left-0 z-40 flex w-[232px] flex-col gap-[18px] border-r border-side-border bg-side px-3 pb-4 pt-5 text-side-text transition-transform lg:static lg:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
+        className={`fixed inset-y-0 left-0 z-40 flex w-[232px] flex-col gap-[18px] overflow-y-auto border-r border-side-border bg-side px-3 pb-4 pt-5 text-side-text transition-transform lg:sticky lg:top-0 lg:h-dvh lg:shrink-0 lg:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex h-9 items-center justify-between px-3">
           {branding?.logoUrl
             ? <img src={branding.logoUrl} alt={branding.productName} className="h-8 max-w-[160px] object-contain" />
@@ -80,7 +80,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <p className="px-3 pb-1.5 text-xs font-medium text-side-muted">Trabalho</p>
           {work.map(link)}
         </div>
-        <div className="mt-auto flex flex-col gap-0.5 border-t border-side-border pt-3">
+        <div className="flex flex-col gap-0.5 border-t border-side-border pt-3">
           {me.user.isPlatformAdmin ? link({ href: '/plataforma', label: 'Plataforma', icon: <Building2 size={18} strokeWidth={1.75} aria-hidden /> }) : null}
           {admin && me.tenantId ? link({ href: '/configuracoes', label: 'Configurações', icon: <Settings size={18} strokeWidth={1.75} aria-hidden /> }) : null}
           {link({ href: '/conta', label: 'Minha conta', icon: <UserRound size={18} strokeWidth={1.75} aria-hidden /> })}

@@ -48,7 +48,10 @@ export type Conversation = {
   assignee: { id: string; name: string } | null; team: { id: string; name: string } | null;
   contact: { id: string; name: string; phone: string | null; email: string | null; instagram?: string | null; tags: { id: string; name: string; color: string }[] };
   unread: number;
-  last: { id: string; direction: 'in' | 'out'; status: string; kind: string; body: string | null; subject: string | null; createdAt: string } | null;
+  /** Oculta pelo administrador (spam, contato pessoal). */
+  hiddenAt?: string | null;
+  last: { id: string; direction: 'in' | 'out'; status: string; kind: string; body: string | null; subject: string | null; createdAt: string;
+    account?: { id: string; name: string } | null } | null;
 };
 
 export const CONVERSATION_STATUS: Record<ConversationStatus, { label: string; tone: 'ok' | 'warn' | 'neutral' | 'info' }> = {

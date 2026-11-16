@@ -20,14 +20,15 @@ printf '%s' "1:$(openssl rand -base64 32)" | docker secret create crmwta_master_
 printf '%s' "nao-configurado" | docker secret create crmwta_smtp_pass - >/dev/null
 printf '%s' "$SENHA_INICIAL" | docker secret create crmwta_bootstrap_password - >/dev/null
 
-# Traefik igual ao da VPS (inventário de 12 out 2026): v3.5, provedor "docker"
+# Traefik como o da VPS (inventário de 12 out 2026: v3.5), na v3.6.1: o Docker 29 das
+# máquinas do GitHub recusa a versão de API que o Traefik 3.5 usa. Provedor "docker"
 # lendo os rótulos dos contêineres, entradas web e websecure, resolvedor
 # letsencryptresolver por desafio HTTP. A autoridade de certificação aponta para
 # um endereço inexistente, então vale o certificado padrão.
 docker service create --name traefik-teste --network "$REDE" --publish 443:443 --publish 80:80 \
   --constraint node.role==manager \
   --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock,readonly \
-  traefik:v3.5.3 \
+  traefik:v3.6.1 \
   --providers.docker.endpoint=unix:///var/run/docker.sock \
   --providers.docker.exposedbydefault=false \
   --providers.docker.network="$REDE" \
@@ -56,6 +57,16 @@ for i in $(seq 1 90); do
   sleep 3
 done
 docker service ls --format '{{.Name}} {{.Replicas}}' | sort
+# Diagnóstico: versão do Docker e últimas linhas do Traefik (roteamento).
+docker version --format 'docker {{.Server.Version}} (API {{.Server.APIVersion}}, mínima {{.Server.MinAPIVersion}})' 2>/dev/null || true
+docker service logs --tail 8 traefik-teste 2>&1 | tail -n 8
+# Diagnóstico logo no começo: se a migração não terminou, mostra por quê.
+if ! docker service logs crmwta_migrate 2>&1 | grep -q "migrate: concluído"; then
+  echo "--- migração não concluiu; tarefas e últimas linhas ---"
+  docker service ps --no-trunc --format '{{.Name}} {{.CurrentState}} {{.Error}}' crmwta_migrate 2>&1 | head -n 12
+  docker service logs --tail 40 crmwta_migrate 2>&1 | tail -n 40
+  docker service logs --tail 20 crmwta_db 2>&1 | tail -n 20
+fi
 
 falhou=0
 ok() { echo "OK   $1"; }

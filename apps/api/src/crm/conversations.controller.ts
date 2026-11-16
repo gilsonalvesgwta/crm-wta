@@ -23,6 +23,8 @@ const inboxQuery = z.object({
   assignee: opt(z.union([z.literal('me'), z.literal('none'), uuid])),
   teamId: opt(uuid),
   deal: opt(z.union([z.literal('open'), z.literal('none'), uuid])),
+  hidden: flag,
+  accountId: opt(uuid),
   page: z.coerce.number().int().min(1).max(10_000).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(30),
 });
@@ -56,6 +58,22 @@ export class ConversationsController {
   @Get('unread')
   unread(@CurrentActor() a: Actor) {
     return this.svc.unreadCount(a);
+  }
+
+  /** Números e conexões (para filtrar as conversas por conta). */
+  @Require('conversations:reply')
+  @Get('accounts')
+  accounts(@CurrentActor() a: Actor) {
+    return this.svc.accounts(a);
+  }
+
+  /** Ocultar (ou mostrar de novo) conversas: spam, contatos pessoais. Administrador e gestor. */
+  @Require('conversations:assign')
+  @Post('hide')
+  @HttpCode(200)
+  hide(@CurrentActor() a: Actor, @Body() b: unknown) {
+    const v = parse(z.object({ ids: z.array(uuid).min(1, { message: 'Escolha ao menos uma conversa.' }).max(200), hidden: z.boolean() }), b);
+    return this.svc.hide(a, v.ids, v.hidden);
   }
 
   /** Começa (ou acha) a conversa com um contato, mesmo sem mensagem nenhuma. */

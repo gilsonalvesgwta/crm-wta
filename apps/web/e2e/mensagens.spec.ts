@@ -201,6 +201,22 @@ test('conversas: nova conversa com quem nunca escreveu, resposta pronta pelo ata
   await expect(list.getByRole('button', { name: /Bruno Prospect/ })).toHaveCount(0);
   await expectAccessible(page);
   await shot(page, '47-conversas-filtros');
+
+  // Ocultar a conversa (spam, contato pessoal): some da lista e fica em "Ocultas"; dá para mostrar de novo.
+  await page.getByRole('button', { name: 'Limpar filtros' }).click();
+  await expect(list.getByRole('button', { name: /Bruno Prospect/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Ocultar', exact: true }).click();
+  await expect(list.getByRole('button', { name: /Bruno Prospect/ })).toHaveCount(0);
+  await page.getByRole('button', { name: /^Ocultas/ }).click();
+  await list.getByRole('button', { name: /Bruno Prospect/ }).click();
+  await expect(page.getByText('Conversa oculta: não aparece na lista principal.')).toBeVisible();
+  await expect(page.getByLabel('Número / conexão')).toBeVisible();
+  await expectAccessible(page);
+  await shot(page, '47b-conversas-ocultas');
+  await page.getByRole('button', { name: 'Mostrar de novo' }).click();
+  await expect(list.getByRole('button', { name: /Bruno Prospect/ })).toHaveCount(0);
+  await page.getByRole('button', { name: /^Ocultas/ }).click();
+  await expect(list.getByRole('button', { name: /Bruno Prospect/ })).toBeVisible();
 });
 
 test('campanha de WhatsApp: cinco passos, público, envio no ritmo e relatório', async ({ page }) => {

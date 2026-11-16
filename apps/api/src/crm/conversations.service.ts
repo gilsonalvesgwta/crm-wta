@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Actor } from '../access/actor.js';
 import { tenantCtx } from '../access/decorators.js';
+import { audit } from '../admin/audit.js';
 import { Problem } from '../http/problem.js';
 import { Db, type Q } from '../infra/db.js';
 import { contactOwnExtra } from './contacts.service.js';
@@ -24,12 +25,17 @@ export type InboxFilter = {
   teamId?: string;
   /** 'open': com negócio aberto; 'none': sem negócio aberto; ou o id de um funil. */
   deal?: string;
+  /** Só as ocultas (spam, pessoais); sem isso, só as visíveis. */
+  hidden?: boolean;
+  /** Número/conexão: conversas com mensagem por esta conta. */
+  accountId?: string;
   page: number;
   pageSize: number;
 };
 
 const COLUMNS = `
   v.id, v.channel, v.status, v.contact_id as "contactId", v.opened_at as "openedAt", v.first_response_at as "firstResponseAt",
+  v.hidden_at as "hiddenAt",
   v.last_message_at as "lastMessageAt", v.last_in_at as "lastInAt", v.last_out_at as "lastOutAt", v.closed_at as "closedAt",
   ${memberJson('v.assignee_membership_id')} as assignee,
   (select json_build_object('id', t.id, 'name', t.name) from teams t where t.id = v.team_id) as team,
@@ -42,7 +48,8 @@ const COLUMNS = `
   (select count(*)::int from messages m where m.contact_id = v.contact_id and m.channel = v.channel
      and m.direction = 'in' and m.seen_at is null) as unread,
   (select json_build_object('id', m.id, 'direction', m.direction, 'status', m.status, 'kind', m.kind,
-                            'body', left(m.body, 200), 'subject', m.subject, 'createdAt', m.created_at)
+                            'body', left(m.body, 200), 'subject', m.subject, 'createdAt', m.created_at,
+                            'account', (select json_build_object('id', a.id, 'name', a.name) from channel_accounts a where a.id = m.channel_account_id))
      from messages m where m.contact_id = v.contact_id and m.channel = v.channel order by m.created_at desc limit 1) as "last"`;
 
 /**
@@ -109,11 +116,15 @@ export class ConversationsService {
       else if (f.deal === 'none') base.push(`not exists (select 1 from deals d where d.contact_id = c.id and d.status = 'open')`);
       else if (f.deal) base.push(`exists (select 1 from deals d where d.contact_id = c.id and d.status = 'open' and d.pipeline_id = ${p.add(f.deal)})`);
       if (f.unread) base.push(`exists (select 1 from messages m where m.contact_id = v.contact_id and m.channel = v.channel and m.direction = 'in' and m.seen_at is null)`);
+      if (f.accountId) base.push(`exists (select 1 from messages m where m.channel_account_id = ${p.add(f.accountId)} and m.contact_id = v.contact_id and m.channel = v.channel)`);
 
-      // Contagem por estado com os mesmos filtros (para as abas).
-      const counts = await q.query<{ status: ConversationStatus; n: number }>(
-        `select v.status, count(*)::int as n from conversations v join contacts c on c.id = v.contact_id
-          where ${base.join(' and ')} group by v.status`, p.values);
+      // Contagem por estado com os mesmos filtros (para as abas); as ocultas contam à parte.
+      const all = await q.query<{ status: ConversationStatus; hidden: boolean; n: number }>(
+        `select v.status, v.hidden_at is not null as hidden, count(*)::int as n from conversations v join contacts c on c.id = v.contact_id
+          where ${base.join(' and ')} group by 1, 2`, p.values);
+      const counts = { rows: all.rows.filter((x) => x.hidden === !!f.hidden) };
+      const hiddenTotal = all.rows.filter((x) => x.hidden).reduce((t, x) => t + x.n, 0);
+      base.push(f.hidden ? 'v.hidden_at is not null' : 'v.hidden_at is null');
 
       const where = [...base];
       if (f.status && f.status !== 'all') where.push(`v.status = ${p.add(f.status)}`);
@@ -129,7 +140,7 @@ export class ConversationsService {
       return {
         items: r.rows.map(({ total: _t, ...rest }) => rest),
         total: (r.rows[0] as { total?: number } | undefined)?.total ?? 0, page: f.page, pageSize: f.pageSize,
-        counts: { open: byStatus.open ?? 0, waiting: byStatus.waiting ?? 0, closed: byStatus.closed ?? 0 },
+        counts: { open: byStatus.open ?? 0, waiting: byStatus.waiting ?? 0, closed: byStatus.closed ?? 0, hidden: hiddenTotal },
       };
     });
   }
@@ -140,7 +151,7 @@ export class ConversationsService {
       const p = new Params();
       const r = await q.query<{ n: number }>(
         `select count(*)::int as n from conversations v join contacts c on c.id = v.contact_id
-          where ${this.visibleSql(p, actor)} and c.anonymized_at is null
+          where ${this.visibleSql(p, actor)} and c.anonymized_at is null and v.hidden_at is null
             and exists (select 1 from messages m where m.contact_id = v.contact_id and m.channel = v.channel and m.direction = 'in' and m.seen_at is null)`,
         p.values);
       return { count: r.rows[0]!.n };
@@ -214,6 +225,31 @@ export class ConversationsService {
   }
 
   /** Estado, responsável e equipe. Atribuir a outra pessoa pede "conversations:assign". */
+  /** Contas (números/conexões) para filtrar as conversas. */
+  async accounts(actor: Actor) {
+    return this.db.app(tenantCtx(actor), async (q) => (await q.query(
+      `select a.id, a.name, a.kind, a.address, a.status from channel_accounts a order by a.kind, a.name`)).rows);
+  }
+
+  /**
+   * Ocultar ou mostrar de novo conversas (spam, contatos pessoais). Só quem
+   * atribui conversas na empresa toda (administrador e gestor). A conversa e as
+   * mensagens continuam guardadas; mensagem nova não traz a conversa de volta.
+   */
+  async hide(actor: Actor, ids: string[], hidden: boolean) {
+    if (actor.permissions.get('conversations:assign') !== 'tenant') {
+      throw new Problem(403, 'Só o administrador ou o gestor pode ocultar conversas.', 'forbidden');
+    }
+    return this.db.app(tenantCtx(actor), async (q) => {
+      const r = await q.query<{ id: string }>(
+        `update conversations set hidden_at = case when $2 then coalesce(hidden_at, now()) else null end,
+                hidden_by = case when $2 then $3::uuid else null end
+          where id = any($1::uuid[]) returning id`, [ids, hidden, actor.membershipId]);
+      for (const row of r.rows) await audit(q, actor, hidden ? 'conversation.hide' : 'conversation.unhide', 'conversation', row.id, {});
+      return { updated: r.rowCount ?? 0 };
+    });
+  }
+
   async update(actor: Actor, id: string, b: { status?: ConversationStatus; assigneeId?: string | null; teamId?: string | null }) {
     return this.db.app(tenantCtx(actor), async (q) => {
       const v = await this.visible(q, actor, id);
@@ -228,9 +264,18 @@ export class ConversationsService {
         const assign = tryReach(actor, 'conversations:assign');
         const take = tryReach(actor, 'conversations:take');
         const self = b.assigneeId === actor.membershipId;
+        // Quem está com a conversa pode devolver para a fila ou passar para outra pessoa da empresa.
+        const mine = v.assignee_membership_id === actor.membershipId;
         if (self) {
           // Assumir: quem atribui, ou quem pode assumir uma conversa sem responsável.
           if (!assign && !(take && v.assignee_membership_id === null)) throw Problem.forbidden('Você não pode assumir esta conversa.');
+        } else if (mine && !assign) {
+          if (b.assigneeId) {
+            const m = await q.query<{ status: string }>('select status from memberships where id = $1', [b.assigneeId]);
+            if (m.rows[0]?.status !== 'active') {
+              throw Problem.badRequest('Responsável inválido.', [{ field: 'assigneeId', message: 'Escolha uma pessoa ativa da empresa.' }]);
+            }
+          }
         } else {
           if (!assign) throw Problem.forbidden('Você não pode atribuir conversas a outra pessoa.');
           if (b.assigneeId) {
@@ -260,6 +305,15 @@ export class ConversationsService {
       }
       if (sets.length) {
         await q.query(`update conversations set ${sets.join(', ')} where id = $1`, vals);
+        // Avisa quem recebeu a conversa (quando foi outra pessoa que passou).
+        if (b.assigneeId && b.assigneeId !== actor.membershipId && b.assigneeId !== v.assignee_membership_id) {
+          const who = (await q.query<{ name: string }>(
+            'select coalesce(u.name, u.email) as name from memberships m join users u on u.id = m.user_id where m.id = $1', [actor.membershipId])).rows[0]?.name ?? 'Alguém';
+          const cname = (await q.query<{ name: string }>('select name from contacts where id = $1', [v.contact_id])).rows[0]?.name ?? 'contato';
+          await q.query(
+            `insert into notifications (tenant_id, membership_id, kind, title, body, link) values (app.tenant_id(), $1, 'conversation.assigned', $2, $3, $4)`,
+            [b.assigneeId, `Conversa com ${cname} passou para você`.slice(0, 200), `${who} transferiu a conversa.`.slice(0, 1000), `/conversas?c=${id}&st=all`]);
+        }
         await q.query(
           `insert into timeline_entries (tenant_id, kind, actor_membership_id, contact_id, data) values (app.tenant_id(), 'conversation.updated', $1, $2, $3)`,
           [actor.membershipId, v.contact_id, JSON.stringify({ conversationId: id, channel: v.channel, ...b })]);
