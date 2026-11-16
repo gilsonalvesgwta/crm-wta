@@ -23,6 +23,11 @@ Atualizado em 9 de novembro de 2026.
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
 
+### Ganhos e perdidos no topo do quadro (16 nov 2026)
+
+- Os atalhos "Ganhos" e "Perdidos" (quantidade e valor dos últimos 30 dias, clique abre a lista) ficam na barra de filtros do quadro. As áreas para soltar como ganho ou perdido aparecem fixas no rodapé só enquanto se arrasta um cartão.
+- Cabeçalho das etapas com fundo na cor da etapa (faixa, ponto e contador), separado dos cartões; cartões com sombra suave.
+
 ### Editar notas já inseridas (16 nov 2026)
 
 - O lápis aparece para o autor e também para administrador e gestor, que podem corrigir notas de outras pessoas (inclusive as importadas). O autor da nota continua o mesmo e o histórico registra "Editou uma nota de outra pessoa". A lixeira segue a regra que a API já tinha (autor, ou quem pode excluir contatos em toda a empresa).

@@ -1,12 +1,12 @@
 'use client';
-import { Suspense, useEffect, useMemo, useState, type PointerEventHandler, type ReactNode } from 'react';
+import { Suspense, useEffect, useMemo, useState, type CSSProperties, type PointerEventHandler, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors,
   type Announcements, type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
-import { AlarmClock, CalendarClock, Download, GripVertical, Kanban, List, Plus, Settings2, Upload, UserRoundCog } from 'lucide-react';
+import { AlarmClock, CalendarClock, Download, GripVertical, Kanban, List, Plus, Settings2, ThumbsDown, Trophy, Upload, UserRoundCog } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useLoad } from '@/lib/use-load';
 import { useDebounced, useQueryState } from '@/lib/use-query-state';
@@ -43,6 +43,8 @@ function Deals() {
   const [bulk, setBulk] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const [listKey, setListKey] = useState(0);
+  // Ganhos e perdidos dos últimos 30 dias, vindos do quadro, para os atalhos do topo.
+  const [outcomes, setOutcomes] = useState<Outcomes | null>(null);
 
   if (pipelines && active.length === 0) {
     return (
@@ -89,6 +91,24 @@ function Deals() {
             <AlarmClock size={15} aria-hidden />Só parados
           </label>
         ) : null}
+        {f.visao !== 'lista' && outcomes ? (
+          <div className="flex flex-wrap items-center gap-2" aria-label="Fechados nos últimos 30 dias">
+            {(['won', 'lost'] as const).map((k) => {
+              const o = outcomes[k];
+              const won = k === 'won';
+              return (
+                <Link key={k} href={`/negocios?funil=${pipelineId}&visao=lista&status=${k}`} title="Fechados nos últimos 30 dias. Clique para ver todos."
+                  aria-label={`Ver ${won ? 'ganhos' : 'perdidos'}: ${o.count} nos últimos 30 dias`}
+                  className={`inline-flex h-10 items-center gap-2 rounded-[6px] border px-3 text-sm font-medium ${won ? 'border-ok/40 bg-ok-soft text-ok hover:brightness-95' : 'border-bad/40 bg-bad-soft text-bad hover:brightness-95'}`}>
+                  {won ? <Trophy size={15} aria-hidden /> : <ThumbsDown size={15} aria-hidden />}
+                  {won ? 'Ganhos' : 'Perdidos'}
+                  <span className="rounded-full bg-surface px-2 py-0.5 text-[12px] font-semibold tabular-nums">{o.count}</span>
+                  <span className="text-[12px] font-normal tabular-nums">{money(o.totalCents, 'BRL', true)}</span>
+                </Link>
+              );
+            })}
+          </div>
+        ) : null}
         <div role="group" aria-label="Visão" className="ml-auto flex rounded-[6px] border border-line bg-surface p-0.5">
           <button type="button" aria-pressed={f.visao !== 'lista'} onClick={() => setF({ visao: 'quadro' })}
             className={`flex h-9 items-center gap-1.5 rounded-[5px] px-3 text-sm font-medium ${f.visao !== 'lista' ? 'bg-surface-2 text-ink' : 'text-muted'}`}><Kanban size={16} aria-hidden />Quadro</button>
@@ -98,7 +118,7 @@ function Deals() {
       </div>
       {!pipelineId ? <Loading /> : f.visao === 'lista'
         ? <DealList key={listKey} pipelineId={allPipelines ? '' : pipelineId} ownerId={f.ownerId} q={f.q} status={f.status} stale={!!f.parados} page={Number(f.page)} onPage={(p) => setF({ page: String(p) })} />
-        : <BoardView key={listKey} pipelineId={pipelineId} ownerId={f.ownerId} q={f.q} canMove={can('deals:edit')} />}
+        : <BoardView key={listKey} pipelineId={pipelineId} ownerId={f.ownerId} q={f.q} canMove={can('deals:edit')} onOutcomes={setOutcomes} />}
       <BulkOwnerDialog open={bulk} pipelines={pipelines ?? []} pipelineId={allPipelines ? '' : pipelineId} members={dir?.members ?? []} me={dir?.me ?? ''}
         onClose={() => setBulk(false)}
         onDone={(n) => { setBulk(false); setDone(`${n} ${n === 1 ? 'negócio mudou' : 'negócios mudaram'} de responsável.`); setListKey((k) => k + 1); }} />
@@ -107,13 +127,23 @@ function Deals() {
   );
 }
 
-function BoardView({ pipelineId, ownerId, q, canMove }: { pipelineId: string; ownerId: string; q: string; canMove: boolean }) {
+type Outcomes = Record<'won' | 'lost', { count: number; totalCents: number }>;
+
+function BoardView({ pipelineId, ownerId, q, canMove, onOutcomes }: {
+  pipelineId: string; ownerId: string; q: string; canMove: boolean; onOutcomes: (o: Outcomes | null) => void;
+}) {
   const qs = new URLSearchParams({ pipelineId });
   if (ownerId) qs.set('ownerId', ownerId);
   if (q) qs.set('q', q);
   const board = useLoad(() => api<Board>('GET', `/api/v1/deals/board?${qs}`), [qs.toString()]);
   const [cols, setCols] = useState<Board['stages'] | null>(null);
   useEffect(() => { if (board.data) setCols(board.data.stages); }, [board.data]);
+  useEffect(() => {
+    if (!cols) return;
+    const sum = (k: 'won' | 'lost') => cols.filter((s) => s.kind === k).reduce((a, s) => ({ count: a.count + s.count, totalCents: a.totalCents + s.totalCents }), { count: 0, totalCents: 0 });
+    onOutcomes({ won: sum('won'), lost: sum('lost') });
+  }, [cols]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => onOutcomes(null), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [dragging, setDragging] = useState<DealCard | null>(null);
   const { move, dialog, error, clearError } = useMoveDeal();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor));
@@ -160,9 +190,11 @@ function BoardView({ pipelineId, ownerId, q, canMove }: { pipelineId: string; ow
           {open.map((s) => <Column key={s.id} stage={s} canMove={canMove} />)}
         </div>
       </div>
+      {/* Áreas para soltar como ganho ou perdido: aparecem fixas no rodapé enquanto se arrasta um cartão. */}
       {canMove ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {closed.map((s) => <OutcomeZone key={s.id} stage={s} active={!!dragging} pipelineId={pipelineId} />)}
+        <div className={`fixed inset-x-0 bottom-0 z-30 grid gap-3 border-t border-line bg-bg/95 p-3 shadow-[0_-8px_24px_rgba(0,0,0,0.12)] backdrop-blur sm:grid-cols-2 lg:left-[232px] ${dragging ? '' : 'pointer-events-none invisible'}`}
+          aria-hidden={dragging ? undefined : true}>
+          {closed.map((s) => <OutcomeZone key={s.id} stage={s} />)}
         </div>
       ) : null}
       <DragOverlay>{dragging ? <Card deal={dragging} overlay /> : null}</DragOverlay>
@@ -175,13 +207,21 @@ function Column({ stage, canMove }: { stage: Board['stages'][number]; canMove: b
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   return (
     <section ref={setNodeRef} aria-label={`Etapa ${stage.name}`}
-      className={`flex w-[292px] shrink-0 flex-col rounded-[10px] border bg-surface-2 ${isOver ? 'border-primary ring-2 ring-primary/30' : 'border-line'}`}>
-      <header className="flex flex-col gap-0.5 border-b border-line px-3 py-2.5" style={{ boxShadow: `inset 0 3px 0 ${stage.color}` }}>
+      style={{ '--stage': stage.color || 'var(--border-strong)' } as CSSProperties}
+      className={`flex w-[292px] shrink-0 flex-col overflow-hidden rounded-[12px] border bg-[color-mix(in_srgb,var(--surface-2)_70%,var(--bg))] transition-shadow ${isOver ? 'border-primary ring-2 ring-primary/30' : 'border-line'}`}>
+      {/* Cabeçalho da etapa: faixa e fundo na cor da etapa, para separar bem dos cartões. */}
+      <header className="relative flex flex-col gap-1 border-b border-[color-mix(in_srgb,var(--stage)_35%,var(--border))] px-3.5 pb-3 pt-3.5
+        bg-[linear-gradient(180deg,color-mix(in_srgb,var(--stage)_22%,var(--surface))_0%,color-mix(in_srgb,var(--stage)_10%,var(--surface))_100%)]">
+        <span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-[var(--stage)]" />
         <div className="flex items-center justify-between gap-2">
-          <h2 className="truncate text-sm font-semibold">{stage.name}</h2>
-          <span className="text-[12px] text-muted">{stage.count}</span>
+          <h2 className="flex min-w-0 items-center gap-2 text-[13px] font-bold uppercase tracking-[0.04em]">
+            <span aria-hidden className="size-2.5 shrink-0 rounded-full bg-[var(--stage)] ring-2 ring-[color-mix(in_srgb,var(--stage)_30%,transparent)]" />
+            <span className="truncate">{stage.name}</span>
+          </h2>
+          <span className="min-w-7 rounded-full bg-[color-mix(in_srgb,var(--stage)_20%,var(--surface))] px-2 py-0.5 text-center text-[12px] font-semibold tabular-nums ring-1 ring-[color-mix(in_srgb,var(--stage)_40%,transparent)]"
+            aria-label={`${stage.count} negócios`}>{stage.count}</span>
         </div>
-        <p className="text-[12px] text-muted"><span className="font-medium text-ink tabular-nums">{money(stage.totalCents, 'BRL', true)}</span>{stage.probability ? ` · ${stage.probability}%` : ''}</p>
+        <p className="text-[12px] text-ink"><span className="text-[15px] font-semibold tabular-nums">{money(stage.totalCents, 'BRL', true)}</span>{stage.probability ? ` · ${stage.probability}%` : ''}</p>
       </header>
       <ol className="flex min-h-[120px] flex-col gap-2 p-2">
         {stage.deals.map((d) => <li key={d.id}>{canMove ? <DraggableCard deal={d} /> : <Card deal={d} />}</li>)}
@@ -211,7 +251,7 @@ function DraggableCard({ deal }: { deal: DealCard }) {
 
 function Card({ deal, overlay = false, handle }: { deal: DealCard; overlay?: boolean; handle?: ReactNode }) {
   return (
-    <article className={`flex flex-col gap-1.5 rounded-[8px] border bg-surface p-3 text-sm ${overlay ? 'rotate-1 border-primary shadow-xl' : 'border-line shadow-[0_1px_0_rgba(5,22,40,0.04)]'}`}>
+    <article className={`flex flex-col gap-1.5 rounded-[8px] border bg-surface p-3 text-sm ${overlay ? 'rotate-1 border-primary shadow-xl' : 'border-line shadow-[0_1px_2px_rgba(5,22,40,0.06),0_1px_1px_rgba(5,22,40,0.04)] transition-shadow hover:shadow-[0_6px_16px_rgba(5,22,40,0.10)]'}`}>
       <div className="flex items-start justify-between gap-2">
         <Link href={`/negocios/${deal.id}`} className="font-medium leading-snug hover:underline" onPointerDown={(e) => e.stopPropagation()}>{deal.title}</Link>
         {handle}
@@ -235,22 +275,15 @@ function Card({ deal, overlay = false, handle }: { deal: DealCard; overlay?: boo
   );
 }
 
-function OutcomeZone({ stage, active, pipelineId }: { stage: Board['stages'][number]; active: boolean; pipelineId: string }) {
+function OutcomeZone({ stage }: { stage: Board['stages'][number] }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const won = stage.kind === 'won';
   return (
     <div ref={setNodeRef} aria-label={`Soltar para marcar como ${won ? 'ganho' : 'perdido'}`}
-      className={`flex h-16 items-center justify-between rounded-[10px] border-2 border-dashed px-4 text-sm transition-colors ${
-        isOver ? (won ? 'border-ok bg-ok-soft' : 'border-bad bg-bad-soft') : active ? 'border-line-strong bg-surface' : 'border-line bg-transparent'}`}>
-      <span className={`font-semibold ${won ? 'text-ok' : 'text-bad'}`}>{won ? 'Ganho' : 'Perdido'}</span>
-      <span className="flex items-center gap-3">
-        <span className="text-[12px] text-muted">{stage.count} nos últimos 30 dias · {money(stage.totalCents, 'BRL', true)}</span>
-        {/* Os negócios fechados saem do quadro, mas continuam com todo o histórico: a lista mostra todos. */}
-        <Link href={`/negocios?funil=${pipelineId}&visao=lista&status=${won ? 'won' : 'lost'}`}
-          className={`inline-flex h-8 items-center rounded-[6px] border px-2.5 text-[12px] font-medium ${won ? 'border-ok/40 text-ok hover:bg-ok-soft' : 'border-bad/40 text-bad hover:bg-bad-soft'}`}>
-          Ver {won ? 'ganhos' : 'perdidos'}
-        </Link>
-      </span>
+      className={`flex h-16 items-center justify-center gap-2 rounded-[10px] border-2 border-dashed text-sm font-semibold transition-colors ${
+        won ? 'text-ok' : 'text-bad'} ${isOver ? (won ? 'border-ok bg-ok-soft' : 'border-bad bg-bad-soft') : 'border-line-strong bg-surface'}`}>
+      {won ? <Trophy size={18} aria-hidden /> : <ThumbsDown size={18} aria-hidden />}
+      Soltar aqui: {won ? 'Ganho' : 'Perdido'}
     </div>
   );
 }
