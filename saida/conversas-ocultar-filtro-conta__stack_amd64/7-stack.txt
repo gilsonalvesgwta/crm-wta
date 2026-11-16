@@ -1,7 +1,22 @@
 Creating network crmwta_interna
-Creating service crmwta_db
 Creating service crmwta_migrate
 Creating service crmwta_api
 Creating service crmwta_web
 Creating service crmwta_backup
+Creating service crmwta_db
 aguardando os serviços...
+crmwta_api 1/1
+crmwta_backup 1/1
+crmwta_db 1/1
+crmwta_migrate 0/1
+crmwta_web 1/1
+traefik-teste 1/1
+ERRO API pronta
+ERRO interface
+ERRO login (404)
+ERRO cookie
+ERRO cookie sem Secure
+ERRO me: 404 page not found
+ERRO página interna
+jq: error (at <stdin>:1): Cannot index number with string "id"
+jq: parse error: Invalid numeric literal at line 1, column 9
