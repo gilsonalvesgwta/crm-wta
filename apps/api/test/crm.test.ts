@@ -566,6 +566,23 @@ describe('tarefas e agenda', () => {
     assert.equal(idx.rows[0]!.max, idx.rows[0]!.n - 1, 'os índices continuam sem buraco');
   });
 
+  test('tarefas por prazo: atrasadas, hoje, próximos 7 dias e sem data', async () => {
+    const late = await sales3.post('/api/v1/activities', { title: 'Retornar proposta atrasada', startsAt: new Date(Date.now() - 2 * 86_400_000).toISOString() });
+    const soon = await sales3.post('/api/v1/activities', { title: 'Visita em 3 dias', startsAt: new Date(Date.now() + 3 * 86_400_000).toISOString() });
+    const none = await sales3.post('/api/v1/activities', { title: 'Sem data definida' });
+    assert.deepEqual([late.status, soon.status, none.status], [201, 201, 201]);
+    const titles = async (due: string) => {
+      const r = await sales3.get(`/api/v1/activities?status=open&due=${due}&limit=300`);
+      assert.equal(r.status, 200, `${due}: ${JSON.stringify(r.body)}`);
+      return (r.body as { title: string }[]).map((x) => x.title);
+    };
+    assert.ok((await titles('overdue')).includes('Retornar proposta atrasada'));
+    assert.ok(!(await titles('overdue')).includes('Visita em 3 dias'));
+    assert.ok((await titles('week')).includes('Visita em 3 dias'));
+    assert.ok(Array.isArray(await titles('today')));
+    assert.ok((await titles('none')).includes('Sem data definida'));
+  });
+
   test('lembrete vira notificação uma vez; concluir atualiza o último contato', async () => {
     const c = await sales1.post('/api/v1/contacts', { firstName: 'Lembrar' });
     const a = await sales1.post('/api/v1/activities', {

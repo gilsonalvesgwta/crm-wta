@@ -83,14 +83,15 @@ export class ActivitiesService {
       if (f.dealId) where.push(`a.deal_id = ${p.add(f.dealId)}`);
       if (f.leadId) where.push(`a.lead_id = ${p.add(f.leadId)}`);
       if (f.organizationId) where.push(`a.organization_id = ${p.add(f.organizationId)}`);
-      if (f.due) {
-        const tz = await this.tz(q);
-        const tzp = p.add(tz);
+      if (f.due === 'overdue') where.push('a.starts_at < now()');
+      if (f.due === 'none') where.push('a.starts_at is null');
+      if (f.due === 'today' || f.due === 'week') {
+        // O fuso entra como parâmetro só quando é usado: parâmetro sobrando quebra a consulta.
+        const tzp = `${p.add(await this.tz(q))}::text`;
         const today = `(now() at time zone ${tzp})::date`;
-        if (f.due === 'overdue') where.push(`a.starts_at < now()`);
-        if (f.due === 'today') where.push(`(a.starts_at at time zone ${tzp})::date = ${today}`);
-        if (f.due === 'week') where.push(`(a.starts_at at time zone ${tzp})::date between ${today} and ${today} + 6`);
-        if (f.due === 'none') where.push('a.starts_at is null');
+        where.push(f.due === 'today'
+          ? `(a.starts_at at time zone ${tzp})::date = ${today}`
+          : `(a.starts_at at time zone ${tzp})::date between ${today} and ${today} + 6`);
       }
       const order = f.from ? 'a.starts_at, a.id' : 'a.starts_at nulls last, a.priority desc, a.created_at';
       const rows = await q.query(`select ${COLS} from activities a where ${where.join(' and ')} order by ${order} limit ${p.add(f.limit)}`, p.values);
