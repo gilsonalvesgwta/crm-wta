@@ -1,0 +1,1 @@
+evolution falsa em http://127.0.0.1:8790; smtp falso na porta 2525; meta falsa em http://127.0.0.1:8791
