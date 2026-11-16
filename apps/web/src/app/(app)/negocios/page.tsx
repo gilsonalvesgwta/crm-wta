@@ -10,7 +10,7 @@ import { AlarmClock, CalendarClock, Download, GripVertical, Kanban, List, Plus, 
 import { api } from '@/lib/api';
 import { useLoad } from '@/lib/use-load';
 import { useDebounced, useQueryState } from '@/lib/use-query-state';
-import { fmtDateShort, fmtIsoDate, money, type Board, type DealCard, type Page, type Stage } from '@/lib/crm';
+import { fmtDateShort, fmtIsoDate, idleText, money, type Board, type DealCard, type Page, type Stage } from '@/lib/crm';
 import { useSession } from '@/components/shell/session';
 import { useDirectory, usePipelines } from '@/components/crm/data';
 import { DealDialog } from '@/components/crm/deal-form';
@@ -205,7 +205,7 @@ function Card({ deal, overlay = false, handle }: { deal: DealCard; overlay?: boo
       </div>
       <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
         {deal.status === 'won' ? <Badge tone="ok">Ganho</Badge> : deal.status === 'lost' ? <Badge tone="bad">Perdido</Badge> : null}
-        {deal.rotting ? <span className="inline-flex items-center gap-1 font-medium text-warn"><AlarmClock size={12} aria-hidden />Parado</span> : null}
+        {deal.rotting ? <span className="inline-flex items-center gap-1 rounded-full bg-bad px-2 py-0.5 font-semibold text-white"><AlarmClock size={12} aria-hidden />{idleText(deal.idleDays)}</span> : null}
         {deal.nextActivityAt ? (
           <span className={`inline-flex items-center gap-1 ${new Date(deal.nextActivityAt) < new Date() ? 'font-medium text-bad' : 'text-muted'}`}>
             <CalendarClock size={12} aria-hidden />{fmtDateShort.format(new Date(deal.nextActivityAt))}
@@ -261,7 +261,7 @@ function DealList({ pipelineId, ownerId, q, status, page, onPage }: { pipelineId
             {list.data.items.map((d) => (
               <tr key={d.id} className="border-b border-line last:border-0">
                 <td className="px-4 py-3"><Link href={`/negocios/${d.id}`} className="font-medium hover:underline">{d.title}</Link><p className="text-[13px] text-muted">{d.organization?.name ?? d.contact?.name ?? ''}</p></td>
-                <td className="px-3 py-3"><span className="inline-flex items-center gap-1.5"><span aria-hidden className="size-2 rounded-full" style={{ background: d.stage?.color }} />{d.stage?.name}</span>{d.rotting ? <p className="text-[12px] font-medium text-warn">Parado</p> : null}</td>
+                <td className="px-3 py-3"><span className="inline-flex items-center gap-1.5"><span aria-hidden className="size-2 rounded-full" style={{ background: d.stage?.color }} />{d.stage?.name}</span>{d.rotting ? <p className="mt-0.5 inline-flex rounded-full bg-bad px-2 py-0.5 text-[12px] font-semibold text-white">{idleText(d.idleDays)}</p> : null}</td>
                 <td className="px-3 py-3 text-right font-medium tabular-nums">{money(d.valueCents, d.currency)}</td>
                 <td className="px-3 py-3">{d.owner?.name ?? '—'}</td>
                 <td className="px-3 py-3 text-[13px]">{fmtIsoDate(d.expectedCloseDate) || '—'}</td>

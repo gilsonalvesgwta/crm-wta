@@ -581,6 +581,14 @@ export class RecordsController {
     return this.records.addNote(a, this.ref(k, v), parse(S.noteBody, b).body);
   }
 
+  /** Nota de áudio (gravada no navegador); o texto pode ser acrescentado depois. */
+  @Post('records/:kind/:id/notes/audio')
+  async addAudioNote(@CurrentActor() a: Actor, @Param('kind') k: string, @Param('id') v: string, @Req() req: FastifyRequest) {
+    const f = await readUpload(req, 25);
+    const noteId = await this.files.addAudioNote(a, this.ref(k, v), f.name, f.data);
+    return this.records.note(a, noteId);
+  }
+
   @Patch('notes/:id')
   updateNote(@CurrentActor() a: Actor, @Param('id') v: string, @Body() b: unknown) {
     return this.records.updateNote(a, id(v), parse(S.notePatch, b));

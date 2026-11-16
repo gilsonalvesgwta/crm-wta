@@ -208,6 +208,12 @@ Ver: `campaigns:view`. Criar, mudar, publicar e subir mídia: `campaigns:edit`. 
 
 Desenho (`draft`): `{nodes: [{id, type, position, data}], edges: [{id, source, sourceHandle: next|yes|no|timeout|btn:<id>, target}]}`. Tipos: `trigger` (comment, live_comment, dm_keyword, story_reply, story_mention, reaction; publicações, palavras-chave, frequência), `comment_reply` (sorteia até 3), `private_reply` (uma por comentário, até 3 botões), `text`, `media`, `wait`, `question` (guarda em variável, campo, e-mail ou telefone), `condition` (etiqueta, segue a conta, variável), `action` (etiqueta, campo, lead, negócio, aviso, passar a conversa).
 
+### Notas de áudio e negócio parado (16 nov 2026)
+
+- `POST /api/v1/records/:kind/:id/notes/audio` (multipart `file`, até 25 MB, só áudio): cria a nota com o áudio; o texto vem depois por `PATCH /api/v1/notes/:id`. As notas trazem `audio` (`id`, `name`, `contentType`, `sizeBytes`).
+- `PATCH /api/v1/pipelines/:id { stale: { days, notifyDays, accountId } }`: prazo padrão de negócio parado, repetição do aviso por WhatsApp e o número (WhatsApp da empresa; obrigatório com `notifyDays`). Os funis trazem `stale`.
+- Negócios trazem `idleDays` (dias sem mudar de etapa nem ter atividade/nota); `rotting` usa o prazo da etapa ou, sem ele, o do funil.
+
 ### Conversas ocultas e filtro por conta (16 nov 2026)
 
 - `GET /api/v1/conversations?hidden=1&accountId=<conta>`: `hidden=1` lista só as ocultas (sem ele, só as visíveis); `accountId` filtra as conversas com mensagem por aquela conta. `counts.hidden` traz o total de ocultas; cada item traz `hiddenAt` e `last.account`.

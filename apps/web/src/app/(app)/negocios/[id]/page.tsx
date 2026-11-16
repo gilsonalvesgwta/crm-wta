@@ -2,16 +2,17 @@
 import { use, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowRightLeft, Check, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react';
+import { AlarmClock, ArrowRightLeft, Check, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { useLoad } from '@/lib/use-load';
-import { fmtDateTime, fmtIsoDate, money, moneyInput, parseMoney, type Deal, type Stage } from '@/lib/crm';
+import { fmtDateTime, fmtIsoDate, idleText, money, moneyInput, parseMoney, type Contact, type Deal, type Stage } from '@/lib/crm';
 import { useSession } from '@/components/shell/session';
 import { useFields, usePipelines, useProducts } from '@/components/crm/data';
 import { DealDialog } from '@/components/crm/deal-form';
 import { TransferDealDialog, useMoveDeal } from '@/components/crm/move-deal';
 import { CustomFieldValues } from '@/components/crm/custom-fields';
 import { ActivitiesPanel, FilesPanel, NotesPanel, TimelinePanel } from '@/components/crm/record-panels';
+import { MessageThread } from '@/components/crm/message-thread';
 import { Panel } from '@/components/ui/panel';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -69,7 +70,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
       <PageHeader back={{ href: `/negocios?funil=${d.pipeline.id}`, label: d.pipeline.name }}
         title={<span className="flex flex-wrap items-center gap-3">{d.title}
           {d.status === 'won' ? <Badge tone="ok">Ganho</Badge> : d.status === 'lost' ? <Badge tone="bad">Perdido</Badge> : null}
-          {d.rotting ? <Badge tone="warn">Parado</Badge> : null}</span>}
+          {d.rotting ? <span className="inline-flex items-center gap-1.5 rounded-full bg-bad px-3 py-1 text-sm font-semibold text-white"><AlarmClock size={15} aria-hidden />{idleText(d.idleDays)}</span> : null}</span>}
         subtitle={<span className="text-lg font-semibold text-ink tabular-nums">{money(d.valueCents, d.currency)}</span>}
         actions={<>
           {canEdit ? <Button variant="secondary" onClick={() => setEditing(true)}><Pencil size={16} aria-hidden />Editar</Button> : null}
@@ -138,6 +139,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
           <ItemsPanel deal={d} canEdit={canEdit} onSaved={(x) => { deal.setData(x); setTick((t) => t + 1); }} />
           <ActivitiesPanel filter={`dealId=${id}`} links={{ deal: { id: d.id, name: d.title }, contact: d.contact, organization: d.organization }}
             canEdit={can('tasks:manage')} onChange={() => { void deal.reload(); setTick((t) => t + 1); }} />
+          {d.contact && can('contacts:view') ? <DealConversation contactId={d.contact.id} canSend={can('conversations:reply')} /> : null}
           <NotesPanel kind="deal" id={id} canEdit={canEdit} />
           <FilesPanel kind="deal" id={id} canEdit={canEdit} onChange={() => setTick((t) => t + 1)} />
           <TimelinePanel kind="deal" id={id} refreshKey={tick} />
@@ -231,6 +233,21 @@ function ItemsPanel({ deal, canEdit, onSaved }: { deal: Deal; canEdit: boolean; 
             <span className="text-sm">Total: <span className="font-semibold tabular-nums">{money(total, deal.currency)}</span></span>
             <div className="flex gap-2"><Button variant="ghost" onClick={() => setEditing(false)}>Cancelar</Button><Button loading={busy} onClick={save}>Salvar produtos</Button></div>
           </div>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+/** Conversas do contato do negócio (WhatsApp, Instagram e e-mail), atualizando sozinhas enquanto a tela está aberta. */
+function DealConversation({ contactId, canSend }: { contactId: string; canSend: boolean }) {
+  const c = useLoad(() => api<Contact>('GET', `/api/v1/contacts/${contactId}`), [contactId]);
+  return (
+    <Panel title="Conversas" description="Histórico de mensagens com o contato; atualiza sozinho conforme a conversa anda.">
+      {c.error ? <LoadError error={c.error} retry={c.reload} /> : !c.data ? <Loading /> : (
+        <div className="-mx-5 -my-4 overflow-hidden rounded-b-[10px]">
+          <MessageThread contactId={c.data.id} contactName={c.data.name} canSend={canSend && !c.data.anonymizedAt} height="h-[420px]"
+            target={{ phones: c.data.phones.map((p) => p.number), emails: c.data.emails.map((e) => e.email) }} />
         </div>
       )}
     </Panel>

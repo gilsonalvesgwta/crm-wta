@@ -40,12 +40,18 @@ export type Pipeline = {
   /** Quantos negócios o funil tem (todas as situações). */
   dealCount?: number;
   access?: { teamIds: string[]; membershipIds: string[] };
+  /** Negócio parado: prazo padrão (a etapa pode ter o seu) e aviso por WhatsApp a cada N dias. */
+  stale?: { days: number | null; notifyDays: number | null; accountId: string | null };
 };
+/** Texto do aviso de negócio parado. */
+export const idleText = (days?: number) => `Parado há ${days ?? 0} ${days === 1 ? 'dia' : 'dias'}`;
 export type DealCard = {
   id: string; title: string; valueCents: number; currency: string; status: 'open' | 'won' | 'lost'; pipelineId: string; stageId: string;
   expectedCloseDate: string | null; stageEnteredAt: string; closedAt: string | null; lastActivityAt: string | null; createdAt: string;
   owner: Ref | null; contact: Ref | null; organization: Ref | null; tags: TagRef[]; openActivities: number; nextActivityAt: string | null;
   rotting: boolean; stage?: { id: string; name: string; color: string; kind: string }; pipeline?: Ref;
+  /** Dias sem movimentação (sem mudar de etapa nem ter atividade ou nota). */
+  idleDays?: number;
 };
 export type Deal = DealCard & {
   custom: Record<string, unknown>; teamId: string | null; leadId: string | null; outcomeNote: string | null;
@@ -87,7 +93,11 @@ export type FieldDef = {
 export type Product = { id: string; name: string; sku: string | null; description: string | null; priceCents: number; currency: string; active: boolean };
 export type Reason = { id: string; kind: 'won' | 'lost'; name: string; position: number; active: boolean };
 export type Directory = { me: string; members: { id: string; name: string; email: string; teamIds: string[] }[]; teams: Ref[] };
-export type Note = { id: string; body: string; pinned: boolean; createdAt: string; updatedAt: string; author: Ref | null; mine: boolean };
+export type Note = {
+  id: string; body: string; pinned: boolean; createdAt: string; updatedAt: string; author: Ref | null; mine: boolean;
+  /** Nota de áudio (gravada no CRM). */
+  audio?: { id: string; name: string; contentType: string; sizeBytes: number } | null;
+};
 export type TimelineEntry = {
   id: string; kind: string; occurredAt: string; data: Record<string, unknown>; actor: Ref | null;
   deal: { id: string; title: string } | null; lead: { id: string; title: string } | null; contact: Ref | null;
@@ -212,6 +222,7 @@ export function timelineText(e: TimelineEntry): string {
     case 'file.removed': return 'Removeu um arquivo';
     case 'deal.created': return `Criou o negócio "${d.title ?? e.deal?.title ?? ''}"`;
     case 'deal.updated': return `Editou o negócio (${fieldNames(d.fields)})`;
+    case 'deal.stale_notified': return `Aviso por WhatsApp: sem movimentação há ${d.days} dias${d.to ? ` (para ${d.to})` : ''}`;
     case 'deal.stage_changed': return d.toPipeline ? `Transferiu do funil ${d.fromPipeline} (${d.fromStage}) para ${d.toPipeline} (${d.toStage})` : `Moveu de ${d.fromStage} para ${d.toStage}`;
     case 'deal.won': return `Negócio ganho${d.fromStage ? ` (estava em ${d.fromStage})` : ''}`;
     case 'deal.lost': return 'Negócio perdido';
