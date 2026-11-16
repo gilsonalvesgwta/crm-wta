@@ -2,7 +2,7 @@
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, AtSign, CheckSquare, Eye, EyeOff, Filter, Mail, MessageCircle, MessageSquareText, Plus, UserCheck, X } from 'lucide-react';
+import { ArrowLeft, ArrowRightLeft, AtSign, CheckSquare, Eye, EyeOff, Filter, Mail, MessageCircle, MessageSquareText, Plus, Undo2, UserCheck, X } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { phone, relative, type Contact } from '@/lib/crm';
 import { CHANNEL_NAME, CONVERSATION_STATUS, preview, type Channel, type Conversation, type ConversationStatus } from '@/lib/messages';
@@ -269,6 +269,8 @@ function Thread({ id, onBack, onActivity, canHide, onHide }: {
   const canAssign = can('conversations:assign');
   const canTake = can('conversations:take') || canAssign;
   const myId = dir.data?.me ?? '';
+  const [transfer, setTransfer] = useState(false);
+  const [to, setTo] = useState('');
 
   useEffect(() => {
     api<Conversation>('GET', `/api/v1/conversations/${id}`).then((c) => {
@@ -315,6 +317,12 @@ function Thread({ id, onBack, onActivity, canHide, onHide }: {
               {conv.hiddenAt ? <><Eye size={16} aria-hidden />Mostrar de novo</> : <><EyeOff size={16} aria-hidden />Ocultar</>}
             </Button>
           ) : null}
+          {!canAssign && conv.assignee?.id === myId && myId ? (
+            <>
+              <Button variant="secondary" onClick={() => void save({ assigneeId: null })}><Undo2 size={16} aria-hidden />Devolver para a fila</Button>
+              <Button variant="secondary" onClick={() => setTransfer(true)}><ArrowRightLeft size={16} aria-hidden />Transferir</Button>
+            </>
+          ) : null}
           {!conv.assignee && canTake && myId ? (
             <Button variant="secondary" onClick={() => void save({ assigneeId: myId })}><UserCheck size={16} aria-hidden />Assumir</Button>
           ) : null}
@@ -344,6 +352,17 @@ function Thread({ id, onBack, onActivity, canHide, onHide }: {
             <div className="flex flex-col gap-1.5"><span className="text-[13px] font-medium">Equipe</span><span className="flex h-11 items-center text-sm">{conv.team?.name ?? 'Sem equipe'}</span></div>
           )}
         </div>
+        {transfer ? (
+          <form className="flex flex-wrap items-end gap-2 rounded-[10px] border border-line bg-surface-2 p-3"
+            onSubmit={(e) => { e.preventDefault(); if (to) void save({ assigneeId: to }).then(() => { setTransfer(false); setTo(''); }); }}>
+            <Select className="min-w-[200px] flex-1" label="Transferir para" value={to} onChange={(e) => setTo(e.target.value)}>
+              <option value="">Escolha a pessoa</option>
+              {(dir.data?.members ?? []).filter((m) => m.id !== myId).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </Select>
+            <Button type="submit" disabled={!to}>Transferir</Button>
+            <Button type="button" variant="ghost" onClick={() => { setTransfer(false); setTo(''); }}>Cancelar</Button>
+          </form>
+        ) : null}
         {me.user && conv.assignee && conv.assignee.id !== myId && !canAssign ? (
           <p className="text-[12px] text-muted">Esta conversa é de {conv.assignee.name}.</p>
         ) : null}

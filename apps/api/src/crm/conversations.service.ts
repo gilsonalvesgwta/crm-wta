@@ -264,9 +264,18 @@ export class ConversationsService {
         const assign = tryReach(actor, 'conversations:assign');
         const take = tryReach(actor, 'conversations:take');
         const self = b.assigneeId === actor.membershipId;
+        // Quem está com a conversa pode devolver para a fila ou passar para outra pessoa da empresa.
+        const mine = v.assignee_membership_id === actor.membershipId;
         if (self) {
           // Assumir: quem atribui, ou quem pode assumir uma conversa sem responsável.
           if (!assign && !(take && v.assignee_membership_id === null)) throw Problem.forbidden('Você não pode assumir esta conversa.');
+        } else if (mine && !assign) {
+          if (b.assigneeId) {
+            const m = await q.query<{ status: string }>('select status from memberships where id = $1', [b.assigneeId]);
+            if (m.rows[0]?.status !== 'active') {
+              throw Problem.badRequest('Responsável inválido.', [{ field: 'assigneeId', message: 'Escolha uma pessoa ativa da empresa.' }]);
+            }
+          }
         } else {
           if (!assign) throw Problem.forbidden('Você não pode atribuir conversas a outra pessoa.');
           if (b.assigneeId) {
@@ -296,6 +305,15 @@ export class ConversationsService {
       }
       if (sets.length) {
         await q.query(`update conversations set ${sets.join(', ')} where id = $1`, vals);
+        // Avisa quem recebeu a conversa (quando foi outra pessoa que passou).
+        if (b.assigneeId && b.assigneeId !== actor.membershipId && b.assigneeId !== v.assignee_membership_id) {
+          const who = (await q.query<{ name: string }>(
+            'select coalesce(u.name, u.email) as name from memberships m join users u on u.id = m.user_id where m.id = $1', [actor.membershipId])).rows[0]?.name ?? 'Alguém';
+          const cname = (await q.query<{ name: string }>('select name from contacts where id = $1', [v.contact_id])).rows[0]?.name ?? 'contato';
+          await q.query(
+            `insert into notifications (tenant_id, membership_id, kind, title, body, link) values (app.tenant_id(), $1, 'conversation.assigned', $2, $3, $4)`,
+            [b.assigneeId, `Conversa com ${cname} passou para você`.slice(0, 200), `${who} transferiu a conversa.`.slice(0, 1000), `/conversas?c=${id}&st=all`]);
+        }
         await q.query(
           `insert into timeline_entries (tenant_id, kind, actor_membership_id, contact_id, data) values (app.tenant_id(), 'conversation.updated', $1, $2, $3)`,
           [actor.membershipId, v.contact_id, JSON.stringify({ conversationId: id, channel: v.channel, ...b })]);

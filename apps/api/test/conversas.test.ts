@@ -238,6 +238,25 @@ describe('estado, responsável e filtros', () => {
     assert.equal((await admin.post('/api/v1/conversations/hide', { ids: [], hidden: true })).status, 422);
   });
 
+  test('quem está com a conversa devolve para a fila ou transfere para outra pessoa', async () => {
+    await admin.patch(`/api/v1/conversations/${conv}`, { assigneeId: sales2Member });
+    // Transferir: a pessoa que recebe é avisada.
+    const t = await sales2.patch(`/api/v1/conversations/${conv}`, { assigneeId: salesMember });
+    assert.equal(t.status, 200, JSON.stringify(t.body));
+    assert.equal(t.body.assignee.id, salesMember);
+    const n = await f.admin.query<{ title: string; link: string }>(
+      "select title, link from notifications where membership_id = $1 and kind = 'conversation.assigned' order by created_at desc limit 1", [salesMember]);
+    assert.match(n.rows[0]!.title, /passou para você/);
+    assert.equal(n.rows[0]!.link, `/conversas?c=${conv}&st=all`);
+    // Quem não está com a conversa não transfere.
+    assert.notEqual((await sales2.patch(`/api/v1/conversations/${conv}`, { assigneeId: sales2Member })).status, 200);
+    // Devolver para a fila: fica sem responsável e pode ser assumida de novo.
+    const back = await sales.patch(`/api/v1/conversations/${conv}`, { assigneeId: null });
+    assert.equal(back.status, 200, JSON.stringify(back.body));
+    assert.equal(back.body.assignee, null);
+    assert.equal((await sales2.patch(`/api/v1/conversations/${conv}`, { assigneeId: sales2Member })).status, 200, 'o colega assume da fila');
+  });
+
   test('a empresa B não vê nem altera', async () => {
     assert.equal((await adminB.get(`/api/v1/conversations/${conv}`)).status, 404);
     assert.equal((await adminB.patch(`/api/v1/conversations/${conv}`, { status: 'closed' })).status, 404);
