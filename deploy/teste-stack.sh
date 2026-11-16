@@ -56,6 +56,13 @@ for i in $(seq 1 90); do
   sleep 3
 done
 docker service ls --format '{{.Name}} {{.Replicas}}' | sort
+# Diagnóstico logo no começo: se a migração não terminou, mostra por quê.
+if ! docker service logs crmwta_migrate 2>&1 | grep -q "migrate: concluído"; then
+  echo "--- migração não concluiu; tarefas e últimas linhas ---"
+  docker service ps --no-trunc --format '{{.Name}} {{.CurrentState}} {{.Error}}' crmwta_migrate 2>&1 | head -n 12
+  docker service logs --tail 40 crmwta_migrate 2>&1 | tail -n 40
+  docker service logs --tail 20 crmwta_db 2>&1 | tail -n 20
+fi
 
 falhou=0
 ok() { echo "OK   $1"; }
