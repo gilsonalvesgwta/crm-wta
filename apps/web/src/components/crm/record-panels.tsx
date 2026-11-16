@@ -115,7 +115,7 @@ export function NotesPanel({ kind, id, canEdit }: { kind: RecordKind; id: string
                 <span>{n.author?.name ?? 'Pessoa removida'} · {relative(n.createdAt)}{n.pinned ? ' · fixada' : ''}</span>
                 {canEdit ? (
                   <span className="flex gap-1">
-                    {n.mine && editing?.id !== n.id ? (
+                    {(n.canEdit ?? n.mine) && editing?.id !== n.id ? (
                       <button type="button" onClick={() => { setEditing({ id: n.id, body: n.body }); setEditErr(null); }} aria-label="Editar nota"
                         className="flex size-8 items-center justify-center rounded-[6px] hover:bg-surface-2 hover:text-ink"><Pencil size={14} aria-hidden /></button>
                     ) : null}
@@ -123,7 +123,7 @@ export function NotesPanel({ kind, id, canEdit }: { kind: RecordKind; id: string
                       className="flex size-8 items-center justify-center rounded-[6px] hover:bg-surface-2 hover:text-ink">
                       {n.pinned ? <PinOff size={14} aria-hidden /> : <Pin size={14} aria-hidden />}
                     </button>
-                    {n.mine ? (
+                    {(n.canDelete ?? n.mine) ? (
                       <button type="button" onClick={() => setRemove(n)} aria-label="Apagar nota"
                         className="flex size-8 items-center justify-center rounded-[6px] hover:bg-surface-2 hover:text-bad"><Trash2 size={14} aria-hidden /></button>
                     ) : null}

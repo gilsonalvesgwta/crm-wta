@@ -97,7 +97,7 @@ export type Product = { id: string; name: string; sku: string | null; descriptio
 export type Reason = { id: string; kind: 'won' | 'lost'; name: string; position: number; active: boolean };
 export type Directory = { me: string; members: { id: string; name: string; email: string; teamIds: string[] }[]; teams: Ref[] };
 export type Note = {
-  id: string; body: string; pinned: boolean; createdAt: string; updatedAt: string; author: Ref | null; mine: boolean;
+  id: string; body: string; pinned: boolean; createdAt: string; updatedAt: string; author: Ref | null; mine: boolean; canEdit?: boolean; canDelete?: boolean;
   /** Nota de áudio (gravada no CRM). */
   audio?: { id: string; name: string; contentType: string; sizeBytes: number } | null;
 };
@@ -221,6 +221,7 @@ export function timelineText(e: TimelineEntry): string {
     case 'organization.created': return 'Organização criada';
     case 'organization.updated': return `Editou ${fieldNames(d.fields)}`;
     case 'note.added': return 'Adicionou uma nota';
+    case 'note.edited': return 'Editou uma nota de outra pessoa';
     case 'file.added': return 'Anexou um arquivo';
     case 'file.removed': return 'Removeu um arquivo';
     case 'deal.created': return `Criou o negócio "${d.title ?? e.deal?.title ?? ''}"`;
