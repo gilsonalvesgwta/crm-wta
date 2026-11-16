@@ -36,6 +36,7 @@ import { OperationService } from './crm/operation.service.js';
 import { SalesService } from './crm/sales.service.js';
 import { AdsService } from './crm/ads.service.js';
 import { IgFlowEngine } from './crm/ig-flows.engine.js';
+import { StaleDealsService } from './crm/stale-deals.service.js';
 import { IgFlowsService } from './crm/ig-flows.service.js';
 import { IgFlowsController } from './crm/ig-flows.controller.js';
 import { WaFlowsController } from './crm/wa-flows.controller.js';
@@ -95,7 +96,7 @@ export class AppModule {
         DashboardService,
         DispatcherService,
         Evolution, Meta, MetaService,
-        MessagesService, OperationService, SalesService, AdsService, KpisService, IgFlowEngine, IgFlowsService, ScheduledService, ConversationsService, QuickRepliesService, CampaignsService,
+        MessagesService, OperationService, SalesService, AdsService, KpisService, IgFlowEngine, IgFlowsService, StaleDealsService, ScheduledService, ConversationsService, QuickRepliesService, CampaignsService,
         ChannelsService,
         BackupsService,
         AutomationsService,

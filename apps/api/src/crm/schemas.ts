@@ -135,6 +135,12 @@ export const pipelinePatch = z.object({
   restricted: z.boolean().optional(),
   archived: z.boolean().optional(),
   access: z.object({ teamIds: z.array(uuid).max(200), membershipIds: z.array(uuid).max(500) }).optional(),
+  /** Negócio parado: prazo padrão do funil (a etapa pode ter o seu), aviso por WhatsApp a cada N dias e por qual número. */
+  stale: z.object({
+    days: z.number().int().min(1, { message: 'De 1 a 365 dias.' }).max(365, { message: 'De 1 a 365 dias.' }).nullable(),
+    notifyDays: z.number().int().min(1, { message: 'De 1 a 365 dias.' }).max(365, { message: 'De 1 a 365 dias.' }).nullable(),
+    accountId: uuid.nullable(),
+  }).optional(),
 });
 export const stagesBody = z.object({ stages: z.array(stageBody).min(3).max(30) });
 export const transitionsBody = z.object({ rules: z.array(z.object({ fromStageId: uuid, toStageId: uuid })).max(900) });

@@ -41,8 +41,9 @@ export class DashboardService {
                   coalesce(sum(d.value_cents) filter (where d.status = 'won' and d.closed_at >= ${from} and d.closed_at < ${to}), 0) as won_value,
                   count(*) filter (where d.status = 'lost' and d.closed_at >= ${from} and d.closed_at < ${to}) as lost_count,
                   count(*) filter (where d.created_at >= ${from} and d.created_at < ${to}) as created_count,
-                  count(*) filter (where d.status = 'open' and s.rotting_days is not null
-                    and greatest(d.stage_entered_at, coalesce(d.last_activity_at, d.stage_entered_at)) < now() - make_interval(days => s.rotting_days)) as stalled_count
+                  count(*) filter (where d.status = 'open' and coalesce(s.rotting_days, (select pl.stale_days from pipelines pl where pl.id = d.pipeline_id)) is not null
+                    and greatest(d.stage_entered_at, coalesce(d.last_activity_at, d.stage_entered_at))
+                        < now() - make_interval(days => coalesce(s.rotting_days, (select pl.stale_days from pipelines pl where pl.id = d.pipeline_id)))) as stalled_count
              from deals d join pipeline_stages s on s.id = d.stage_id where ${w}`, p.values)).rows[0]!;
         const won = Number(k.won_count);
         const lost = Number(k.lost_count);

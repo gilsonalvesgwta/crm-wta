@@ -103,6 +103,16 @@ function GeneralPanel({ pipeline, onChange }: { pipeline: Pipeline; onChange: ()
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [danger, setDanger] = useState<null | 'clear' | 'delete'>(null);
+  // Negócio parado: prazo padrão, aviso por WhatsApp e por qual número.
+  const [staleDays, setStaleDays] = useState(pipeline.stale?.days ? String(pipeline.stale.days) : '');
+  const [notifyOn, setNotifyOn] = useState(!!pipeline.stale?.notifyDays);
+  const [notifyDays, setNotifyDays] = useState(String(pipeline.stale?.notifyDays ?? 3));
+  const [staleAccount, setStaleAccount] = useState(pipeline.stale?.accountId ?? '');
+  const [waAccounts, setWaAccounts] = useState<{ id: string; name: string; kind: string; address: string | null }[]>([]);
+  useEffect(() => {
+    api<{ id: string; name: string; kind: string; address: string | null }[]>('GET', '/api/v1/conversations/accounts')
+      .then((r) => setWaAccounts(r.filter((a) => a.kind.startsWith('whatsapp')))).catch(() => setWaAccounts([]));
+  }, []);
 
   async function save(patch: Record<string, unknown>, ok: string) {
     setBusy(true);
@@ -150,6 +160,28 @@ function GeneralPanel({ pipeline, onChange }: { pipeline: Pipeline; onChange: ()
           ) : null}
           <p className="text-[13px] text-muted">Quem administra funis sempre vê todos. Fora da lista, o funil e seus negócios somem das telas, da API e das exportações.</p>
           <div><Button variant="secondary" loading={busy} onClick={() => save({ restricted, access: { teamIds: teams, membershipIds: people } }, 'Acesso salvo.')}>Salvar acesso</Button></div>
+        </fieldset>
+        <fieldset className="flex flex-col gap-3 rounded-[8px] border border-line p-3">
+          <legend className="px-1 text-[13px] font-medium">Negócio parado</legend>
+          <p className="text-[13px] text-muted">O card ganha o aviso vermelho &ldquo;Parado há N dias&rdquo; quando fica sem mudar de etapa e sem atividade ou nota por mais dias que o prazo. Cada etapa pode ter um prazo próprio (em Etapas); sem ele, vale o deste funil.</p>
+          <Field className="max-w-[260px]" label="Prazo padrão (dias sem movimentação)" type="number" min={1} max={365} value={staleDays} placeholder="Sem aviso"
+            onChange={(e) => setStaleDays(e.target.value)} />
+          <label className="flex min-h-9 items-center gap-2 text-sm">
+            <input type="checkbox" className="size-4 accent-[var(--primary)]" checked={notifyOn} onChange={(e) => setNotifyOn(e.target.checked)} />
+            Avisar por WhatsApp quem cadastrou o negócio (ou o responsável)
+          </label>
+          {notifyOn ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Repetir o aviso a cada (dias)" type="number" min={1} max={365} value={notifyDays} onChange={(e) => setNotifyDays(e.target.value)} />
+              <Select label="Enviar pelo número" value={staleAccount} onChange={(e) => setStaleAccount(e.target.value)}>
+                <option value="">{waAccounts.length ? 'Escolha o WhatsApp' : 'Nenhum WhatsApp conectado'}</option>
+                {waAccounts.map((a) => <option key={a.id} value={a.id}>{a.name}{a.address ? ` · ${a.address}` : ''}</option>)}
+              </Select>
+              <p className="text-[13px] text-muted sm:col-span-2">O aviso vai para o WhatsApp de aviso de cada pessoa (Configurações › Usuários), em horário comercial. Pelo WhatsApp oficial, só chega se a pessoa falou com o número nas últimas 24 h; prefira o WhatsApp por QR code.</p>
+            </div>
+          ) : null}
+          <div><Button variant="secondary" loading={busy} disabled={notifyOn && !staleAccount}
+            onClick={() => save({ stale: { days: staleDays ? Number(staleDays) : null, notifyDays: notifyOn ? Number(notifyDays) || 3 : null, accountId: notifyOn ? staleAccount || null : null } }, 'Aviso de negócio parado salvo.')}>Salvar aviso</Button></div>
         </fieldset>
         {canDanger ? (
           <fieldset className="flex flex-col gap-3 rounded-[8px] border border-bad/40 p-3">

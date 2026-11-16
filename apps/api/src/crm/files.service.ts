@@ -100,6 +100,28 @@ export class FilesService {
     });
   }
 
+  /** Nota de áudio: grava o arquivo no registro e cria a nota com ele (o texto é opcional). */
+  async addAudioNote(actor: Actor, ref: RecordRef, name: string, data: Buffer): Promise<string> {
+    return this.db.app(tenantCtx(actor), async (q) => {
+      await this.records.assertAccess(q, actor, ref, true);
+      const fileId = await this.storeIn(q, actor, { name, data, purpose: 'attachment', ref, maxBytes: 25 * 1024 * 1024 });
+      const ct = (await q.query<{ content_type: string }>('select content_type from files where id = $1', [fileId])).rows[0]!.content_type;
+      if (!ct.startsWith('audio/') && !(ct === 'video/webm' || ct === 'video/mp4')) {
+        throw Problem.badRequest('Arquivo não é áudio.', [{ field: 'file', message: 'Grave um áudio ou envie um arquivo de áudio.' }]);
+      }
+      const col = REF_COLUMN[ref.kind];
+      const id = (await q.query<{ id: string }>(
+        `insert into notes (tenant_id, body, file_id, author_membership_id, ${col}) values (app.tenant_id(), '', $1, $2, $3) returning id`,
+        [fileId, actor.membershipId, ref.id])).rows[0]!.id;
+      const table = { contact: 'contacts', organization: 'organizations', deal: 'deals', lead: 'leads' }[ref.kind];
+      await q.query(`update ${table} set last_activity_at = now() where id = $1`, [ref.id]);
+      await q.query(
+        `insert into timeline_entries (tenant_id, kind, actor_membership_id, ${col}, data) values (app.tenant_id(), 'note.added', $1, $2, $3)`,
+        [actor.membershipId, ref.id, JSON.stringify({ noteId: id, audio: true })]);
+      return id;
+    });
+  }
+
   private async row(q: Q, id: string): Promise<FileRow> {
     const r = await q.query<FileRow>(
       `select id, original_name as "originalName", content_type as "contentType", size_bytes::int as "sizeBytes",
@@ -114,7 +136,8 @@ export class FilesService {
       const r = await q.query<FileRow>(
         `select id, original_name as "originalName", content_type as "contentType", size_bytes::int as "sizeBytes",
                 created_at as "createdAt", ${memberJson('uploaded_by')} as "uploadedBy"
-           from files where ${REF_COLUMN[ref.kind]} = $1 and deleted_at is null and purpose = 'attachment'
+           from files f where ${REF_COLUMN[ref.kind]} = $1 and deleted_at is null and purpose = 'attachment'
+            and not exists (select 1 from notes n where n.file_id = f.id)
           order by created_at desc`, [ref.id]);
       return r.rows;
     });

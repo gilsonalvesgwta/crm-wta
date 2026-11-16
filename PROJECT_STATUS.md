@@ -23,6 +23,14 @@ Atualizado em 9 de novembro de 2026.
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
 
+### Negócio: notas de áudio, conversas no card, excluir atividade e negócio parado (16 nov 2026)
+
+- Notas: editar o texto (quem escreveu) e gravar áudio no navegador; a equipe ouve na própria nota. O áudio não aparece em Arquivos e sai junto quando a nota é apagada.
+- Painel "Conversas" no negócio: o histórico com o contato (WhatsApp, Instagram, e-mail) atualiza sozinho e dá para responder dali.
+- Atividades: botão de excluir (na série, "só esta" ou "esta e as próximas").
+- Negócio parado: aviso vermelho "Parado há N dias" no card, na lista e no negócio. Prazo por etapa (já existia) ou padrão do funil (Configurações › Funis › Negócio parado). Opcional: aviso por WhatsApp para quem cadastrou (ou o responsável), repetido a cada N dias, pelo número escolhido, das 8h às 20h no fuso da empresa; o histórico registra cada aviso.
+- Migração 0025: `notes.file_id` (nota só de áudio), `pipelines.stale_days/stale_notify_days/stale_account_id`, `deals.stale_notified_at` e `app.claim_stale_deals`.
+
 ### Conversas: ocultar e filtrar por número/conexão (16 nov 2026)
 
 - Administrador e gestor podem ocultar conversas (spam, contatos pessoais): botão "Ocultar" na conversa ou "Selecionar" para várias. Elas saem da lista e do contador de não lidas, ficam em "Ocultas" e podem voltar com "Mostrar de novo". Mensagem nova não traz de volta. Nada é apagado.

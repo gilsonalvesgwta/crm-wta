@@ -51,7 +51,7 @@ export class RecordsService {
       await this.assertAccess(q, actor, ref, false);
       const rows = await q.query(
         `select n.id, n.body, n.pinned, n.created_at as "createdAt", n.updated_at as "updatedAt",
-                ${memberJson('n.author_membership_id')} as author, n.author_membership_id = $2 as mine
+                ${memberJson('n.author_membership_id')} as author, n.author_membership_id = $2 as mine, (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type, 'sizeBytes', f.size_bytes) from files f where f.id = n.file_id and f.deleted_at is null) as audio
            from notes n where n.${REF_COLUMN[ref.kind]} = $1 order by n.pinned desc, n.created_at desc limit 200`,
         [ref.id, actor.membershipId]);
       return rows.rows;
@@ -72,8 +72,15 @@ export class RecordsService {
         [actor.membershipId, ref.id, JSON.stringify({ noteId: r.rows[0]!.id })]);
       return (await q.query(
         `select n.id, n.body, n.pinned, n.created_at as "createdAt", n.updated_at as "updatedAt",
-                ${memberJson('n.author_membership_id')} as author, true as mine from notes n where n.id = $1`, [r.rows[0]!.id])).rows[0];
+                ${memberJson('n.author_membership_id')} as author, true as mine, (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type, 'sizeBytes', f.size_bytes) from files f where f.id = n.file_id and f.deleted_at is null) as audio from notes n where n.id = $1`, [r.rows[0]!.id])).rows[0];
     });
+  }
+
+  async note(actor: Actor, id: string) {
+    return this.db.app(tenantCtx(actor), async (q) => (await q.query(
+      `select n.id, n.body, n.pinned, n.created_at as "createdAt", n.updated_at as "updatedAt",
+              ${memberJson('n.author_membership_id')} as author, n.author_membership_id = $2 as mine, (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type, 'sizeBytes', f.size_bytes) from files f where f.id = n.file_id and f.deleted_at is null) as audio from notes n where n.id = $1`,
+      [id, actor.membershipId])).rows[0]);
   }
 
   private async noteRef(q: Q, id: string): Promise<{ ref: RecordRef; author: string | null }> {
@@ -96,7 +103,7 @@ export class RecordsService {
       await q.query('update notes set body = coalesce($2, body), pinned = coalesce($3, pinned) where id = $1', [id, input.body ?? null, input.pinned ?? null]);
       return (await q.query(
         `select n.id, n.body, n.pinned, n.created_at as "createdAt", n.updated_at as "updatedAt",
-                ${memberJson('n.author_membership_id')} as author, n.author_membership_id = $2 as mine from notes n where n.id = $1`,
+                ${memberJson('n.author_membership_id')} as author, n.author_membership_id = $2 as mine, (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type, 'sizeBytes', f.size_bytes) from files f where f.id = n.file_id and f.deleted_at is null) as audio from notes n where n.id = $1`,
         [id, actor.membershipId])).rows[0];
     });
   }
@@ -108,6 +115,8 @@ export class RecordsService {
       if (author !== actor.membershipId && actor.permissions.get('contacts:delete') !== 'tenant') {
         throw Problem.forbidden('Só quem escreveu a nota pode apagá-la.');
       }
+      // O áudio da nota sai junto (fica marcado como apagado, como os demais arquivos).
+      await q.query('update files set deleted_at = now() where id = (select file_id from notes where id = $1)', [id]);
       await q.query('delete from notes where id = $1', [id]);
     });
   }

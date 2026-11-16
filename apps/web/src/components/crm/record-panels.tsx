@@ -1,7 +1,7 @@
 'use client';
 import { useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { CalendarClock, Check, Download, FileText, Pin, PinOff, Plus, RotateCcw, Trash2, Upload } from 'lucide-react';
+import { CalendarClock, Check, Download, FileText, Pencil, Pin, PinOff, Plus, RotateCcw, Trash2, Upload } from 'lucide-react';
 import { ApiError, api, apiUpload } from '@/lib/api';
 import { useLoad } from '@/lib/use-load';
 import {
@@ -12,9 +12,11 @@ import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Confirm } from '@/components/ui/confirm';
+import { Dialog } from '@/components/ui/dialog';
 import { Empty, LoadError, Loading } from '@/components/ui/states';
 import { Avatar } from '@/components/ui/misc';
 import { ActivityDialog, type ActivityLinks } from './activity-dialog';
+import { MediaPreview, VoiceRecorder } from './media';
 
 export type RecordKind = 'contact' | 'organization' | 'deal' | 'lead';
 
@@ -26,20 +28,50 @@ export function NotesPanel({ kind, id, canEdit }: { kind: RecordKind; id: string
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [remove, setRemove] = useState<Note | null>(null);
+  // Áudio gravado para a nota (ouvido antes de salvar).
+  const [voice, setVoice] = useState<File | null>(null);
+  const [voiceUrl, setVoiceUrl] = useState<string | null>(null);
+  // Edição de uma nota já salva.
+  const [editing, setEditing] = useState<{ id: string; body: string } | null>(null);
+  const [editErr, setEditErr] = useState<string | null>(null);
+
+  function setRecorded(f: File | null) {
+    if (voiceUrl) URL.revokeObjectURL(voiceUrl);
+    setVoice(f);
+    setVoiceUrl(f ? URL.createObjectURL(f) : null);
+  }
 
   async function add(e: FormEvent) {
     e.preventDefault();
-    if (!body.trim()) return;
+    if (!body.trim() && !voice) return;
     setBusy(true);
     setErr(null);
     try {
-      await api('POST', `/api/v1/records/${kind}/${id}/notes`, { body });
+      if (voice) {
+        // Áudio primeiro; o texto, se houver, vai junto na mesma nota.
+        const n = await apiUpload<Note>(`/api/v1/records/${kind}/${id}/notes/audio`, voice);
+        if (body.trim()) await api('PATCH', `/api/v1/notes/${n.id}`, { body });
+      } else {
+        await api('POST', `/api/v1/records/${kind}/${id}/notes`, { body });
+      }
       setBody('');
+      setRecorded(null);
       await notes.reload();
     } catch (e2) {
       setErr(e2 instanceof ApiError ? e2.title : 'Não foi possível salvar a nota.');
     } finally {
       setBusy(false);
+    }
+  }
+  async function saveEdit() {
+    if (!editing || !editing.body.trim()) return;
+    setEditErr(null);
+    try {
+      await api('PATCH', `/api/v1/notes/${editing.id}`, { body: editing.body });
+      setEditing(null);
+      await notes.reload();
+    } catch (e2) {
+      setEditErr(e2 instanceof ApiError ? e2.title : 'Não foi possível salvar.');
     }
   }
   async function pin(n: Note) {
@@ -58,10 +90,19 @@ export function NotesPanel({ kind, id, canEdit }: { kind: RecordKind; id: string
       {canEdit ? (
         <form onSubmit={add} className="mb-4 flex flex-col gap-2">
           <label htmlFor={`nota-${id}`} className="sr-only">Nova nota</label>
-          <textarea id={`nota-${id}`} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Escreva uma nota para a equipe"
+          <textarea id={`nota-${id}`} value={body} onChange={(e) => setBody(e.target.value)} placeholder={voice ? 'Texto da nota (opcional)' : 'Escreva uma nota para a equipe'}
             className="min-h-[76px] rounded-[6px] border border-line-strong bg-surface px-3 py-2.5 text-sm placeholder:text-muted" />
+          {voiceUrl ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-[8px] border border-line bg-surface-2 p-2">
+              <audio controls src={voiceUrl} className="max-w-full"><track kind="captions" /></audio>
+              <button type="button" onClick={() => setRecorded(null)} className="text-[13px] text-muted hover:text-bad hover:underline">Descartar áudio</button>
+            </div>
+          ) : null}
           {err ? <Alert tone="error">{err}</Alert> : null}
-          <div className="flex justify-end"><Button type="submit" loading={busy} disabled={!body.trim()}>Salvar nota</Button></div>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {!voice ? <VoiceRecorder onRecorded={(f) => setRecorded(f)} onError={setErr} disabled={busy} /> : null}
+            <Button type="submit" loading={busy} disabled={!body.trim() && !voice}>Salvar nota</Button>
+          </div>
         </form>
       ) : null}
       {notes.error ? <LoadError error={notes.error} retry={notes.reload} /> : notes.loading && !notes.data ? <Loading /> : !notes.data?.length ? (
@@ -74,6 +115,10 @@ export function NotesPanel({ kind, id, canEdit }: { kind: RecordKind; id: string
                 <span>{n.author?.name ?? 'Pessoa removida'} · {relative(n.createdAt)}{n.pinned ? ' · fixada' : ''}</span>
                 {canEdit ? (
                   <span className="flex gap-1">
+                    {n.mine && editing?.id !== n.id ? (
+                      <button type="button" onClick={() => { setEditing({ id: n.id, body: n.body }); setEditErr(null); }} aria-label="Editar nota"
+                        className="flex size-8 items-center justify-center rounded-[6px] hover:bg-surface-2 hover:text-ink"><Pencil size={14} aria-hidden /></button>
+                    ) : null}
                     <button type="button" onClick={() => pin(n)} aria-label={n.pinned ? 'Desafixar nota' : 'Fixar nota'}
                       className="flex size-8 items-center justify-center rounded-[6px] hover:bg-surface-2 hover:text-ink">
                       {n.pinned ? <PinOff size={14} aria-hidden /> : <Pin size={14} aria-hidden />}
@@ -85,13 +130,25 @@ export function NotesPanel({ kind, id, canEdit }: { kind: RecordKind; id: string
                   </span>
                 ) : null}
               </div>
-              <p className="whitespace-pre-wrap text-sm">{n.body}</p>
+              {n.audio ? <div className="mb-1.5"><MediaPreview file={n.audio} kind="audio" out={false} /></div> : null}
+              {editing?.id === n.id ? (
+                <div className="flex flex-col gap-2">
+                  <label htmlFor={`edit-${n.id}`} className="sr-only">Editar a nota</label>
+                  <textarea id={`edit-${n.id}`} value={editing.body} onChange={(e) => setEditing({ id: n.id, body: e.target.value })} autoFocus
+                    className="min-h-[76px] rounded-[6px] border border-line-strong bg-surface px-3 py-2.5 text-sm" />
+                  {editErr ? <Alert tone="error">{editErr}</Alert> : null}
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button>
+                    <Button type="button" onClick={() => void saveEdit()} disabled={!editing.body.trim()}>Salvar</Button>
+                  </div>
+                </div>
+              ) : n.body ? <p className="whitespace-pre-wrap text-sm">{n.body}</p> : null}
             </li>
           ))}
         </ul>
       )}
       <Confirm open={!!remove} title="Apagar a nota?" confirmLabel="Apagar" onConfirm={del} onCancel={() => setRemove(null)}>
-        A nota some para todos. Isso não pode ser desfeito.
+        A nota{remove?.audio ? ' e o áudio somem' : ' some'} para todos. Isso não pode ser desfeito.
       </Confirm>
     </Panel>
   );
@@ -223,7 +280,7 @@ export function FilesPanel({ kind, id, canEdit, onChange }: { kind: RecordKind; 
 
 // ---- Atividades do registro --------------------------------------------------------------
 
-export function ActivityRow({ a, onToggle, onEdit }: { a: Activity; onToggle: (outcome?: CallOutcome) => void; onEdit?: () => void }) {
+export function ActivityRow({ a, onToggle, onEdit, onDelete }: { a: Activity; onToggle: (outcome?: CallOutcome) => void; onEdit?: () => void; onDelete?: () => void }) {
   const done = a.status === 'done';
   const [asking, setAsking] = useState(false);
   // Ligação e reunião: ao concluir, pergunta como foi (entra nos indicadores comerciais).
@@ -252,6 +309,10 @@ export function ActivityRow({ a, onToggle, onEdit }: { a: Activity; onToggle: (o
             {done && a.outcome && a.outcome !== 'held' ? <Badge tone="warn">{OUTCOME_LABEL[a.outcome]}</Badge> : null}
           </p>
         </div>
+        {onDelete ? (
+          <button type="button" onClick={onDelete} aria-label={`Excluir: ${a.title}`}
+            className="flex size-8 shrink-0 items-center justify-center rounded-[6px] text-muted hover:bg-surface-2 hover:text-bad"><Trash2 size={15} aria-hidden /></button>
+        ) : null}
       </div>
       {asking && !done ? (
         <div role="group" aria-label={`Como foi: ${a.title}`} className="ml-9 flex flex-wrap items-center gap-1.5 rounded-[8px] border border-line bg-surface-2 p-2">
@@ -272,6 +333,8 @@ export function ActivitiesPanel({ filter, links, canEdit, onChange }: {
 }) {
   const list = useLoad(() => api<Activity[]>('GET', `/api/v1/activities?status=all&limit=100&${filter}`), [filter]);
   const [dialog, setDialog] = useState<{ activity: Activity | null } | null>(null);
+  const [remove, setRemove] = useState<Activity | null>(null);
+  const [removeErr, setRemoveErr] = useState<string | null>(null);
   const open = (list.data ?? []).filter((a) => a.status === 'open');
   const done = (list.data ?? []).filter((a) => a.status === 'done').slice(0, 5);
 
@@ -279,6 +342,19 @@ export function ActivitiesPanel({ filter, links, canEdit, onChange }: {
     await api('POST', `/api/v1/activities/${a.id}/status`, statusBody(a, outcome)).catch(() => undefined);
     await list.reload();
     onChange?.();
+  }
+
+  async function del(scope: 'this' | 'following') {
+    if (!remove) return;
+    setRemoveErr(null);
+    try {
+      await api('DELETE', `/api/v1/activities/${remove.id}?scope=${scope}`);
+      setRemove(null);
+      await list.reload();
+      onChange?.();
+    } catch (e) {
+      setRemoveErr(e instanceof ApiError ? e.title : 'Não foi possível excluir.');
+    }
   }
 
   return (
@@ -290,13 +366,22 @@ export function ActivitiesPanel({ filter, links, canEdit, onChange }: {
           </Empty>
         ) : (
           <div className="flex flex-col gap-3">
-            {open.map((a) => <ActivityRow key={a.id} a={a} onToggle={(o) => toggle(a, o)} onEdit={canEdit ? () => setDialog({ activity: a }) : undefined} />)}
+            {open.map((a) => <ActivityRow key={a.id} a={a} onToggle={(o) => toggle(a, o)} onEdit={canEdit ? () => setDialog({ activity: a }) : undefined} onDelete={canEdit ? () => setRemove(a) : undefined} />)}
             {done.length ? <p className="mt-1 text-[12px] font-medium uppercase tracking-wide text-muted">Concluídas</p> : null}
-            {done.map((a) => <ActivityRow key={a.id} a={a} onToggle={(o) => toggle(a, o)} />)}
+            {done.map((a) => <ActivityRow key={a.id} a={a} onToggle={(o) => toggle(a, o)} onDelete={canEdit ? () => setRemove(a) : undefined} />)}
           </div>
         )}
       <ActivityDialog open={!!dialog} activity={dialog?.activity} links={links} onClose={() => setDialog(null)}
         onSaved={() => { setDialog(null); void list.reload(); onChange?.(); }} />
+      <Dialog open={!!remove} onClose={() => { setRemove(null); setRemoveErr(null); }} title="Excluir a atividade?" description={remove?.title}
+        footer={<>
+          <Button variant="ghost" onClick={() => { setRemove(null); setRemoveErr(null); }}>Cancelar</Button>
+          {remove?.seriesId ? <Button variant="danger" onClick={() => void del('following')}>Esta e as próximas</Button> : null}
+          <Button variant="danger" onClick={() => void del('this')}>{remove?.seriesId ? 'Só esta' : 'Excluir'}</Button>
+        </>}>
+        <p className="text-sm">{remove?.seriesId ? 'Ela se repete: escolha se exclui só esta ou também as próximas.' : 'Ela some da agenda de todos.'} Isso não pode ser desfeito.</p>
+        {removeErr ? <div className="mt-3"><Alert tone="error">{removeErr}</Alert></div> : null}
+      </Dialog>
     </Panel>
   );
 }

@@ -31,8 +31,13 @@ test('contatos: cadastrar, anotar, agendar, anexar e achar duplicado', async ({ 
   await expect(page.getByText('(11) 98877-6655')).toBeVisible();
   await expect(page.getByText('indicação')).toBeVisible();
 
-  await page.getByLabel('Nova nota').fill('Pediu proposta para 3 unidades.');
+  await page.getByLabel('Nova nota').fill('Pediu proposta para 3 unid.');
   await page.getByRole('button', { name: 'Salvar nota' }).click();
+  await expect(page.getByText('Pediu proposta para 3 unid.')).toBeVisible();
+  // Editar a nota já salva.
+  await page.getByRole('button', { name: 'Editar nota' }).click();
+  await page.getByLabel('Editar a nota').fill('Pediu proposta para 3 unidades.');
+  await page.getByRole('listitem').filter({ has: page.getByLabel('Editar a nota') }).getByRole('button', { name: 'Salvar', exact: true }).click();
   await expect(page.getByText('Pediu proposta para 3 unidades.')).toBeVisible();
 
   await page.getByRole('button', { name: 'Agendar' }).click();

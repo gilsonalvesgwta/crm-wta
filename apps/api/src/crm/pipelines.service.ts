@@ -58,6 +58,7 @@ export class PipelinesService {
     const admin = actor.permissions.get('pipelines:admin') === 'tenant';
     const rows = await q.query(
       `select pl.id, pl.name, pl.position, pl.currency, pl.restricted, pl.archived_at is not null as archived,
+              json_build_object('days', pl.stale_days, 'notifyDays', pl.stale_notify_days, 'accountId', pl.stale_account_id) as stale,
               (select count(*)::int from deals d where d.pipeline_id = pl.id) as "dealCount",
               coalesce((select json_agg(json_build_object(
                   'id', s.id, 'name', s.name, 'position', s.position, 'color', s.color, 'probability', s.probability,
@@ -147,6 +148,7 @@ export class PipelinesService {
   async update(actor: Actor, id: string, input: {
     name?: string; position?: number; restricted?: boolean; archived?: boolean;
     access?: { teamIds: string[]; membershipIds: string[] };
+    stale?: { days: number | null; notifyDays: number | null; accountId: string | null };
   }) {
     return this.db.app(tenantCtx(actor), async (q) => {
       await this.accessible(q, actor, id);
@@ -163,6 +165,19 @@ export class PipelinesService {
             : 'Já existe um funil ativo com esse nome.');
         }
         throw err;
+      }
+      if (input.stale) {
+        if (input.stale.notifyDays && !input.stale.accountId) {
+          throw Problem.badRequest('Escolha o número.', [{ field: 'stale.accountId', message: 'Escolha por qual WhatsApp sai o aviso.' }]);
+        }
+        if (input.stale.accountId) {
+          const a = (await q.query<{ kind: string }>('select kind from channel_accounts where id = $1', [input.stale.accountId])).rows[0];
+          if (!a || !a.kind.startsWith('whatsapp')) {
+            throw Problem.badRequest('Número inválido.', [{ field: 'stale.accountId', message: 'Escolha um WhatsApp da empresa.' }]);
+          }
+        }
+        await q.query('update pipelines set stale_days = $2, stale_notify_days = $3, stale_account_id = $4 where id = $1',
+          [id, input.stale.days, input.stale.notifyDays, input.stale.accountId]);
       }
       if (input.access) {
         await q.query('delete from pipeline_access where pipeline_id = $1', [id]);

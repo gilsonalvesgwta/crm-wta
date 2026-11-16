@@ -7,6 +7,7 @@ import path from 'node:path';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { base32Decode, totpAt } from '../src/domain/totp.js';
 import { Browser, createDatabase, createUser, dropDatabase, startApi, type Fixture } from './helpers.js';
+import { DispatcherService } from '../src/crm/dispatcher.service.js';
 import { FakeEvolution, FakeSmtp } from './fakes.js';
 
 const KEY = 'chave-global-de-teste';
@@ -320,6 +321,59 @@ describe('WhatsApp pela Evolution', () => {
     const ok = await admin.post(`/api/v1/messages/${empty.id}/media`, {});
     assert.equal(ok.status, 200, JSON.stringify(ok.body));
     assert.deepEqual([ok.body.kind, ok.body.body, ok.body.file?.contentType], ['image', 'Simulação', 'image/png']);
+  });
+
+  test('nota de áudio: grava, ouve, edita o texto; apagar leva o áudio junto', async () => {
+    const pl = (await admin.post('/api/v1/pipelines', { name: 'Notas áudio' })).body as { id: string; stages: { id: string; kind: string }[] };
+    const deal = (await admin.post('/api/v1/deals', { pipelineId: pl.id, title: 'Com áudio', stageId: pl.stages[0]!.id })).body;
+    const up = await admin.upload(`/api/v1/records/deal/${deal.id}/notes/audio`, 'gravacao.ogg', OPUS, 'audio/ogg');
+    assert.equal(up.status, 201, JSON.stringify(up.body));
+    assert.equal(up.body.body, '');
+    assert.equal(up.body.audio.contentType.startsWith('audio/'), true);
+    // Texto acrescentado; só quem gravou edita.
+    assert.equal((await admin.patch(`/api/v1/notes/${up.body.id}`, { body: 'Cliente quer parcelar em 80x' })).status, 200);
+    const list = (await admin.get(`/api/v1/records/deal/${deal.id}/notes`)).body;
+    assert.deepEqual([list[0].body, !!list[0].audio], ['Cliente quer parcelar em 80x', true]);
+    assert.equal((await admin.get(`/api/v1/records/deal/${deal.id}/files`)).body.length, 0, 'o áudio não aparece em Arquivos');
+    const url = await admin.get(`/api/v1/files/${up.body.audio.id}/url`);
+    assert.equal(url.status, 200);
+    // Arquivo que não é áudio: recusa.
+    assert.equal((await admin.upload(`/api/v1/records/deal/${deal.id}/notes/audio`, 'foto.png', PNG, 'image/png')).status, 422);
+    assert.equal((await admin.del(`/api/v1/notes/${up.body.id}`)).status, 204);
+    assert.equal((await admin.get(`/api/v1/files/${up.body.audio.id}/url`)).status, 404, 'o áudio sai junto');
+  });
+
+  test('negócio parado: aviso no card e por WhatsApp para quem cadastrou, de tantos em tantos dias', async () => {
+    const pl = (await admin.post('/api/v1/pipelines', { name: 'Parados' })).body as { id: string; stages: { id: string; kind: string }[] };
+    const deal = (await admin.post('/api/v1/deals', { pipelineId: pl.id, title: 'Consórcio Imóvel 300k', stageId: pl.stages[0]!.id })).body;
+    await f.admin.query("update deals set stage_entered_at = now() - interval '9 days', last_activity_at = null where id = $1", [deal.id]);
+    await f.admin.query("update memberships set notify_phone = '+5531988887777' where id = (select created_by from deals where id = $1)", [deal.id]);
+    // Horário comercial no fuso da empresa (meio-dia agora).
+    const off = 12 - new Date().getUTCHours();
+    await f.admin.query('update tenants set timezone = $2 where id = $1', [f.tenantA, off === 0 ? 'UTC' : `Etc/GMT${off > 0 ? '-' : '+'}${Math.abs(off)}`]);
+    // Aviso por WhatsApp pede o número.
+    assert.equal((await admin.patch(`/api/v1/pipelines/${pl.id}`, { stale: { days: 7, notifyDays: 2, accountId: null } })).status, 422);
+    const r = await admin.patch(`/api/v1/pipelines/${pl.id}`, { stale: { days: 7, notifyDays: 2, accountId: waAccount } });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.deepEqual(r.body.stale, { days: 7, notifyDays: 2, accountId: waAccount });
+    const card = (await admin.get(`/api/v1/deals/${deal.id}`)).body;
+    assert.deepEqual([card.rotting, card.idleDays], [true, 9]);
+    const before = evo.sent.length;
+    await app.get(DispatcherService).runOnce();
+    const msgs = evo.sent.slice(before).filter((x) => x.type === 'text' && String(x.body.number) === '5531988887777');
+    assert.equal(msgs.length, 1, JSON.stringify(evo.sent.slice(before)));
+    assert.match(String(msgs[0]!.body.text), /"Consórcio Imóvel 300k" está sem movimentação há 9 dias/);
+    // Não repete antes do prazo.
+    await app.get(DispatcherService).runOnce();
+    assert.equal(evo.sent.slice(before).filter((x) => String(x.body.number) === '5531988887777').length, 1);
+    // Depois do prazo de repetição, avisa de novo.
+    await f.admin.query("update deals set stale_notified_at = now() - interval '3 days' where id = $1", [deal.id]);
+    await app.get(DispatcherService).runOnce();
+    assert.equal(evo.sent.slice(before).filter((x) => String(x.body.number) === '5531988887777').length, 2);
+    // Andou de etapa: deixa de estar parado.
+    const moved = await admin.post(`/api/v1/deals/${deal.id}/move`, { stageId: pl.stages[1]!.id });
+    assert.deepEqual([moved.body.rotting, moved.body.idleDays], [false, 0]);
+    await f.admin.query("update tenants set timezone = 'America/Sao_Paulo' where id = $1", [f.tenantA]);
   });
 
   test('falha no envio fica registrada com o motivo', async () => {

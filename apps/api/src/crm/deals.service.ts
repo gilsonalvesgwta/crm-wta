@@ -50,8 +50,11 @@ const CARD = `
             from deal_tags dt join tags t on t.id = dt.tag_id where dt.deal_id = d.id), '[]') as tags,
   (select count(*)::int from activities a where a.deal_id = d.id and a.status = 'open') as "openActivities",
   (select min(a.starts_at) from activities a where a.deal_id = d.id and a.status = 'open' and a.starts_at is not null) as "nextActivityAt",
-  (s.rotting_days is not null and d.status = 'open'
-     and greatest(d.stage_entered_at, coalesce(d.last_activity_at, d.stage_entered_at)) < now() - make_interval(days => s.rotting_days)) as rotting`;
+  -- Parado: sem mudar de etapa nem ter atividade/nota há mais dias que o prazo da etapa (ou o padrão do funil).
+  (d.status = 'open' and coalesce(s.rotting_days, (select pl.stale_days from pipelines pl where pl.id = d.pipeline_id)) is not null
+     and greatest(d.stage_entered_at, coalesce(d.last_activity_at, d.stage_entered_at))
+         < now() - make_interval(days => coalesce(s.rotting_days, (select pl.stale_days from pipelines pl where pl.id = d.pipeline_id)))) as rotting,
+  floor(extract(epoch from now() - greatest(d.stage_entered_at, coalesce(d.last_activity_at, d.stage_entered_at))) / 86400)::int as "idleDays"`;
 
 type DealRow = {
   id: string; pipeline_id: string; stage_id: string; status: string; title: string; value_cents: string; contact_id: string | null;
