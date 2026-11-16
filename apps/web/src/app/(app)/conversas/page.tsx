@@ -2,7 +2,7 @@
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, AtSign, Filter, Mail, MessageCircle, MessageSquareText, Plus, UserCheck } from 'lucide-react';
+import { ArrowLeft, AtSign, CheckSquare, Eye, EyeOff, Filter, Mail, MessageCircle, MessageSquareText, Plus, UserCheck, X } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { phone, relative, type Contact } from '@/lib/crm';
 import { CHANNEL_NAME, CONVERSATION_STATUS, preview, type Channel, type Conversation, type ConversationStatus } from '@/lib/messages';
@@ -18,9 +18,11 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { LoadError, Loading } from '@/components/ui/states';
 
-type Inbox = { items: Conversation[]; total: number; counts: Record<ConversationStatus, number> };
+type Inbox = { items: Conversation[]; total: number; counts: Record<ConversationStatus, number> & { hidden?: number } };
+type Account = { id: string; name: string; kind: string; address: string | null; status: string };
+const ACCOUNT_CHANNEL: Record<string, Channel> = { whatsapp_evolution: 'whatsapp', whatsapp_cloud: 'whatsapp', email_smtp: 'email', instagram: 'instagram' };
 
-const DEFAULTS = { c: '', q: '', ch: '', st: 'open', who: '', team: '', tag: '', deal: '', unread: '' };
+const DEFAULTS = { c: '', q: '', ch: '', st: 'open', who: '', team: '', tag: '', deal: '', unread: '', acc: '', hid: '' };
 
 export default function ConversationsPage() {
   return <Suspense><Conversations /></Suspense>;
@@ -36,7 +38,14 @@ function Chip({ pressed, onClick, children }: { pressed: boolean; onClick: () =>
 }
 
 function Conversations() {
-  const { can } = useSession();
+  const { can, me } = useSession();
+  // Ocultar conversas: administrador e gestor (quem atribui na empresa toda).
+  const canHide = me.permissions['conversations:assign'] === 'tenant';
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [bulkErr, setBulkErr] = useState<string | null>(null);
+  useEffect(() => { api<Account[]>('GET', '/api/v1/conversations/accounts').then(setAccounts).catch(() => setAccounts([])); }, []);
   const router = useRouter();
   const [f, setF] = useQueryState(DEFAULTS);
   const [q, setQ] = useState(f.q);
@@ -61,12 +70,29 @@ function Conversations() {
       if (f.tag) qs.set('tagId', f.tag);
       if (f.deal) qs.set('deal', f.deal);
       if (f.unread) qs.set('unread', '1');
+      if (f.acc) qs.set('accountId', f.acc);
+      if (f.hid) qs.set('hidden', '1');
       setData(await api<Inbox>('GET', `/api/v1/conversations?${qs}`));
       setErr(null);
     } catch (e) {
       setErr(e instanceof ApiError ? e : new ApiError(0, 'error', 'Não foi possível carregar as conversas.'));
     }
-  }, [f.st, f.ch, f.q, f.who, f.team, f.tag, f.deal, f.unread]);
+  }, [f.st, f.ch, f.q, f.who, f.team, f.tag, f.deal, f.unread, f.acc, f.hid]);
+
+  async function bulk(hidden: boolean, ids = picked) {
+    setBulkErr(null);
+    try {
+      await api('POST', '/api/v1/conversations/hide', { ids, hidden });
+      setPicked([]); setSelecting(false);
+      if (f.c && ids.includes(f.c)) setF({ c: '' });
+      void load();
+    } catch (e) {
+      setBulkErr(e instanceof ApiError ? e.title : 'Não foi possível salvar.');
+    }
+  }
+  const togglePick = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  // Números/conexões do canal escolhido (ou de todos).
+  const accountOptions = accounts.filter((a) => !f.ch || ACCOUNT_CHANNEL[a.kind] === f.ch);
 
   useEffect(() => {
     void load();
@@ -99,15 +125,21 @@ function Conversations() {
           <div className="flex flex-col gap-2 border-b border-line p-3">
             <SearchBox value={q} onChange={setQ} label="Buscar conversa pelo nome" placeholder="Buscar pelo nome" />
             <div role="group" aria-label="Canal" className="flex flex-wrap gap-1">
-              <Chip pressed={!f.ch} onClick={() => setF({ ch: '' })}>Todos</Chip>
-              <Chip pressed={f.ch === 'whatsapp'} onClick={() => setF({ ch: 'whatsapp' })}><MessageCircle size={14} aria-hidden />WhatsApp</Chip>
-              <Chip pressed={f.ch === 'email'} onClick={() => setF({ ch: 'email' })}><Mail size={14} aria-hidden />E-mail</Chip>
-              <Chip pressed={f.ch === 'instagram'} onClick={() => setF({ ch: 'instagram' })}><AtSign size={14} aria-hidden />Instagram</Chip>
+              <Chip pressed={!f.ch} onClick={() => setF({ ch: '', acc: '' })}>Todos</Chip>
+              <Chip pressed={f.ch === 'whatsapp'} onClick={() => setF({ ch: 'whatsapp', acc: '' })}><MessageCircle size={14} aria-hidden />WhatsApp</Chip>
+              <Chip pressed={f.ch === 'email'} onClick={() => setF({ ch: 'email', acc: '' })}><Mail size={14} aria-hidden />E-mail</Chip>
+              <Chip pressed={f.ch === 'instagram'} onClick={() => setF({ ch: 'instagram', acc: '' })}><AtSign size={14} aria-hidden />Instagram</Chip>
               <button type="button" aria-expanded={showFilters} aria-controls="filtros-conversas" onClick={() => setShowFilters((v) => !v)}
                 className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-full border border-line px-3 text-[13px] font-medium text-muted hover:text-ink">
                 <Filter size={14} aria-hidden />Filtros{filters ? <span className="rounded-full bg-primary px-1.5 text-[11px] text-primary-fg">{filters}</span> : null}
               </button>
             </div>
+            {accountOptions.length > 1 || f.acc ? (
+              <Select label="Número / conexão" value={f.acc} onChange={(e) => setF({ acc: e.target.value })}>
+                <option value="">Todos os números e conexões</option>
+                {accountOptions.map((a) => <option key={a.id} value={a.id}>{a.name}{a.address ? ` · ${a.kind === 'email_smtp' ? a.address : a.kind === 'instagram' ? `@${a.address.replace(/^@/, '')}` : phone(a.address)}` : ''}</option>)}
+              </Select>
+            ) : null}
             {showFilters ? (
               <div id="filtros-conversas" className="grid grid-cols-2 gap-2 rounded-[8px] bg-surface-2 p-2">
                 <Select label="Responsável" value={f.who} onChange={(e) => setF({ who: e.target.value })}>
@@ -146,19 +178,47 @@ function Conversations() {
               </button>
             ))}
           </div>
+          {canHide ? (
+            <div className="flex items-center gap-2 border-b border-line px-3 py-2 text-[13px]">
+              <button type="button" aria-pressed={!!f.hid} onClick={() => { setF({ hid: f.hid ? '' : '1', c: '' }); setPicked([]); }}
+                className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 font-medium ${f.hid ? 'bg-primary text-primary-fg' : 'border border-line text-muted hover:text-ink'}`}>
+                <EyeOff size={14} aria-hidden />Ocultas{data?.counts.hidden ? <span className={f.hid ? '' : 'text-muted'}>{data.counts.hidden}</span> : null}
+              </button>
+              <button type="button" aria-pressed={selecting} onClick={() => { setSelecting((v) => !v); setPicked([]); }}
+                className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-full border border-line px-3 font-medium text-muted hover:text-ink">
+                {selecting ? <><X size={14} aria-hidden />Cancelar</> : <><CheckSquare size={14} aria-hidden />Selecionar</>}
+              </button>
+            </div>
+          ) : null}
+          {selecting ? (
+            <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface-2 px-3 py-2 text-[13px]">
+              <span>{picked.length} selecionada(s)</span>
+              <button type="button" className="text-accent hover:underline" onClick={() => setPicked(items?.map((c) => c.id) ?? [])}>Selecionar todas</button>
+              <Button className="ml-auto" variant="secondary" disabled={!picked.length} onClick={() => void bulk(!f.hid)}>
+                {f.hid ? <><Eye size={15} aria-hidden />Mostrar de novo</> : <><EyeOff size={15} aria-hidden />Ocultar</>}
+              </Button>
+            </div>
+          ) : null}
+          {bulkErr ? <div className="p-3"><Alert tone="error">{bulkErr}</Alert></div> : null}
+          {f.hid ? <p className="border-b border-line px-3 py-2 text-[12px] text-muted">Conversas ocultas não aparecem na lista nem no contador de não lidas. Mensagens novas não trazem de volta.</p> : null}
           {err ? <div className="p-3"><Alert tone="error">{err.title}</Alert></div> : null}
           {!items ? <Loading /> : items.length === 0 ? (
             <p className="p-6 text-center text-[13px] text-muted">
-              {f.q || filters || f.ch || f.st !== 'all' ? 'Nenhuma conversa com esse filtro.' : 'Nenhuma conversa ainda. Use "Nova conversa" para mandar a primeira mensagem.'}
+              {f.q || filters || f.ch || f.acc || f.hid || f.st !== 'all' ? 'Nenhuma conversa com esse filtro.' : 'Nenhuma conversa ainda. Use "Nova conversa" para mandar a primeira mensagem.'}
             </p>
           ) : (
             <ul className="min-h-0 flex-1 overflow-y-auto">
               {items.map((c) => {
                 const active = c.id === f.c;
                 return (
-                  <li key={c.id}>
-                    <button type="button" onClick={() => setF({ c: c.id })} aria-current={active ? 'true' : undefined}
-                      className={`flex w-full items-start gap-3 border-b border-line px-3 py-3 text-left ${active ? 'bg-accent-soft' : 'hover:bg-surface-2'}`}>
+                  <li key={c.id} className="flex border-b border-line">
+                    {selecting ? (
+                      <label className="flex items-center pl-3">
+                        <input type="checkbox" checked={picked.includes(c.id)} onChange={() => togglePick(c.id)} aria-label={`Selecionar ${c.contact.name}`} className="size-[18px] accent-[var(--primary)]" />
+                      </label>
+                    ) : null}
+                    <button type="button" onClick={() => (selecting ? togglePick(c.id) : setF({ c: c.id }))} aria-current={active ? 'true' : undefined}
+                      className={`flex min-w-0 flex-1 items-start gap-3 px-3 py-3 text-left ${active ? 'bg-accent-soft' : 'hover:bg-surface-2'}`}>
                       <Avatar name={c.contact.name} size={36} />
                       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className="flex items-center justify-between gap-2">
@@ -175,7 +235,7 @@ function Conversations() {
                           {c.unread ? <span className="ml-auto inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-fg">{c.unread}<span className="sr-only"> não lidas</span></span> : null}
                         </span>
                         <span className="flex items-center gap-1.5 text-[12px] text-muted">
-                          <span className="truncate">{c.assignee ? c.assignee.name : 'Sem responsável'}{c.team ? ` · ${c.team.name}` : ''}</span>
+                          <span className="truncate">{c.assignee ? c.assignee.name : 'Sem responsável'}{c.team ? ` · ${c.team.name}` : ''}{accounts.length > 1 && c.last?.account ? ` · ${c.last.account.name}` : ''}</span>
                           {f.st === 'all' ? <span className="ml-auto shrink-0">{CONVERSATION_STATUS[c.status].label}</span> : null}
                         </span>
                       </span>
@@ -187,7 +247,7 @@ function Conversations() {
           )}
         </section>
         <section aria-label="Conversa" className={`flex min-w-0 flex-col ${f.c ? '' : 'max-lg:hidden'}`}>
-          {f.c ? <Thread key={f.c} id={f.c} onBack={() => setF({ c: '' })} onActivity={load} />
+          {f.c ? <Thread key={f.c} id={f.c} onBack={() => setF({ c: '' })} onActivity={load} canHide={canHide} onHide={(id, hidden) => void bulk(hidden, [id])} />
             : <p className="m-auto p-6 text-center text-[13px] text-muted">Escolha uma conversa na lista ou comece uma nova.</p>}
         </section>
       </div>
@@ -197,7 +257,9 @@ function Conversations() {
   );
 }
 
-function Thread({ id, onBack, onActivity }: { id: string; onBack: () => void; onActivity: () => void }) {
+function Thread({ id, onBack, onActivity, canHide, onHide }: {
+  id: string; onBack: () => void; onActivity: () => void; canHide: boolean; onHide: (id: string, hidden: boolean) => void;
+}) {
   const { can, me } = useSession();
   const dir = useDirectory();
   const [conv, setConv] = useState<Conversation | null>(null);
@@ -248,10 +310,16 @@ function Thread({ id, onBack, onActivity }: { id: string; onBack: () => void; on
             </p>
             <p className="truncate text-[13px] text-muted">{channel === 'email' ? c.email : channel === 'instagram' ? c.instagram : c.phone ? phone(c.phone) : ''}</p>
           </div>
+          {canHide ? (
+            <Button variant="ghost" onClick={() => onHide(conv.id, !conv.hiddenAt)}>
+              {conv.hiddenAt ? <><Eye size={16} aria-hidden />Mostrar de novo</> : <><EyeOff size={16} aria-hidden />Ocultar</>}
+            </Button>
+          ) : null}
           {!conv.assignee && canTake && myId ? (
             <Button variant="secondary" onClick={() => void save({ assigneeId: myId })}><UserCheck size={16} aria-hidden />Assumir</Button>
           ) : null}
         </div>
+        {conv.hiddenAt ? <Alert tone="info">Conversa oculta: não aparece na lista principal.</Alert> : null}
         {saveErr ? <Alert tone="error">{saveErr}</Alert> : null}
         <div className="grid gap-2 sm:grid-cols-3">
           <Select label="Estado" value={conv.status} onChange={(e) => void save({ status: e.target.value as ConversationStatus })}>

@@ -208,6 +208,12 @@ Ver: `campaigns:view`. Criar, mudar, publicar e subir mídia: `campaigns:edit`. 
 
 Desenho (`draft`): `{nodes: [{id, type, position, data}], edges: [{id, source, sourceHandle: next|yes|no|timeout|btn:<id>, target}]}`. Tipos: `trigger` (comment, live_comment, dm_keyword, story_reply, story_mention, reaction; publicações, palavras-chave, frequência), `comment_reply` (sorteia até 3), `private_reply` (uma por comentário, até 3 botões), `text`, `media`, `wait`, `question` (guarda em variável, campo, e-mail ou telefone), `condition` (etiqueta, segue a conta, variável), `action` (etiqueta, campo, lead, negócio, aviso, passar a conversa).
 
+### Conversas ocultas e filtro por conta (16 nov 2026)
+
+- `GET /api/v1/conversations?hidden=1&accountId=<conta>`: `hidden=1` lista só as ocultas (sem ele, só as visíveis); `accountId` filtra as conversas com mensagem por aquela conta. `counts.hidden` traz o total de ocultas; cada item traz `hiddenAt` e `last.account`.
+- `GET /api/v1/conversations/accounts`: números e conexões para o filtro.
+- `POST /api/v1/conversations/hide {ids[], hidden}`: oculta ou mostra de novo (até 200); só com "conversations:assign" na empresa toda (403 para os demais).
+
 ### Fluxos e transmissões do WhatsApp oficial (11 nov 2026)
 
 Mesmo desenho, motor e permissões dos fluxos do Instagram; só contas `whatsapp_cloud`. A biblioteca de mídia é a mesma (`/api/v1/instagram/media`).

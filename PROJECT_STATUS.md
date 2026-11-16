@@ -23,6 +23,12 @@ Atualizado em 9 de novembro de 2026.
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
 
+### Conversas: ocultar e filtrar por número/conexão (16 nov 2026)
+
+- Administrador e gestor podem ocultar conversas (spam, contatos pessoais): botão "Ocultar" na conversa ou "Selecionar" para várias. Elas saem da lista e do contador de não lidas, ficam em "Ocultas" e podem voltar com "Mostrar de novo". Mensagem nova não traz de volta. Nada é apagado.
+- Filtro "Número / conexão" (aparece com mais de uma conta): mostra só as conversas com mensagens daquele número ou caixa; a lista mostra por qual conexão veio a última mensagem.
+- Migração 0024: `hidden_at`/`hidden_by` em `conversations` e índice para o filtro por conta.
+
 ### Mensagens do WhatsApp sem conteúdo e transferência de negócio entre funis (11 nov 2026)
 
 - WhatsApp (Evolution): mensagens embrulhadas (temporárias, "ver uma vez", enviadas de outro aparelho) e tipos menos comuns (respostas a botões e listas, enquetes, pedidos) passam a mostrar o conteúdo.

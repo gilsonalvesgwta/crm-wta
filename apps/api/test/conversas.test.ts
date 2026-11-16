@@ -205,6 +205,39 @@ describe('estado, responsável e filtros', () => {
     assert.equal((await admin.get('/api/v1/conversations?status=nada')).status, 422);
   });
 
+  test('filtro por número/conexão e ocultar conversas (só administrador e gestor)', async () => {
+    const ids = async (qs: string) => (await admin.get(`/api/v1/conversations?status=all&${qs}`)).body.items.map((i: { id: string }) => i.id);
+    const accs = await sales.get('/api/v1/conversations/accounts');
+    assert.equal(accs.status, 200);
+    assert.deepEqual(accs.body.map((a: { id: string }) => a.id).sort(), [wa, mail].sort());
+    assert.equal((await ids(`accountId=${wa}`)).includes(conv), true, 'a conversa chegou pelo WhatsApp Comercial');
+    assert.equal((await ids(`accountId=${mail}`)).includes(conv), false);
+    const item = (await admin.get(`/api/v1/conversations?status=all`)).body.items.find((i: { id: string }) => i.id === conv);
+    assert.equal(item.last.account.name, 'Comercial');
+
+    // Spam: o comercial não pode ocultar; o administrador oculta.
+    await incoming('5521911112222', 'SPAM-1', 'Ganhe dinheiro fácil', 'Spam');
+    const spam = (await admin.get('/api/v1/conversations?status=all')).body.items.find((i: { contact: { name: string } }) => i.contact.name === 'Spam').id;
+    assert.equal((await sales.post('/api/v1/conversations/hide', { ids: [spam], hidden: true })).status, 403);
+    const before = (await admin.get('/api/v1/conversations/unread')).body.count;
+    const h = await admin.post('/api/v1/conversations/hide', { ids: [spam], hidden: true });
+    assert.equal(h.status, 200, JSON.stringify(h.body));
+    assert.equal(h.body.updated, 1);
+    assert.equal((await ids('')).includes(spam), false, 'some da lista');
+    assert.deepEqual(await ids('hidden=1'), [spam], 'aparece em Ocultas');
+    assert.equal((await admin.get('/api/v1/conversations?status=all')).body.counts.hidden, 1);
+    assert.equal((await admin.get('/api/v1/conversations/unread')).body.count, before - 1, 'não conta como não lida');
+    // Mensagem nova não traz de volta.
+    await incoming('5521911112222', 'SPAM-2', 'Última chance', 'Spam');
+    assert.equal((await ids('')).includes(spam), false);
+    assert.ok((await admin.get(`/api/v1/conversations/${spam}`)).body.hiddenAt);
+    // Mostrar de novo.
+    await admin.post('/api/v1/conversations/hide', { ids: [spam], hidden: false });
+    assert.equal((await ids('')).includes(spam), true);
+    assert.equal((await adminB.post('/api/v1/conversations/hide', { ids: [spam], hidden: true })).body.updated, 0, 'outra empresa não mexe');
+    assert.equal((await admin.post('/api/v1/conversations/hide', { ids: [], hidden: true })).status, 422);
+  });
+
   test('a empresa B não vê nem altera', async () => {
     assert.equal((await adminB.get(`/api/v1/conversations/${conv}`)).status, 404);
     assert.equal((await adminB.patch(`/api/v1/conversations/${conv}`, { status: 'closed' })).status, 404);
