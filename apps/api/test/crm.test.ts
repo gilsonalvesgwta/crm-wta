@@ -362,6 +362,38 @@ describe('funis e negócios', () => {
     assert.equal((await sales1.get(`/api/v1/deals/${d.body.id}`)).status, 404, 'quem perdeu o negócio deixa de vê-lo');
   });
 
+  test('troca de responsável em massa: conta antes, transfere, avisa e fica auditada', async () => {
+    const pl = (await manager.post('/api/v1/pipelines', { name: 'Importados do outro CRM' })).body as { id: string; stages: { id: string; kind: string }[] };
+    const ids: string[] = [];
+    for (let i = 1; i <= 4; i++) ids.push((await manager.post('/api/v1/deals', { pipelineId: pl.id, title: `Importado ${i}` })).body.id);
+    const won = pl.stages.find((s) => s.kind === 'won')!.id;
+    await f.admin.query("update deals set stage_id = $2, status = 'won', closed_at = now() where id = $1", [ids[3], won]);
+    const body = { pipelineId: pl.id, fromOwnerId: m['gestor@a.test'], toOwnerId: m['vendas1@a.test'] };
+    assert.equal((await sales1.post('/api/v1/deals/bulk-owner', { ...body, dryRun: true })).status, 403, 'comercial não troca em massa');
+    const dry = await manager.post('/api/v1/deals/bulk-owner', { ...body, dryRun: true });
+    assert.equal(dry.status, 200, JSON.stringify(dry.body));
+    assert.deepEqual(dry.body, { count: 3, updated: 0 }, 'só os em andamento, por padrão');
+    assert.equal((await manager.post('/api/v1/deals/bulk-owner', { ...body, status: 'all', dryRun: true })).body.count, 4);
+    assert.equal((await sales1.get(`/api/v1/deals/${ids[0]}`)).status, 404, 'ainda não é dele');
+    const r = await manager.post('/api/v1/deals/bulk-owner', body);
+    assert.deepEqual(r.body, { count: 3, updated: 3 });
+    const mine = await sales1.get(`/api/v1/deals?pipelineId=${pl.id}`);
+    assert.equal(mine.body.total, 3);
+    assert.equal((await sales1.get(`/api/v1/deals/${ids[3]}`)).status, 404, 'o ganho ficou com quem era');
+    const n = await f.admin.query<{ title: string }>(
+      "select title from notifications where membership_id = $1 and kind = 'deal.assigned' order by created_at desc limit 1", [m['vendas1@a.test']]);
+    assert.equal(n.rows[0]?.title, '3 negócios passaram para você');
+    const a = await f.admin.query("select detail from audit_log where action = 'deal.bulk_owner' and tenant_id = $1", [f.tenantA]);
+    assert.equal(a.rows.length, 1);
+    const tl = await f.admin.query("select count(*)::int as n from timeline_entries where kind = 'deal.updated' and deal_id = any($1::uuid[]) and data->>'bulk' = 'true'", [ids]);
+    assert.equal(tl.rows[0]!.n, 3);
+    // De novo: nada a mudar.
+    assert.deepEqual((await manager.post('/api/v1/deals/bulk-owner', body)).body, { count: 0, updated: 0 });
+    // Líder só passa para alguém da equipe; outra empresa não acha a pessoa.
+    assert.equal((await leader.post('/api/v1/deals/bulk-owner', { toOwnerId: m['vendas3@a.test'], dryRun: true })).status, 422);
+    assert.equal((await adminB.post('/api/v1/deals/bulk-owner', { toOwnerId: m['vendas1@a.test'], dryRun: true })).status, 422);
+  });
+
   test('funil restrito some da interface, da API e da exportação', async () => {
     const r = await manager.post('/api/v1/pipelines', { name: 'Diretoria' });
     const secret = r.body;

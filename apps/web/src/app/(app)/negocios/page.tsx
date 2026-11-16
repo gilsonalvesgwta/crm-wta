@@ -6,7 +6,7 @@ import {
   DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors,
   type Announcements, type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
-import { AlarmClock, CalendarClock, Download, GripVertical, Kanban, List, Plus, Settings2, Upload } from 'lucide-react';
+import { AlarmClock, CalendarClock, Download, GripVertical, Kanban, List, Plus, Settings2, Upload, UserRoundCog } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useLoad } from '@/lib/use-load';
 import { useDebounced, useQueryState } from '@/lib/use-query-state';
@@ -15,6 +15,7 @@ import { useSession } from '@/components/shell/session';
 import { useDirectory, usePipelines } from '@/components/crm/data';
 import { DealDialog } from '@/components/crm/deal-form';
 import { useMoveDeal } from '@/components/crm/move-deal';
+import { BulkOwnerDialog } from '@/components/crm/bulk-owner';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -30,13 +31,18 @@ function Deals() {
   const router = useRouter();
   const { data: pipelines } = usePipelines();
   const { data: dir } = useDirectory();
-  const [f, setF] = useQueryState({ funil: '', visao: 'quadro', ownerId: '', q: '', status: 'open', page: '1' });
+  const [f, setF] = useQueryState({ funil: '', visao: 'quadro', ownerId: '', q: '', status: 'open', page: '1', parados: '' });
   const [q, setQ] = useState(f.q);
   const dq = useDebounced(q);
   useEffect(() => { if (dq !== f.q) setF({ q: dq, page: '1' }); }, [dq]); // eslint-disable-line react-hooks/exhaustive-deps
   const active = (pipelines ?? []).filter((p) => !p.archived);
   const pipelineId = f.funil && active.some((p) => p.id === f.funil) ? f.funil : active[0]?.id ?? '';
+  // "Todos os funis" só na lista.
+  const allPipelines = f.visao === 'lista' && f.funil === 'todos';
   const [creating, setCreating] = useState(false);
+  const [bulk, setBulk] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
+  const [listKey, setListKey] = useState(0);
 
   if (pipelines && active.length === 0) {
     return (
@@ -56,11 +62,14 @@ function Deals() {
           {can('contacts:import_export') && can('deals:edit') ? <Link href={`/contatos/importar?tipo=negocios&funil=${pipelineId}`} className="inline-flex h-10 items-center gap-2 rounded-[6px] border border-line bg-surface px-3.5 text-sm font-medium hover:bg-surface-2"><Upload size={16} aria-hidden />Importar</Link> : null}
           {can('deals:export') ? <a href={`/api/v1/deals/export.csv?pipelineId=${pipelineId}&status=all`} className="inline-flex h-10 items-center gap-2 rounded-[6px] border border-line bg-surface px-3.5 text-sm font-medium hover:bg-surface-2"><Download size={16} aria-hidden />Exportar</a> : null}
           {can('pipelines:admin') ? <Link href="/configuracoes/funis" className="inline-flex h-10 items-center gap-2 rounded-[6px] border border-line bg-surface px-3.5 text-sm font-medium hover:bg-surface-2"><Settings2 size={16} aria-hidden />Funis</Link> : null}
+          {can('deals:assign') ? <button type="button" onClick={() => setBulk(true)} className="inline-flex h-10 items-center gap-2 rounded-[6px] border border-line bg-surface px-3.5 text-sm font-medium hover:bg-surface-2"><UserRoundCog size={16} aria-hidden />Trocar responsável</button> : null}
           {can('deals:edit') ? <Button onClick={() => setCreating(true)}><Plus size={16} aria-hidden />Novo negócio</Button> : null}
         </>} />
+      {done ? <Alert tone="success">{done}</Alert> : null}
       <div className="flex flex-wrap items-center gap-2">
-        <select aria-label="Funil" value={pipelineId} onChange={(e) => setF({ funil: e.target.value, page: '1' })}
+        <select aria-label="Funil" value={allPipelines ? 'todos' : pipelineId} onChange={(e) => setF({ funil: e.target.value, page: '1' })}
           className="h-10 rounded-[6px] border border-line-strong bg-surface px-2.5 text-sm font-medium">
+          {f.visao === 'lista' ? <option value="todos">Todos os funis</option> : null}
           {active.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         <SearchBox className="w-full sm:w-64" value={q} onChange={setQ} label="Buscar negócios" placeholder="Buscar pelo título" />
@@ -74,6 +83,12 @@ function Deals() {
             <option value="open">Em andamento</option><option value="won">Ganhos</option><option value="lost">Perdidos</option><option value="all">Todos</option>
           </select>
         ) : null}
+        {f.visao === 'lista' ? (
+          <label className={`inline-flex h-10 cursor-pointer items-center gap-2 rounded-[6px] border px-3 text-sm font-medium ${f.parados ? 'border-bad bg-bad-soft text-bad' : 'border-line-strong bg-surface'}`}>
+            <input type="checkbox" className="size-4 accent-[var(--bad)]" checked={!!f.parados} onChange={(e) => setF({ parados: e.target.checked ? '1' : '', page: '1' })} />
+            <AlarmClock size={15} aria-hidden />Só parados
+          </label>
+        ) : null}
         <div role="group" aria-label="Visão" className="ml-auto flex rounded-[6px] border border-line bg-surface p-0.5">
           <button type="button" aria-pressed={f.visao !== 'lista'} onClick={() => setF({ visao: 'quadro' })}
             className={`flex h-9 items-center gap-1.5 rounded-[5px] px-3 text-sm font-medium ${f.visao !== 'lista' ? 'bg-surface-2 text-ink' : 'text-muted'}`}><Kanban size={16} aria-hidden />Quadro</button>
@@ -82,8 +97,11 @@ function Deals() {
         </div>
       </div>
       {!pipelineId ? <Loading /> : f.visao === 'lista'
-        ? <DealList pipelineId={pipelineId} ownerId={f.ownerId} q={f.q} status={f.status} page={Number(f.page)} onPage={(p) => setF({ page: String(p) })} />
-        : <BoardView pipelineId={pipelineId} ownerId={f.ownerId} q={f.q} canMove={can('deals:edit')} />}
+        ? <DealList key={listKey} pipelineId={allPipelines ? '' : pipelineId} ownerId={f.ownerId} q={f.q} status={f.status} stale={!!f.parados} page={Number(f.page)} onPage={(p) => setF({ page: String(p) })} />
+        : <BoardView key={listKey} pipelineId={pipelineId} ownerId={f.ownerId} q={f.q} canMove={can('deals:edit')} />}
+      <BulkOwnerDialog open={bulk} pipelines={pipelines ?? []} pipelineId={allPipelines ? '' : pipelineId} members={dir?.members ?? []} me={dir?.me ?? ''}
+        onClose={() => setBulk(false)}
+        onDone={(n) => { setBulk(false); setDone(`${n} ${n === 1 ? 'negócio mudou' : 'negócios mudaram'} de responsável.`); setListKey((k) => k + 1); }} />
       <DealDialog open={creating} pipelineId={pipelineId} onClose={() => setCreating(false)} onSaved={(d) => { setCreating(false); router.push(`/negocios/${d.id}`); }} />
     </div>
   );
@@ -237,8 +255,10 @@ function OutcomeZone({ stage, active, pipelineId }: { stage: Board['stages'][num
   );
 }
 
-function DealList({ pipelineId, ownerId, q, status, page, onPage }: { pipelineId: string; ownerId: string; q: string; status: string; page: number; onPage: (p: number) => void }) {
-  const qs = new URLSearchParams({ pipelineId, status, page: String(page), pageSize: '25' });
+function DealList({ pipelineId, ownerId, q, status, stale, page, onPage }: { pipelineId: string; ownerId: string; q: string; status: string; stale: boolean; page: number; onPage: (p: number) => void }) {
+  const qs = new URLSearchParams({ status, page: String(page), pageSize: '25' });
+  if (pipelineId) qs.set('pipelineId', pipelineId);
+  if (stale) qs.set('stale', '1');
   if (ownerId) qs.set('ownerId', ownerId);
   if (q) qs.set('q', q);
   const list = useLoad(() => api<Page<DealCard> & { totalValueCents: number }>('GET', `/api/v1/deals?${qs}`), [qs.toString()]);
@@ -261,7 +281,7 @@ function DealList({ pipelineId, ownerId, q, status, page, onPage }: { pipelineId
             {list.data.items.map((d) => (
               <tr key={d.id} className="border-b border-line last:border-0">
                 <td className="px-4 py-3"><Link href={`/negocios/${d.id}`} className="font-medium hover:underline">{d.title}</Link><p className="text-[13px] text-muted">{d.organization?.name ?? d.contact?.name ?? ''}</p></td>
-                <td className="px-3 py-3"><span className="inline-flex items-center gap-1.5"><span aria-hidden className="size-2 rounded-full" style={{ background: d.stage?.color }} />{d.stage?.name}</span>{d.rotting ? <p className="mt-0.5 inline-flex rounded-full bg-bad px-2 py-0.5 text-[12px] font-semibold text-white">{idleText(d.idleDays)}</p> : null}</td>
+                <td className="px-3 py-3">{!pipelineId && d.pipeline ? <p className="text-[12px] text-muted">{d.pipeline.name}</p> : null}<span className="inline-flex items-center gap-1.5"><span aria-hidden className="size-2 rounded-full" style={{ background: d.stage?.color }} />{d.stage?.name}</span>{d.rotting ? <p className="mt-0.5 inline-flex rounded-full bg-bad px-2 py-0.5 text-[12px] font-semibold text-white">{idleText(d.idleDays)}</p> : null}</td>
                 <td className="px-3 py-3 text-right font-medium tabular-nums">{money(d.valueCents, d.currency)}</td>
                 <td className="px-3 py-3">{d.owner?.name ?? '—'}</td>
                 <td className="px-3 py-3 text-[13px]">{fmtIsoDate(d.expectedCloseDate) || '—'}</td>

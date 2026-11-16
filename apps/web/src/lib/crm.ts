@@ -41,7 +41,10 @@ export type Pipeline = {
   dealCount?: number;
   access?: { teamIds: string[]; membershipIds: string[] };
   /** Negócio parado: prazo padrão (a etapa pode ter o seu) e aviso por WhatsApp a cada N dias. */
-  stale?: { days: number | null; notifyDays: number | null; accountId: string | null };
+  stale?: {
+    days: number | null; notifyDays: number | null; accountId: string | null;
+    recipients?: 'creator' | 'owner' | 'fixed' | 'owner_fixed'; memberIds?: string[]; whatsapp?: boolean; inApp?: boolean;
+  };
 };
 /** Texto do aviso de negócio parado. */
 export const idleText = (days?: number) => `Parado há ${days ?? 0} ${days === 1 ? 'dia' : 'dias'}`;
@@ -222,7 +225,7 @@ export function timelineText(e: TimelineEntry): string {
     case 'file.removed': return 'Removeu um arquivo';
     case 'deal.created': return `Criou o negócio "${d.title ?? e.deal?.title ?? ''}"`;
     case 'deal.updated': return `Editou o negócio (${fieldNames(d.fields)})`;
-    case 'deal.stale_notified': return `Aviso por WhatsApp: sem movimentação há ${d.days} dias${d.to ? ` (para ${d.to})` : ''}`;
+    case 'deal.stale_notified': return `Aviso de negócio parado: sem movimentação há ${d.days} dias${d.to ? ` (para ${d.to})` : ''}`;
     case 'deal.stage_changed': return d.toPipeline ? `Transferiu do funil ${d.fromPipeline} (${d.fromStage}) para ${d.toPipeline} (${d.toStage})` : `Moveu de ${d.fromStage} para ${d.toStage}`;
     case 'deal.won': return `Negócio ganho${d.fromStage ? ` (estava em ${d.fromStage})` : ''}`;
     case 'deal.lost': return 'Negócio perdido';

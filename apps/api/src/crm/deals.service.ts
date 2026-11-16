@@ -31,13 +31,18 @@ export type ItemInput = { productId?: string | null; name?: string; quantity: nu
 
 export type DealFilters = {
   pipelineId?: string; stageId?: string; status?: 'open' | 'won' | 'lost' | 'all'; ownerId?: string; tagId?: string; q?: string;
-  contactId?: string; organizationId?: string; closeFrom?: string; closeTo?: string;
+  contactId?: string; organizationId?: string; closeFrom?: string; closeTo?: string; stale?: boolean;
   sort: 'created' | 'value' | 'close' | 'activity' | 'title'; dir: 'asc' | 'desc'; page: number; pageSize: number;
 };
 
 /** Além do responsável: negócios em que a pessoa participa. */
 export const dealOwnExtra = (me: string) =>
   `exists (select 1 from deal_participants dp where dp.deal_id = d.id and dp.membership_id = ${me})`;
+
+/** Negócio parado: sem mudar de etapa nem ter atividade/nota além do prazo da etapa (ou o padrão do funil). */
+export const STALE_SQL = `(d.status = 'open' and coalesce((select st.rotting_days from pipeline_stages st where st.id = d.stage_id), (select pl.stale_days from pipelines pl where pl.id = d.pipeline_id)) is not null
+  and greatest(d.stage_entered_at, coalesce(d.last_activity_at, d.stage_entered_at))
+      < now() - make_interval(days => coalesce((select st.rotting_days from pipeline_stages st where st.id = d.stage_id), (select pl.stale_days from pipelines pl where pl.id = d.pipeline_id))))`;
 
 const CARD = `
   d.id, d.title, d.value_cents as "valueCents", d.currency, d.status, d.pipeline_id as "pipelineId", d.stage_id as "stageId",
@@ -81,6 +86,43 @@ export class DealsService {
          from deals d where d.id = ${p.add(id)} and ${this.scope(p, actor, r)} ${lock ? 'for update of d' : ''}`, p.values);
     if (!row.rows[0]) throw Problem.notFound('Negócio não encontrado.');
     return row.rows[0];
+  }
+
+  /**
+   * Trocar o responsável de vários negócios de uma vez (ex.: depois de importar).
+   * Filtra por funil, responsável atual e situação, dentro do alcance de quem
+   * atribui negócios. Com "dryRun", só conta.
+   */
+  async bulkOwner(actor: Actor, f: { pipelineId?: string | null; fromOwnerId?: string | null; status: 'open' | 'all'; toOwnerId: string; dryRun: boolean }) {
+    const r = reachOf(actor, 'deals:assign');
+    return this.db.app(tenantCtx(actor), async (q) => {
+      await assertOwnerInReach(q, r, f.toOwnerId);
+      const p = new Params();
+      const where = [this.scope(p, actor, r), `d.owner_membership_id is distinct from ${p.add(f.toOwnerId)}::uuid`];
+      if (f.pipelineId) where.push(`d.pipeline_id = ${p.add(f.pipelineId)}`);
+      if (f.fromOwnerId) where.push(f.fromOwnerId === 'none' ? 'd.owner_membership_id is null' : `d.owner_membership_id = ${p.add(f.fromOwnerId)}`);
+      if (f.status === 'open') where.push(`d.status = 'open'`);
+      const whereSql = where.join(' and ');
+      if (f.dryRun) {
+        return { count: (await q.query<{ n: number }>(`select count(*)::int as n from deals d where ${whereSql}`, p.values)).rows[0]!.n, updated: 0 };
+      }
+      const ids = (await q.query<{ id: string; owner: string | null }>(
+        `update deals d set owner_membership_id = ${p.add(f.toOwnerId)} from (select d.id, d.owner_membership_id as old from deals d where ${whereSql} for update of d) x
+          where d.id = x.id returning d.id, x.old as owner`, p.values)).rows;
+      if (ids.length) {
+        await q.query(
+          `insert into timeline_entries (tenant_id, kind, actor_membership_id, deal_id, data)
+           select app.tenant_id(), 'deal.updated', $1, x.id, jsonb_build_object('fields', jsonb_build_array('ownerId'), 'bulk', true) from unnest($2::uuid[]) as x(id)`,
+          [actor.membershipId, ids.map((x) => x.id)]);
+        await audit(q, actor, 'deal.bulk_owner', 'deal', ids[0]!.id, { count: ids.length, to: f.toOwnerId });
+        if (f.toOwnerId !== actor.membershipId) {
+          await q.query(
+            `insert into notifications (tenant_id, membership_id, kind, title, body, link) values (app.tenant_id(), $1, 'deal.assigned', $2, $3, $4)`,
+            [f.toOwnerId, `${ids.length} ${ids.length === 1 ? 'negócio passou' : 'negócios passaram'} para você`, 'Você agora é o responsável.', '/negocios?visao=lista']);
+        }
+      }
+      return { count: ids.length, updated: ids.length };
+    });
   }
 
   // ---- Leitura ----------------------------------------------------------------
@@ -139,6 +181,7 @@ export class DealsService {
       if (f.organizationId) where.push(`d.organization_id = ${p.add(f.organizationId)}`);
       if (f.closeFrom) where.push(`d.expected_close_date >= ${p.add(f.closeFrom)}::date`);
       if (f.closeTo) where.push(`d.expected_close_date <= ${p.add(f.closeTo)}::date`);
+      if (f.stale) where.push(STALE_SQL);
       if (f.q) where.push(`app.norm(d.title) like app.norm(${p.add(`%${likeEscape(f.q.trim().toLowerCase())}%`)})`);
       const dir = f.dir === 'asc' ? 'asc' : 'desc';
       const order = {
