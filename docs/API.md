@@ -208,6 +208,10 @@ Ver: `campaigns:view`. Criar, mudar, publicar e subir mídia: `campaigns:edit`. 
 
 Desenho (`draft`): `{nodes: [{id, type, position, data}], edges: [{id, source, sourceHandle: next|yes|no|timeout|btn:<id>, target}]}`. Tipos: `trigger` (comment, live_comment, dm_keyword, story_reply, story_mention, reaction; publicações, palavras-chave, frequência), `comment_reply` (sorteia até 3), `private_reply` (uma por comentário, até 3 botões), `text`, `media`, `wait`, `question` (guarda em variável, campo, e-mail ou telefone), `condition` (etiqueta, segue a conta, variável), `action` (etiqueta, campo, lead, negócio, aviso, passar a conversa).
 
+### Editar notas da equipe (16 nov 2026)
+
+- `PATCH /api/v1/notes/:id { body }`: além do autor, quem edita o registro com alcance de toda a empresa (administrador e gestor) edita a nota de outra pessoa; o autor não muda e o histórico do registro ganha `note.edited`. As notas trazem `canEdit` e `canDelete`.
+
 ### Responsável em massa e aviso de negócio parado (16 nov 2026)
 
 - `POST /api/v1/deals/bulk-owner { pipelineId?, fromOwnerId?: <id>|"none", status: "open"|"all", toOwnerId, dryRun }` (permissão `deals:assign`): troca o responsável de todos os negócios no alcance que batem com os filtros. `dryRun: true` só conta. Resposta `{count, updated}`.

@@ -23,6 +23,10 @@ Atualizado em 9 de novembro de 2026.
 | Auditoria só de inserção; plataforma para criar e suspender empresas | Integração e ponta a ponta |
 | Stack de produção com Traefik, segredos, cópia diária e restauração | `deploy/teste-stack.sh` no CI |
 
+### Editar notas já inseridas (16 nov 2026)
+
+- O lápis aparece para o autor e também para administrador e gestor, que podem corrigir notas de outras pessoas (inclusive as importadas). O autor da nota continua o mesmo e o histórico registra "Editou uma nota de outra pessoa". A lixeira segue a regra que a API já tinha (autor, ou quem pode excluir contatos em toda a empresa).
+
 ### Responsável em massa e aviso de negócio parado agrupado (16 nov 2026)
 
 - Negócios › Trocar responsável: passa vários negócios de uma vez para outra pessoa, filtrando por funil (ou todos), responsável atual (qualquer, sem responsável ou alguém) e situação (só em andamento ou todos). Mostra quantos vão mudar antes de confirmar; o histórico de cada negócio, a auditoria (`deal.bulk_owner`) e o aviso para o novo responsável registram a troca. Precisa de "Atribuir negócios e leads"; o líder só passa para alguém da equipe.

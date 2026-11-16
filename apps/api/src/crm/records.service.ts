@@ -9,6 +9,7 @@ import { memberJson } from './fields.js';
 import { LeadsService } from './leads.service.js';
 import { OrganizationsService } from './organizations.service.js';
 import { reachOf } from './sql.js';
+import type { Permission } from '../domain/permissions.js';
 
 export type RecordKind = 'contact' | 'organization' | 'deal' | 'lead';
 export type RecordRef = { kind: RecordKind; id: string };
@@ -51,9 +52,9 @@ export class RecordsService {
       await this.assertAccess(q, actor, ref, false);
       const rows = await q.query(
         `select n.id, n.body, n.pinned, n.created_at as "createdAt", n.updated_at as "updatedAt",
-                ${memberJson('n.author_membership_id')} as author, n.author_membership_id = $2 as mine, (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type, 'sizeBytes', f.size_bytes) from files f where f.id = n.file_id and f.deleted_at is null) as audio
+                ${memberJson('n.author_membership_id')} as author, n.author_membership_id = $2 as mine, (n.author_membership_id = $2 or $3::boolean) as "canEdit", (n.author_membership_id = $2 or $4::boolean) as "canDelete", (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type, 'sizeBytes', f.size_bytes) from files f where f.id = n.file_id and f.deleted_at is null) as audio
            from notes n where n.${REF_COLUMN[ref.kind]} = $1 order by n.pinned desc, n.created_at desc limit 200`,
-        [ref.id, actor.membershipId]);
+        [ref.id, actor.membershipId, this.editsAll(actor, ref), this.deletesAll(actor)]);
       return rows.rows;
     });
   }
@@ -72,15 +73,25 @@ export class RecordsService {
         [actor.membershipId, ref.id, JSON.stringify({ noteId: r.rows[0]!.id })]);
       return (await q.query(
         `select n.id, n.body, n.pinned, n.created_at as "createdAt", n.updated_at as "updatedAt",
-                ${memberJson('n.author_membership_id')} as author, true as mine, (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type, 'sizeBytes', f.size_bytes) from files f where f.id = n.file_id and f.deleted_at is null) as audio from notes n where n.id = $1`, [r.rows[0]!.id])).rows[0];
+                ${memberJson('n.author_membership_id')} as author, true as mine, true as "canEdit", true as "canDelete", (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type, 'sizeBytes', f.size_bytes) from files f where f.id = n.file_id and f.deleted_at is null) as audio from notes n where n.id = $1`, [r.rows[0]!.id])).rows[0];
     });
   }
 
   async note(actor: Actor, id: string) {
     return this.db.app(tenantCtx(actor), async (q) => (await q.query(
       `select n.id, n.body, n.pinned, n.created_at as "createdAt", n.updated_at as "updatedAt",
-              ${memberJson('n.author_membership_id')} as author, n.author_membership_id = $2 as mine, (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type, 'sizeBytes', f.size_bytes) from files f where f.id = n.file_id and f.deleted_at is null) as audio from notes n where n.id = $1`,
-      [id, actor.membershipId])).rows[0]);
+              ${memberJson('n.author_membership_id')} as author, n.author_membership_id = $2 as mine, (n.author_membership_id = $2 or $3::boolean) as "canEdit", (n.author_membership_id = $2 or $4::boolean) as "canDelete", (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type, 'sizeBytes', f.size_bytes) from files f where f.id = n.file_id and f.deleted_at is null) as audio from notes n where n.id = $1`,
+      [id, actor.membershipId, this.editsAll(actor, (await this.noteRef(q, id)).ref), this.deletesAll(actor)])).rows[0]);
+  }
+
+  /** Administrador e gestor (editar o registro com alcance de toda a empresa) editam as notas de qualquer pessoa. */
+  private editsAll(actor: Actor, ref: RecordRef): boolean {
+    const perm = { contact: 'contacts:edit', organization: 'contacts:edit', deal: 'deals:edit', lead: 'leads:work' }[ref.kind] as Permission;
+    return actor.permissions.get(perm) === 'tenant';
+  }
+
+  private deletesAll(actor: Actor): boolean {
+    return actor.permissions.get('contacts:delete') === 'tenant';
   }
 
   private async noteRef(q: Q, id: string): Promise<{ ref: RecordRef; author: string | null }> {
@@ -94,17 +105,25 @@ export class RecordsService {
     return { ref, author: row.author_membership_id };
   }
 
-  /** Só o autor edita o texto; quem edita o registro pode fixar. */
+  /** O autor edita o texto (e quem edita o registro em toda a empresa); quem edita o registro pode fixar. */
   async updateNote(actor: Actor, id: string, input: { body?: string; pinned?: boolean }) {
     return this.db.app(tenantCtx(actor), async (q) => {
       const { ref, author } = await this.noteRef(q, id);
       await this.assertAccess(q, actor, ref, true);
-      if (input.body !== undefined && author !== actor.membershipId) throw Problem.forbidden('Só quem escreveu a nota pode editá-la.');
+      if (input.body !== undefined && author !== actor.membershipId && !this.editsAll(actor, ref)) {
+        throw Problem.forbidden('Só quem escreveu a nota pode editá-la.');
+      }
       await q.query('update notes set body = coalesce($2, body), pinned = coalesce($3, pinned) where id = $1', [id, input.body ?? null, input.pinned ?? null]);
+      if (input.body !== undefined && author !== actor.membershipId) {
+        // Edição da nota de outra pessoa fica no histórico do registro.
+        await q.query(
+          `insert into timeline_entries (tenant_id, kind, actor_membership_id, ${REF_COLUMN[ref.kind]}, data) values (app.tenant_id(), 'note.edited', $1, $2, $3)`,
+          [actor.membershipId, ref.id, JSON.stringify({ noteId: id })]);
+      }
       return (await q.query(
         `select n.id, n.body, n.pinned, n.created_at as "createdAt", n.updated_at as "updatedAt",
-                ${memberJson('n.author_membership_id')} as author, n.author_membership_id = $2 as mine, (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type, 'sizeBytes', f.size_bytes) from files f where f.id = n.file_id and f.deleted_at is null) as audio from notes n where n.id = $1`,
-        [id, actor.membershipId])).rows[0];
+                ${memberJson('n.author_membership_id')} as author, n.author_membership_id = $2 as mine, (n.author_membership_id = $2 or $3::boolean) as "canEdit", (n.author_membership_id = $2 or $4::boolean) as "canDelete", (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type, 'sizeBytes', f.size_bytes) from files f where f.id = n.file_id and f.deleted_at is null) as audio from notes n where n.id = $1`,
+        [id, actor.membershipId, this.editsAll(actor, ref), this.deletesAll(actor)])).rows[0];
     });
   }
 

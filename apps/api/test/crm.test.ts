@@ -394,6 +394,23 @@ describe('funis e negócios', () => {
     assert.equal((await adminB.post('/api/v1/deals/bulk-owner', { toOwnerId: m['vendas1@a.test'], dryRun: true })).status, 422);
   });
 
+  test('notas: autor edita; gestor edita a nota de outra pessoa (fica no histórico); colega não', async () => {
+    const d = await sales1.post('/api/v1/deals', { pipelineId: pipeline.id, title: 'Notas da equipe', participantIds: [m['vendas2@a.test']] });
+    const n = await sales1.post(`/api/v1/records/deal/${d.body.id}/notes`, { body: 'Reunião: 21/10' });
+    assert.equal(n.status, 201, JSON.stringify(n.body));
+    assert.equal((await sales1.patch(`/api/v1/notes/${n.body.id}`, { body: 'Reunião: realizada 21/10' })).status, 200);
+    assert.ok([403, 404].includes((await sales2.patch(`/api/v1/notes/${n.body.id}`, { body: 'Mexi' })).status), 'colega participante não edita');
+    const seen = (await manager.get(`/api/v1/records/deal/${d.body.id}/notes`)).body[0];
+    assert.deepEqual([seen.mine, seen.canEdit, seen.canDelete], [false, true, true]);
+    assert.equal((await sales2.get(`/api/v1/records/deal/${d.body.id}/notes`)).body[0].canEdit, false);
+    const r = await manager.patch(`/api/v1/notes/${n.body.id}`, { body: 'Reunião: realizada 21/10\n16/11 - reenviado o link' });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.body, 'Reunião: realizada 21/10\n16/11 - reenviado o link');
+    assert.equal(r.body.author.id, m['vendas1@a.test'], 'o autor continua o mesmo');
+    const tl = await f.admin.query("select actor_membership_id from timeline_entries where kind = 'note.edited' and deal_id = $1", [d.body.id]);
+    assert.deepEqual(tl.rows.map((x) => x.actor_membership_id), [m['gestor@a.test']]);
+  });
+
   test('funil restrito some da interface, da API e da exportação', async () => {
     const r = await manager.post('/api/v1/pipelines', { name: 'Diretoria' });
     const secret = r.body;
