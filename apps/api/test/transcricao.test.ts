@@ -112,8 +112,11 @@ before(async () => {
   admin = await login('admin@a.test', true);
   sales = await login('vendas@a.test', false);
   adminB = await login('admin@b.test', true);
-  const pl = (await admin.get('/api/v1/pipelines')).body[0];
-  deal = (await admin.post('/api/v1/deals', { pipelineId: pl.id, title: 'Consórcio imóvel' })).body.id;
+  const pl = await admin.post('/api/v1/pipelines', { name: 'Vendas' });
+  assert.equal(pl.status, 201, JSON.stringify(pl.body));
+  const d = await admin.post('/api/v1/deals', { pipelineId: pl.body.id, title: 'Consórcio imóvel' });
+  assert.equal(d.status, 201, JSON.stringify(d.body));
+  deal = d.body.id;
 });
 
 after(async () => {
