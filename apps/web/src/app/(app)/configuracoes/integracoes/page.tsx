@@ -12,6 +12,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Confirm } from '@/components/ui/confirm';
 import { LoadError, Loading } from '@/components/ui/states';
+import { TranscriptionSettings } from '@/components/crm/transcription-settings';
 
 type Key = { id: string; name: string; prefix: string; createdAt: string; lastUsedAt: string | null; revokedAt: string | null; createdBy: { name: string } | null };
 
@@ -136,6 +137,8 @@ export default function IntegrationsPage() {
           ) : null}
         </div>
       </Panel>
+
+      <TranscriptionSettings />
 
       <Confirm open={!!revoking} title={`Revogar a chave ${revoking?.name}?`} confirmLabel="Revogar"
         onConfirm={async () => {

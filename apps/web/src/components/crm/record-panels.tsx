@@ -1,7 +1,7 @@
 'use client';
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { CalendarClock, Check, Download, FileText, Pencil, Pin, PinOff, Plus, RotateCcw, Trash2, Upload } from 'lucide-react';
+import { AudioLines, CalendarClock, Check, Copy, Download, FileText, Loader2, Pencil, Pin, PinOff, Plus, RotateCcw, Trash2, Upload } from 'lucide-react';
 import { ApiError, api, apiUpload } from '@/lib/api';
 import { useLoad } from '@/lib/use-load';
 import {
@@ -34,6 +34,35 @@ export function NotesPanel({ kind, id, canEdit }: { kind: RecordKind; id: string
   // Edição de uma nota já salva.
   const [editing, setEditing] = useState<{ id: string; body: string } | null>(null);
   const [editErr, setEditErr] = useState<string | null>(null);
+  // Transcrição: enquanto alguma nota está "transcrevendo", confere de novo a cada 5 s.
+  const [transErr, setTransErr] = useState<Record<string, string>>({});
+  const [copied, setCopied] = useState<string | null>(null);
+  const pending = (notes.data ?? []).some((n) => n.transcriptStatus === 'pending' && !stalePending(n));
+  useEffect(() => {
+    if (!pending) return;
+    const t = setInterval(() => {
+      api<Note[]>('GET', `/api/v1/records/${kind}/${id}/notes`).then((d) => notes.setData(d)).catch(() => undefined);
+    }, 5000);
+    return () => clearInterval(t);
+  }, [pending, kind, id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function transcribe(n: Note) {
+    setTransErr((m) => ({ ...m, [n.id]: '' }));
+    try {
+      const upd = await api<Note>('POST', `/api/v1/notes/${n.id}/transcribe`, {});
+      notes.setData((cur) => (cur ?? []).map((x) => (x.id === n.id ? upd : x)));
+    } catch (e) {
+      setTransErr((m) => ({ ...m, [n.id]: e instanceof ApiError ? e.title : 'Não foi possível pedir a transcrição.' }));
+    }
+  }
+
+  async function copy(n: Note) {
+    try {
+      await navigator.clipboard.writeText(n.transcript ?? '');
+      setCopied(n.id);
+      setTimeout(() => setCopied(null), 2000);
+    } catch { /* sem acesso à área de transferência */ }
+  }
 
   function setRecorded(f: File | null) {
     if (voiceUrl) URL.revokeObjectURL(voiceUrl);
@@ -131,6 +160,35 @@ export function NotesPanel({ kind, id, canEdit }: { kind: RecordKind; id: string
                 ) : null}
               </div>
               {n.audio ? <div className="mb-1.5"><MediaPreview file={n.audio} kind="audio" out={false} /></div> : null}
+              {n.audio ? (
+                <div className="mb-2">
+                  {n.transcriptStatus === 'pending' && !stalePending(n) ? (
+                    <p role="status" className="inline-flex items-center gap-2 text-[13px] text-muted">
+                      <Loader2 size={14} className="animate-spin" aria-hidden />Transcrevendo o áudio…
+                    </p>
+                  ) : n.transcriptStatus === 'done' ? (
+                    <div className="rounded-[8px] border border-line bg-surface-2 px-3 py-2.5">
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.04em] text-muted"><AudioLines size={13} aria-hidden />Transcrição{n.transcriptBy === 'openai' ? ' · OpenAI' : ''}</span>
+                        {n.transcript ? (
+                          <button type="button" onClick={() => copy(n)} className="inline-flex min-h-7 items-center gap-1 rounded-[6px] px-1.5 text-[12px] text-muted hover:bg-surface hover:text-ink">
+                            {copied === n.id ? <Check size={13} aria-hidden /> : <Copy size={13} aria-hidden />}{copied === n.id ? 'Copiado' : 'Copiar'}
+                          </button>
+                        ) : null}
+                      </div>
+                      <p className="whitespace-pre-wrap text-sm">{n.transcript || <span className="text-muted">Não foi possível entender a fala deste áudio.</span>}</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-2 text-[13px]">
+                      {n.transcriptStatus === 'failed' || stalePending(n) ? <span className="text-bad">Não foi possível transcrever.</span> : null}
+                      <button type="button" onClick={() => transcribe(n)} className="inline-flex min-h-8 items-center gap-1.5 rounded-[6px] border border-line px-2.5 font-medium hover:bg-surface-2">
+                        <AudioLines size={14} aria-hidden />{n.transcriptStatus === 'failed' || stalePending(n) ? 'Tentar de novo' : 'Transcrever'}
+                      </button>
+                    </div>
+                  )}
+                  {transErr[n.id] ? <p className="mt-1 text-[13px] text-bad">{transErr[n.id]}</p> : null}
+                </div>
+              ) : null}
               {editing?.id === n.id ? (
                 <div className="flex flex-col gap-2">
                   <label htmlFor={`edit-${n.id}`} className="sr-only">Editar a nota</label>
@@ -384,4 +442,9 @@ export function ActivitiesPanel({ filter, links, canEdit, onChange }: {
       </Dialog>
     </Panel>
   );
+}
+
+/** "Transcrevendo" há mais de 15 minutos: o servidor reiniciou no meio; mostra "Tentar de novo". */
+function stalePending(n: Note): boolean {
+  return n.transcriptStatus === 'pending' && !!n.transcriptAt && Date.now() - new Date(n.transcriptAt).getTime() > 15 * 60_000;
 }

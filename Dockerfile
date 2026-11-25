@@ -23,6 +23,31 @@ COPY . .
 RUN pnpm --filter @crm/api build && pnpm --filter @crm/web build
 RUN pnpm --filter @crm/api deploy --legacy --prod /out/api
 
+# Transcrição das notas de áudio no próprio servidor, sem serviço pago:
+# whisper.cpp (compilado aqui, sem bibliotecas extras) e o modelo Whisper
+# "small" quantizado (~190 MB, bom em português).
+FROM node:24-slim AS whisper
+ARG TARGETARCH
+ARG WHISPER_VERSION=v1.8.2
+ARG WHISPER_MODEL=ggml-small-q5_1.bin
+RUN echo "Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries && apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl build-essential cmake \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+RUN curl -fsSL --retry 5 --retry-all-errors --http1.1 -o w.tgz "https://github.com/ggml-org/whisper.cpp/archive/refs/tags/${WHISPER_VERSION}.tar.gz" \
+    && tar xzf w.tgz --strip-components=1 && rm w.tgz \
+    && if [ "$TARGETARCH" = "amd64" ]; then SIMD="-DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON"; else SIMD=""; fi \
+    && cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF \
+         -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_SERVER=OFF $SIMD \
+    && cmake --build build -j"$(nproc)" --target whisper-cli \
+    && install -D -m 0755 build/bin/whisper-cli /opt/whisper/whisper-cli \
+    && install -m 0644 samples/jfk.wav /opt/whisper/amostra.wav \
+    && /opt/whisper/whisper-cli --help > /dev/null
+RUN curl -fsSL --retry 5 --retry-all-errors --http1.1 -o "/opt/whisper/${WHISPER_MODEL}" \
+      "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${WHISPER_MODEL}" \
+    && test "$(stat -c %s "/opt/whisper/${WHISPER_MODEL}")" -gt 100000000 \
+    && sha256sum "/opt/whisper/${WHISPER_MODEL}"
+
 FROM node:24-slim AS api
 ARG VERSAO=dev
 # Cliente do PostgreSQL 18 (repositório oficial do PostgreSQL): migrações, cópia e restauração.
@@ -39,6 +64,7 @@ WORKDIR /app
 COPY --from=build /out/api/node_modules ./node_modules
 COPY --from=build /out/api/package.json ./package.json
 COPY --from=build /repo/apps/api/dist ./dist
+COPY --from=whisper /opt/whisper /opt/whisper
 COPY packages/db /app/db
 COPY deploy/backup /app/backup
 COPY deploy/stack-migrate.sh /app/db/stack-migrate.sh

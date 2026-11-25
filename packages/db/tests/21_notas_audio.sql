@@ -8,5 +8,17 @@ select t.ok(t.affected($$update pipelines set stale_days = 7, stale_notify_days 
 select t.throws($$update pipelines set stale_recipients = 'todos' where tenant_id = t.a()$$, '23514', 'quem recebe o aviso fora da lista');
 select t.ok(t.affected($$update pipelines set stale_recipients = 'owner_fixed', stale_member_ids = array[t.id(t.a(), 1)], stale_in_app = true where tenant_id = t.a()$$) >= 1,
   'aviso para o responsável e pessoas fixas, no CRM');
+select t.throws($$update notes set transcript_status = 'talvez' where tenant_id = t.a()$$, '23514', 'situação da transcrição fora da lista');
+select t.ok(t.affected($$update notes set transcript = 'Olá', transcript_status = 'done', transcript_at = now(), transcript_by = 'local' where tenant_id = t.a()$$) >= 1, 'nota guarda a transcrição');
+select t.throws($$update transcription_settings set provider = 'openai' where tenant_id = t.a()$$, '23514', 'OpenAI sem chave não vale');
+select t.ok(t.affected($$update transcription_settings set provider = 'openai', openai_key = '\x01', openai_hint = 'abcd' where tenant_id = t.a()$$) = 1, 'transcrição pela OpenAI');
+select t.throws($$insert into transcription_settings (tenant_id) values (t.b())$$, '42501', 'não grava a configuração de outra empresa');
+select t.throws($$update transcription_settings set openai_model = 'gpt-9' where tenant_id = t.a()$$, '23514', 'modelo fora da lista');
+select t.ctx(null, null);
+reset role;
+
+set role crm_app;
+select t.ctx(t.b(), t.ub());
+select t.ok(t.count($$select 1 from transcription_settings where openai_key is not null$$) = 0, 'outra empresa não vê a chave da OpenAI');
 select t.ctx(null, null);
 reset role;
