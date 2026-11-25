@@ -107,6 +107,11 @@ sleep 20
 n=$(docker exec "$(docker ps -q -f name=crmwta_db | head -n1)" psql -U postgres -d crm -At -c "select count(*) from tenants")
 [ "$n" = 1 ] && ok "reimplantar não duplica a configuração inicial" || erro "empresas depois de reimplantar: $n"
 
+# Transcrição no servidor: o whisper.cpp e o modelo da imagem transcrevem uma amostra real.
+apiw=$(docker ps -q -f name=crmwta_api | head -n1)
+txt=$(docker exec "$apiw" sh -c '/opt/whisper/whisper-cli -m /opt/whisper/ggml-small-q5_1.bin -l en -t 2 -nt -np -f /opt/whisper/amostra.wav' 2>&1 | tr 'A-Z' 'a-z')
+echo "$txt" | grep -q "ask not what your country" && ok "transcrição no servidor funciona (whisper.cpp)" || { erro "transcrição no servidor falhou"; echo "$txt" | tail -n5 >&2; }
+
 # Cópia e restauração.
 bk=$(docker ps -q -f name=crmwta_backup | head -n1)
 db=$(docker ps -q -f name=crmwta_db | head -n1)

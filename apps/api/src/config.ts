@@ -29,6 +29,13 @@ const schema = z.object({
   SMTP_FROM: z.string().optional(),
   /** Pasta dos arquivos enviados (volume da stack). */
   STORAGE_DIR: z.string().min(1).default('/data/files'),
+  // Transcrição das notas de áudio no próprio servidor (whisper.cpp, sem serviço pago).
+  WHISPER_BIN: z.string().min(1).default('/opt/whisper/whisper-cli'),
+  WHISPER_MODEL: z.string().min(1).default('/opt/whisper/ggml-small-q5_1.bin'),
+  WHISPER_LANG: z.string().regex(/^[a-z]{2}$|^auto$/).default('pt'),
+  WHISPER_THREADS: z.coerce.number().int().min(0).max(32).default(0),
+  /** Transcrição pela OpenAI (opcional, com a chave de cada empresa). */
+  OPENAI_BASE_URL: z.string().url().default('https://api.openai.com/v1'),
   /** Limite de tamanho de um arquivo enviado, em MB. */
   UPLOAD_MAX_MB: z.coerce.number().int().min(1).max(200).default(25),
   /** Despachante de lembretes, importações e séries: intervalo em segundos; 0 desliga. */

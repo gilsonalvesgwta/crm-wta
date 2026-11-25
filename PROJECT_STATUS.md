@@ -10,6 +10,15 @@ Atualizado em 9 de novembro de 2026.
 
 ## Concluído, com teste
 
+### Transcrição das notas de áudio (25 nov 2026)
+
+- Cada nota de áudio ganha o texto logo abaixo do player ("Transcrevendo…" enquanto processa; botão "Copiar"). Notas antigas têm o botão "Transcrever"; falha mostra "Tentar de novo".
+- Padrão grátis, no próprio servidor: whisper.cpp v1.8.2 compilado na imagem da API com o modelo Whisper "small" quantizado (ggml-small-q5_1, ~190 MB), em português, usando metade dos núcleos (até 4), uma nota por vez.
+- Opcional: OpenAI com a chave da empresa (Configurações › Integrações › Transcrição de áudio). A chave é conferida na OpenAI ao salvar, fica cifrada (AES-256-GCM) e nunca volta para a tela; modelos gpt-4o-mini-transcribe (padrão), gpt-4o-transcribe ou whisper-1.
+- Migração 0027: `notes.transcript/transcript_status/transcript_at/transcript_by` e `transcription_settings`.
+- Variáveis opcionais: `WHISPER_THREADS`, `WHISPER_LANG` (padrão `pt`), `OPENAI_BASE_URL`.
+- O teste da stack transcreve uma amostra real com o modelo da imagem.
+
 ### Fase 1: fundação
 
 | Item | Evidência |

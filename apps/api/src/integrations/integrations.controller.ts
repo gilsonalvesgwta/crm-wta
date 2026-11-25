@@ -1,10 +1,11 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Put } from '@nestjs/common';
 import { z } from 'zod';
 import type { Actor } from '../access/actor.js';
 import { CurrentActor, Require } from '../access/decorators.js';
 import { parse } from '../http/validate.js';
 import { ApiKeysService } from './api-keys.service.js';
 import { InboundService } from './inbound.service.js';
+import { TranscriptionService } from '../crm/transcription.service.js';
 
 const uuid = z.string().uuid();
 const opt = (max: number) => z.string().trim().max(max).nullable().optional().transform((v) => (v === '' ? null : v));
@@ -35,7 +36,26 @@ export class IntegrationsController {
   constructor(
     @Inject(ApiKeysService) private readonly keys: ApiKeysService,
     @Inject(InboundService) private readonly inbound: InboundService,
+    @Inject(TranscriptionService) private readonly transcription: TranscriptionService,
   ) {}
+
+  /** Transcrição das notas de áudio: no servidor (grátis) ou pela OpenAI com a chave da empresa. */
+  @Require('integrations:admin', 'tenant')
+  @Get('integrations/transcription')
+  transcriptionSettings(@CurrentActor() a: Actor) {
+    return this.transcription.read(a);
+  }
+
+  @Require('integrations:admin', 'tenant')
+  @Put('integrations/transcription')
+  saveTranscription(@CurrentActor() a: Actor, @Body() b: unknown) {
+    return this.transcription.update(a, parse(z.object({
+      provider: z.enum(['local', 'openai']),
+      openaiKey: z.string().trim().min(20, { message: 'A chave parece incompleta.' }).max(300)
+        .regex(/^sk-[A-Za-z0-9_\-]+$/, { message: 'A chave da OpenAI começa com "sk-".' }).nullable().optional(),
+      model: z.enum(['gpt-4o-mini-transcribe', 'gpt-4o-transcribe', 'whisper-1']).optional(),
+    }), b));
+  }
 
   @Require('integrations:admin', 'tenant')
   @Get('api-keys')

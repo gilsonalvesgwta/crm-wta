@@ -100,6 +100,11 @@ export type Note = {
   id: string; body: string; pinned: boolean; createdAt: string; updatedAt: string; author: Ref | null; mine: boolean; canEdit?: boolean; canDelete?: boolean;
   /** Nota de áudio (gravada no CRM). */
   audio?: { id: string; name: string; contentType: string; sizeBytes: number } | null;
+  /** Transcrição do áudio (no servidor ou pela OpenAI). */
+  transcript?: string | null;
+  transcriptStatus?: 'pending' | 'done' | 'failed' | null;
+  transcriptAt?: string | null;
+  transcriptBy?: 'local' | 'openai' | null;
 };
 export type TimelineEntry = {
   id: string; kind: string; occurredAt: string; data: Record<string, unknown>; actor: Ref | null;

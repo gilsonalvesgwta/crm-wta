@@ -5,6 +5,7 @@ import type { Actor } from '../access/actor.js';
 import { CurrentActor, Public, Require } from '../access/decorators.js';
 import { CONFIG, type Config } from '../config.js';
 import { Problem } from '../http/problem.js';
+import { TranscriptionService } from './transcription.service.js';
 import { parse } from '../http/validate.js';
 import { ActivitiesService } from './activities.service.js';
 import { CatalogService } from './catalog.service.js';
@@ -579,6 +580,7 @@ export class RecordsController {
     @Inject(RecordsService) private readonly records: RecordsService,
     @Inject(FilesService) private readonly files: FilesService,
     @Inject(CONFIG) private readonly cfg: Config,
+    @Inject(TranscriptionService) private readonly transcription: TranscriptionService,
   ) {}
 
   private ref(kind: string, v: string) {
@@ -600,7 +602,19 @@ export class RecordsController {
   async addAudioNote(@CurrentActor() a: Actor, @Param('kind') k: string, @Param('id') v: string, @Req() req: FastifyRequest) {
     const f = await readUpload(req, 25);
     const noteId = await this.files.addAudioNote(a, this.ref(k, v), f.name, f.data);
+    await this.transcription.enqueue(a.tenantId!, noteId).catch(() => false);
     return this.records.note(a, noteId);
+  }
+
+  /** Transcrever (de novo) uma nota de áudio: as antigas ou as que falharam. */
+  @Post('notes/:id/transcribe')
+  @HttpCode(202)
+  async transcribeNote(@CurrentActor() a: Actor, @Param('id') v: string) {
+    await this.records.noteForTranscription(a, id(v));
+    if (!(await this.transcription.enqueue(a.tenantId!, id(v)))) {
+      throw new Problem(503, 'Transcrição indisponível.', 'transcription-unavailable', 'Ligue a transcrição em Configurações › Integrações.');
+    }
+    return this.records.note(a, id(v));
   }
 
   @Patch('notes/:id')

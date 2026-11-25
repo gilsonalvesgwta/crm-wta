@@ -208,6 +208,12 @@ Ver: `campaigns:view`. Criar, mudar, publicar e subir mídia: `campaigns:edit`. 
 
 Desenho (`draft`): `{nodes: [{id, type, position, data}], edges: [{id, source, sourceHandle: next|yes|no|timeout|btn:<id>, target}]}`. Tipos: `trigger` (comment, live_comment, dm_keyword, story_reply, story_mention, reaction; publicações, palavras-chave, frequência), `comment_reply` (sorteia até 3), `private_reply` (uma por comentário, até 3 botões), `text`, `media`, `wait`, `question` (guarda em variável, campo, e-mail ou telefone), `condition` (etiqueta, segue a conta, variável), `action` (etiqueta, campo, lead, negócio, aviso, passar a conversa).
 
+### Transcrição das notas de áudio (25 nov 2026)
+
+- As notas trazem `transcript`, `transcriptStatus` (`pending`, `done`, `failed` ou nulo), `transcriptAt` e `transcriptBy` (`local` ou `openai`). Nota de áudio nova já nasce `pending`.
+- `POST /api/v1/notes/:id/transcribe` (202): transcreve de novo (antigas ou que falharam). 503 se a empresa não tem como transcrever; 422 se a nota não tem áudio.
+- `GET /api/v1/integrations/transcription` e `PUT { provider: "local"|"openai", openaiKey?: "sk-…"|null, model? }` (permissão `integrations:admin`): a chave nunca volta, só `openai.hint` (4 últimos caracteres).
+
 ### Editar notas da equipe (16 nov 2026)
 
 - `PATCH /api/v1/notes/:id { body }`: além do autor, quem edita o registro com alcance de toda a empresa (administrador e gestor) edita a nota de outra pessoa; o autor não muda e o histórico do registro ganha `note.edited`. As notas trazem `canEdit` e `canDelete`.

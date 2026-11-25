@@ -52,7 +52,7 @@ export class RecordsService {
       await this.assertAccess(q, actor, ref, false);
       const rows = await q.query(
         `select n.id, n.body, n.pinned, n.created_at as "createdAt", n.updated_at as "updatedAt",
-                ${memberJson('n.author_membership_id')} as author, n.author_membership_id = $2 as mine, (n.author_membership_id = $2 or $3::boolean) as "canEdit", (n.author_membership_id = $2 or $4::boolean) as "canDelete", (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type, 'sizeBytes', f.size_bytes) from files f where f.id = n.file_id and f.deleted_at is null) as audio
+                ${memberJson('n.author_membership_id')} as author, n.author_membership_id = $2 as mine, (n.author_membership_id = $2 or $3::boolean) as "canEdit", (n.author_membership_id = $2 or $4::boolean) as "canDelete", (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type, 'sizeBytes', f.size_bytes) from files f where f.id = n.file_id and f.deleted_at is null) as audio, n.transcript, n.transcript_status as "transcriptStatus", n.transcript_at as "transcriptAt", n.transcript_by as "transcriptBy"
            from notes n where n.${REF_COLUMN[ref.kind]} = $1 order by n.pinned desc, n.created_at desc limit 200`,
         [ref.id, actor.membershipId, this.editsAll(actor, ref), this.deletesAll(actor)]);
       return rows.rows;
@@ -73,14 +73,14 @@ export class RecordsService {
         [actor.membershipId, ref.id, JSON.stringify({ noteId: r.rows[0]!.id })]);
       return (await q.query(
         `select n.id, n.body, n.pinned, n.created_at as "createdAt", n.updated_at as "updatedAt",
-                ${memberJson('n.author_membership_id')} as author, true as mine, true as "canEdit", true as "canDelete", (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type, 'sizeBytes', f.size_bytes) from files f where f.id = n.file_id and f.deleted_at is null) as audio from notes n where n.id = $1`, [r.rows[0]!.id])).rows[0];
+                ${memberJson('n.author_membership_id')} as author, true as mine, true as "canEdit", true as "canDelete", (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type, 'sizeBytes', f.size_bytes) from files f where f.id = n.file_id and f.deleted_at is null) as audio, n.transcript, n.transcript_status as "transcriptStatus", n.transcript_at as "transcriptAt", n.transcript_by as "transcriptBy" from notes n where n.id = $1`, [r.rows[0]!.id])).rows[0];
     });
   }
 
   async note(actor: Actor, id: string) {
     return this.db.app(tenantCtx(actor), async (q) => (await q.query(
       `select n.id, n.body, n.pinned, n.created_at as "createdAt", n.updated_at as "updatedAt",
-              ${memberJson('n.author_membership_id')} as author, n.author_membership_id = $2 as mine, (n.author_membership_id = $2 or $3::boolean) as "canEdit", (n.author_membership_id = $2 or $4::boolean) as "canDelete", (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type, 'sizeBytes', f.size_bytes) from files f where f.id = n.file_id and f.deleted_at is null) as audio from notes n where n.id = $1`,
+              ${memberJson('n.author_membership_id')} as author, n.author_membership_id = $2 as mine, (n.author_membership_id = $2 or $3::boolean) as "canEdit", (n.author_membership_id = $2 or $4::boolean) as "canDelete", (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type, 'sizeBytes', f.size_bytes) from files f where f.id = n.file_id and f.deleted_at is null) as audio, n.transcript, n.transcript_status as "transcriptStatus", n.transcript_at as "transcriptAt", n.transcript_by as "transcriptBy" from notes n where n.id = $1`,
       [id, actor.membershipId, this.editsAll(actor, (await this.noteRef(q, id)).ref), this.deletesAll(actor)])).rows[0]);
   }
 
@@ -94,15 +94,24 @@ export class RecordsService {
     return actor.permissions.get('contacts:delete') === 'tenant';
   }
 
-  private async noteRef(q: Q, id: string): Promise<{ ref: RecordRef; author: string | null }> {
-    const n = await q.query<{ contact_id: string | null; organization_id: string | null; deal_id: string | null; lead_id: string | null; author_membership_id: string | null }>(
-      'select contact_id, organization_id, deal_id, lead_id, author_membership_id from notes where id = $1', [id]);
+  private async noteRef(q: Q, id: string): Promise<{ ref: RecordRef; author: string | null; fileId: string | null }> {
+    const n = await q.query<{ contact_id: string | null; organization_id: string | null; deal_id: string | null; lead_id: string | null; author_membership_id: string | null; file_id: string | null }>(
+      'select contact_id, organization_id, deal_id, lead_id, author_membership_id, file_id from notes where id = $1', [id]);
     const row = n.rows[0];
     if (!row) throw Problem.notFound('Nota não encontrada.');
     const ref: RecordRef = row.deal_id ? { kind: 'deal', id: row.deal_id }
       : row.lead_id ? { kind: 'lead', id: row.lead_id }
         : row.contact_id ? { kind: 'contact', id: row.contact_id } : { kind: 'organization', id: row.organization_id! };
-    return { ref, author: row.author_membership_id };
+    return { ref, author: row.author_membership_id, fileId: row.file_id };
+  }
+
+  /** Confere que a pessoa vê a nota de áudio (para pedir a transcrição de novo). */
+  async noteForTranscription(actor: Actor, id: string): Promise<void> {
+    await this.db.app(tenantCtx(actor), async (q) => {
+      const { ref, fileId } = await this.noteRef(q, id);
+      await this.assertAccess(q, actor, ref, false);
+      if (!fileId) throw Problem.badRequest('Esta nota não tem áudio.', []);
+    });
   }
 
   /** O autor edita o texto (e quem edita o registro em toda a empresa); quem edita o registro pode fixar. */
@@ -122,7 +131,7 @@ export class RecordsService {
       }
       return (await q.query(
         `select n.id, n.body, n.pinned, n.created_at as "createdAt", n.updated_at as "updatedAt",
-                ${memberJson('n.author_membership_id')} as author, n.author_membership_id = $2 as mine, (n.author_membership_id = $2 or $3::boolean) as "canEdit", (n.author_membership_id = $2 or $4::boolean) as "canDelete", (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type, 'sizeBytes', f.size_bytes) from files f where f.id = n.file_id and f.deleted_at is null) as audio from notes n where n.id = $1`,
+                ${memberJson('n.author_membership_id')} as author, n.author_membership_id = $2 as mine, (n.author_membership_id = $2 or $3::boolean) as "canEdit", (n.author_membership_id = $2 or $4::boolean) as "canDelete", (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type, 'sizeBytes', f.size_bytes) from files f where f.id = n.file_id and f.deleted_at is null) as audio, n.transcript, n.transcript_status as "transcriptStatus", n.transcript_at as "transcriptAt", n.transcript_by as "transcriptBy" from notes n where n.id = $1`,
         [id, actor.membershipId, this.editsAll(actor, ref), this.deletesAll(actor)])).rows[0];
     });
   }
