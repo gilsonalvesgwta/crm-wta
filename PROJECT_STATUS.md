@@ -10,6 +10,11 @@ Atualizado em 9 de novembro de 2026.
 
 ## Concluído, com teste
 
+### Campanha: etiqueta de quem recebeu com sucesso (27 nov 2026)
+
+- Em Configurações da campanha (e depois, na página da campanha): "Ao enviar com sucesso, marcar com a etiqueta". Cada envio com sucesso coloca a etiqueta no contato; escolher depois marca também quem já recebeu. Serve para filtrar em Contatos ou no público da próxima campanha.
+- Migração 0029: `campaigns.success_tag_id`. `PATCH /api/v1/campaigns/:id/success-tag { tagId }`.
+
 ### Campanhas: filtros com inclusão e exclusão, limites e pausa programada (27 nov 2026)
 
 - Público: "Incluir quem tem negócio em" e "Excluir quem tem negócio em", com vários funis, várias etapas por funil (nenhuma marcada = o funil todo) e a situação do negócio (em andamento, ganho, perdido ou qualquer); etiquetas com "alguma delas" ou "todas elas", além de "sem estas etiquetas". O formato antigo (um funil e uma etapa) continua valendo.

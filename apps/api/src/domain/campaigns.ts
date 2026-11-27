@@ -60,6 +60,8 @@ export const campaignBody = z.object({
   maxPerDay: z.number().int().min(1).max(1_000_000).nullable().optional(),
   /** Pausa automática numa data e hora (retoma pelo botão "Retomar"). */
   pauseAt: z.string().datetime({ offset: true, message: 'Data e hora inválidas.' }).nullable().optional(),
+  /** Etiqueta posta em quem recebeu com sucesso. */
+  successTagId: uuid.nullable().optional(),
 }).refine((v) => !!v.windowStart === !!v.windowEnd, { message: 'Informe o início e o fim da janela.', path: ['windowEnd'] });
 export type CampaignInput = z.infer<typeof campaignBody>;
 
@@ -80,3 +82,6 @@ export const paceBody = z.object({
   maxPerDay: z.number().int().min(1).max(1_000_000).nullable().default(null),
   pauseAt: z.string().datetime({ offset: true, message: 'Data e hora inválidas.' }).nullable().default(null),
 }).refine((v) => !!v.windowStart === !!v.windowEnd, { message: 'Informe o início e o fim da janela.', path: ['windowEnd'] });
+
+/** Etiqueta de quem recebeu com sucesso (vale também para quem já recebeu). */
+export const successTagBody = z.object({ tagId: uuid.nullable() });

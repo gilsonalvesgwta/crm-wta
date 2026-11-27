@@ -20,6 +20,8 @@ export type Campaign = {
   accountId: string | null; account: { id: string; name: string; kind: string; address: string | null; status: string } | null;
   subject: string | null; body: string | null; perMinute: number; windowStart: string | null; windowEnd: string | null; optOutHint: boolean;
   windowDays?: number[]; maxPerHour?: number | null; maxPerDay?: number | null; pauseAt?: string | null;
+  /** Etiqueta posta em quem recebeu com sucesso. */
+  successTagId?: string | null; successTag?: { id: string; name: string; color: string } | null;
   scheduledAt: string | null; startedAt: string | null; finishedAt: string | null; lastError: string | null;
   createdBy: { id: string; name: string } | null; startedBy: { id: string; name: string } | null;
   createdAt: string; updatedAt: string; stats: CampaignStats;
