@@ -1,4 +1,4 @@
-commit: 77a738a0de270662e5bcf708e08c0c0d7e8c360c
+commit: cd6ebdcfb3e7db28d8509e31f94bbe39d1173dd9
 ramo: campanhas-voz
-execucao: 46082923021
-inicio: 2026-11-27T23:31:47Z
+execucao: 46083694850
+inicio: 2026-11-27T23:40:04Z
