@@ -607,10 +607,13 @@ export class CampaignsService {
       size = Math.max(1, Math.min(size, leftHour, leftDay));
     }
     const picked = await this.db.app(ctx, async (q) => (await q.query<{ id: string; contact_id: string; address: string; name: string; first_name: string; owner_name: string | null }>(
-      `update campaign_recipients r set status = 'sending'
-        from contacts c
-       where r.id in (select id from campaign_recipients where campaign_id = $1 and status = 'pending' order by created_at, id limit $2 for update skip locked)
-         and c.id = r.contact_id
+      // CTE materializada: com "id in (select … limit n for update skip locked)" o Postgres pode
+      // refazer a subconsulta e pegar mais que n linhas, dependendo do plano.
+      `with pick as materialized (
+         select id from campaign_recipients where campaign_id = $1 and status = 'pending' order by created_at, id limit $2 for update skip locked)
+       update campaign_recipients r set status = 'sending'
+        from pick, contacts c
+       where r.id = pick.id and c.id = r.contact_id
        returning r.id, r.contact_id, r.address, c.name, c.first_name,
                  (select u.name from memberships m join users u on u.id = m.user_id where m.id = c.owner_membership_id) as owner_name`,
       [campaignId, size])).rows);
