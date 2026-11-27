@@ -1,9 +1,9 @@
 Creating network crmwta_interna
+Creating service crmwta_web
+Creating service crmwta_backup
 Creating service crmwta_db
 Creating service crmwta_migrate
 Creating service crmwta_api
-Creating service crmwta_web
-Creating service crmwta_backup
 aguardando os serviços...
 crmwta_api 1/1
 crmwta_backup 1/1
@@ -12,7 +12,7 @@ crmwta_migrate 0/1
 crmwta_web 1/1
 traefik-teste 1/1
 docker 29.4.2 (API 1.54, mínima 1.40)
-traefik-teste.1.u3o7qt7oof0v@ip-10-0-128-83    | [90m2026-11-27T21:00:01Z[0m [31mERR[0m [1mUnable to obtain ACME certificate for domains[0m [36merror=[0m[31m[1m"cannot get ACME client get directory at 'https://127.0.0.1:1/dir': Get \"https://127.0.0.1:1/dir\": dial tcp 127.0.0.1:1: connect: connection refused"[0m[0m [36mACME CA=[0mhttps://127.0.0.1:1/dir [36macmeCA=[0mhttps://127.0.0.1:1/dir [36mdomains=[0m["crm.teste.localhost"] [36mproviderName=[0mletsencryptresolver.acme [36mrouterName=[0mcrmwta-web@docker [36mrule=[0mHost(`crm.teste.localhost`)
+traefik-teste.1.fpbnxpo0aod6@runnervm3lb7s    | [90m2026-11-27T23:14:14Z[0m [31mERR[0m [1mUnable to obtain ACME certificate for domains[0m [36merror=[0m[31m[1m"cannot get ACME client get directory at 'https://127.0.0.1:1/dir': Get \"https://127.0.0.1:1/dir\": dial tcp 127.0.0.1:1: connect: connection refused"[0m[0m [36mACME CA=[0mhttps://127.0.0.1:1/dir [36macmeCA=[0mhttps://127.0.0.1:1/dir [36mdomains=[0m["crm.teste.localhost"] [36mproviderName=[0mletsencryptresolver.acme [36mrouterName=[0mcrmwta-web@docker [36mrule=[0mHost(`crm.teste.localhost`)
 OK   API pronta atrás do Traefik
 OK   interface responde
 OK   login do superadministrador criado na configuração inicial
@@ -23,3 +23,41 @@ OK   página interna renderiza
 OK   arquivo gravado no volume e baixado pelo endereço assinado
 OK   nenhuma porta da stack publicada
 OK   reimplantar não duplica a configuração inicial
+OK   transcrição no servidor funciona (whisper.cpp)
+backup: crm-20261127-201516.dump (516K)
+OK   cópia do banco
+restaurado em crm_restaurado: 30 migrações, 1 empresas
+OK   restauração em banco novo
+OK   dados conferidos depois de restaurar
+OK   restauração recusa banco com dados
+OK   agente de cópias ativo, visto pela API
+OK   cópia pedida pela API (banco e arquivos)
+OK   restauração de uma empresa
+OK   restauração do banco inteiro
+OK   a API não reiniciou com a troca do banco
+OK   a API segue no ar e os dados conferem depois das restaurações
+crmwta_api 1/1
+crmwta_backup 1/1
+crmwta_db 1/1
+crmwta_migrate 0/1
+crmwta_web 1/1
+traefik-teste 1/1
+OK   serviço db em 1/1
+OK   serviço api em 1/1
+OK   serviço web em 1/1
+OK   serviço backup em 1/1
+migrate| crmwta_migrate.1.h61bk0b30ojq@runnervm3lb7s    | aplicando 0020_aviso_equipe
+migrate| crmwta_migrate.1.h61bk0b30ojq@runnervm3lb7s    | aplicando 0021_importar_negocios
+migrate| crmwta_migrate.1.h61bk0b30ojq@runnervm3lb7s    | aplicando 0022_funis_arquivados
+migrate| crmwta_migrate.1.h61bk0b30ojq@runnervm3lb7s    | aplicando 0023_whatsapp_fluxos
+migrate| crmwta_migrate.1.h61bk0b30ojq@runnervm3lb7s    | aplicando 0024_conversas_ocultas
+migrate| crmwta_migrate.1.h61bk0b30ojq@runnervm3lb7s    | aplicando 0025_notas_audio_negocio_parado
+migrate| crmwta_migrate.1.h61bk0b30ojq@runnervm3lb7s    | aplicando 0026_aviso_parado_destinatarios
+migrate| crmwta_migrate.1.h61bk0b30ojq@runnervm3lb7s    | aplicando 0027_transcricao_nota_audio
+migrate| crmwta_migrate.1.h61bk0b30ojq@runnervm3lb7s    | aplicando 0028_campanha_limites
+migrate| crmwta_migrate.1.h61bk0b30ojq@runnervm3lb7s    | aplicando 0029_campanha_etiqueta_sucesso
+migrate| crmwta_migrate.1.h61bk0b30ojq@runnervm3lb7s    | aplicando 0030_campanhas_voz
+migrate| crmwta_migrate.1.h61bk0b30ojq@runnervm3lb7s    | migrações aplicadas agora: 30
+migrate| crmwta_migrate.1.h61bk0b30ojq@runnervm3lb7s    | papel crm_api pronto
+migrate| crmwta_migrate.1.h61bk0b30ojq@runnervm3lb7s    | pronto: empresa 12cad357-eca7-4c97-8cda-f1414d7ee383, superadministrador f949bd0f-4035-413d-919b-d55aa1c68500
+migrate| crmwta_migrate.1.h61bk0b30ojq@runnervm3lb7s    | migrate: concluído
