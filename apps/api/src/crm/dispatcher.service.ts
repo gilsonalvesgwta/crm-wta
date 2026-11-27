@@ -6,6 +6,7 @@ import { ImportExportService } from './import-export.service.js';
 import { AutomationsService } from '../automations/automations.service.js';
 import { CampaignsService } from './campaigns.service.js';
 import { VoiceService } from './voice.service.js';
+import { AftersaleService } from './aftersale.service.js';
 import { ScheduledService } from './scheduled.service.js';
 import { AdsService } from './ads.service.js';
 import { IgFlowEngine } from './ig-flows.engine.js';
@@ -33,6 +34,7 @@ export class DispatcherService implements OnApplicationBootstrap, OnApplicationS
     @Inject(AutomationsService) private readonly automations: AutomationsService,
     @Inject(CampaignsService) private readonly campaigns: CampaignsService,
     @Inject(VoiceService) private readonly voice: VoiceService,
+    @Inject(AftersaleService) private readonly aftersale: AftersaleService,
     @Inject(ScheduledService) private readonly scheduled: ScheduledService,
     @Inject(MetaService) private readonly meta: MetaService,
     @Inject(AdsService) private readonly ads: AdsService,
@@ -90,6 +92,7 @@ export class DispatcherService implements OnApplicationBootstrap, OnApplicationS
     await this.igFlows.dispatch().catch((err) => this.log.error(`fluxos do Instagram: ${String(err)}`));
     await this.stale.dispatch().catch((err) => this.log.error(`negócios parados: ${String(err)}`));
     await this.voice.poll().catch((err) => this.log.error(`ligações: ${String(err)}`));
+    await this.aftersale.dispatch().catch((err) => this.log.error(`pós-venda: ${String(err)}`));
     return { reminders, importBatches, seriesExtended, expired, automations, campaigns, scheduled };
   }
 

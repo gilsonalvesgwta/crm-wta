@@ -2,7 +2,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Building, Building2, CalendarDays, ChevronDown, Handshake, House, Inbox, LogOut, Menu, MessagesSquare, Send, Settings, ShieldCheck, UserRound, Megaphone, Users, Workflow, X, Zap } from 'lucide-react';
+import { Building, Building2, CalendarDays, ChevronDown, Handshake, HeartHandshake, House, Inbox, LogOut, Menu, MessagesSquare, Send, Settings, ShieldCheck, UserRound, Megaphone, Users, Workflow, X, Zap } from 'lucide-react';
 import { Notifications } from './notifications';
 import { NewVersionBanner } from './new-version';
 import { api } from '@/lib/api';
@@ -34,6 +34,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     { href: '/inicio', label: 'Início', icon: <House size={18} strokeWidth={1.75} aria-hidden /> },
     { href: '/conversas', label: 'Conversas', icon: <MessagesSquare size={18} strokeWidth={1.75} aria-hidden />, show: canChat, badge: unread },
     { href: '/negocios', label: 'Negócios', icon: <Handshake size={18} strokeWidth={1.75} aria-hidden />, show: can('deals:view') },
+    { href: '/pos-venda', label: 'Pós-venda', icon: <HeartHandshake size={18} strokeWidth={1.75} aria-hidden />, show: can('deals:view') },
     { href: '/leads', label: 'Leads', icon: <Inbox size={18} strokeWidth={1.75} aria-hidden />, show: can('leads:view') },
     { href: '/contatos', label: 'Contatos', icon: <Users size={18} strokeWidth={1.75} aria-hidden />, show: can('contacts:view') },
     { href: '/organizacoes', label: 'Organizações', icon: <Building size={18} strokeWidth={1.75} aria-hidden />, show: can('contacts:view') },

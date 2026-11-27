@@ -9,7 +9,7 @@ import { fmtDateTime, fmtIsoDate, idleText, money, moneyInput, parseMoney, type 
 import { useSession } from '@/components/shell/session';
 import { useFields, usePipelines, useProducts } from '@/components/crm/data';
 import { DealDialog } from '@/components/crm/deal-form';
-import { TransferDealDialog, useMoveDeal } from '@/components/crm/move-deal';
+import { ClosedAtDialog, TransferDealDialog, useMoveDeal } from '@/components/crm/move-deal';
 import { CustomFieldValues } from '@/components/crm/custom-fields';
 import { ActivitiesPanel, FilesPanel, NotesPanel, TimelinePanel } from '@/components/crm/record-panels';
 import { MessageThread } from '@/components/crm/message-thread';
@@ -40,6 +40,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
   const [editing, setEditing] = useState(false);
   const [del, setDel] = useState(false);
   const [transfer, setTransfer] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
 
@@ -105,6 +106,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
         <Alert tone={d.status === 'won' ? 'success' : 'info'}>
           {d.status === 'won' ? 'Ganho' : 'Perdido'} em {d.closedAt ? fmtDateTime.format(new Date(d.closedAt)) : ''}
           {d.outcomeReason ? ` · Motivo: ${d.outcomeReason.name}` : ''}{d.outcomeNote ? ` · ${d.outcomeNote}` : ''}
+          {canEdit ? <> · <button type="button" onClick={() => setClosing(true)} className="font-medium underline">Alterar data</button></> : null}
         </Alert>
       ) : null}
 
@@ -146,6 +148,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
         </div>
       </div>
       <DealDialog open={editing} deal={d} onClose={() => setEditing(false)} onSaved={(x) => { setEditing(false); deal.setData(x); setTick((t) => t + 1); }} />
+      {closing ? <ClosedAtDialog deal={d} onClose={() => setClosing(false)} onDone={(n) => { setClosing(false); deal.setData(n); setTick((t) => t + 1); }} /> : null}
       <TransferDealDialog open={transfer} deal={d} pipelines={pipelines ?? []} onClose={() => setTransfer(false)}
         onDone={(r) => { setTransfer(false); deal.setData(r); setTick((t) => t + 1); }} />
       <Confirm open={del} title="Excluir o negócio?" confirmLabel="Excluir" loading={busy} onConfirm={remove} onCancel={() => setDel(false)}>

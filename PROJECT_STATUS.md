@@ -10,6 +10,14 @@ Atualizado em 9 de novembro de 2026.
 
 ## Concluído, com teste
 
+### Data do fechamento e pós-venda (27 nov 2026)
+
+- Ao marcar ganho ou perdido, campo "Data do fechamento" (padrão hoje, sem datas futuras): negócio antigo ou importado fecha com a data real e conta no mês certo em relatórios, metas e KPIs (`closed_at` e a passagem no funil). "Alterar data" na página do negócio fechado (`PATCH /api/v1/deals/:id/closed-at`).
+- Lista de negócios: caixas de seleção e "Fechar como ganho/perdido" em lote, com data, motivo e observação; os que não dá para fechar (campo exigido pela etapa, regra do funil, sem permissão) voltam com o motivo; os que já estão fechados com o mesmo resultado só têm a data corrigida (`POST /api/v1/deals/bulk-close`).
+- Pós-venda (menu "Pós-venda"): X dias depois do ganho avisa a equipe — o responsável (só os dele), pessoas fixas e números avulsos — por WhatsApp e/ou no sininho, repetindo a cada Y dias até N avisos ou até marcarem "Feito". Horário mínimo do dia, funis, "só ganhos a partir de" (para não avisar a base antiga toda), aviso e mensagem ao cliente editáveis com variáveis e prévia; salvo como padrão da empresa.
+- Tela com "Para contatar", "Próximos 30 dias" e "Feitos": telefone, dias desde o fechamento, avisos enviados, mensagem pronta (editável) com "Abrir conversa com a mensagem", "Copiar" e "Abrir no WhatsApp do celular"; "Feito" com observação vai para o histórico do negócio; "Desfazer" volta a lembrar. Vendedor vê só os clientes dele.
+- Migração 0031: `aftersale_settings`, `deal_aftersale` e `app.claim_aftersale` (o banco marca o aviso, sem duplicar).
+
 ### Campanha: editar a mensagem com a campanha pausada e nome estranho no cadastro (27 nov 2026)
 
 - Pausada ou agendada (sem fluxo): botão "Editar mensagem" (texto, assunto do e-mail, variáveis do modelo oficial, ou o WhatsApp/SMS da campanha de voz). Quem ainda está na fila recebe o texto novo ao retomar; quem já recebeu não muda. `PATCH /api/v1/campaigns/:id/content`.
