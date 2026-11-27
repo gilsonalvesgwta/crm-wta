@@ -1,0 +1,4 @@
+commit: ff7e16a578474db658f0c505beaaee84a52ff98f
+ramo: campanhas-excluir
+execucao: 46060765111
+inicio: 2026-11-27T20:02:26Z
