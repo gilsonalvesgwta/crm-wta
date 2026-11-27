@@ -10,6 +10,16 @@ Atualizado em 9 de novembro de 2026.
 
 ## Concluído, com teste
 
+### Fluxos no WhatsApp por QR code (27 nov 2026)
+
+- O construtor de fluxos (arrastar e soltar) agora funciona com o número conectado por QR code (Evolution), além do oficial e do Instagram.
+- Opções de resposta numeradas (1️⃣ 2️⃣ … até 10), porque fora da API oficial o WhatsApp não mostra botões; a pessoa responde com o número, o nome ou palavras extras da opção ("sim", "quero"). Links vão no fim da mensagem.
+- Saídas novas no bloco de mensagem: "Outra resposta" (QR code) e "Não respondeu" (prazo configurável); resposta fora das opções pede de novo até 2 vezes.
+- Bloco novo "Sorteio (teste A/B)"; ações novas "Mover negócio para uma etapa" e "Tirar das campanhas".
+- Mensagens com "digitando…" proporcional ao texto; mídia da biblioteca também pelo QR code; se a equipe responder pelo celular, o fluxo daquela pessoa para.
+- Campanha com fluxo pelo QR code (Campanhas › Nova › "Conversa com fluxo"), no máximo 15 envios por minuto com intervalos variados.
+- Fluxo novo de QR code já vem com um exemplo pronto (promoção com "Quero saber mais", "Agora não" e "Não quero receber").
+
 ### Transcrição das notas de áudio (25 nov 2026)
 
 - Cada nota de áudio ganha o texto logo abaixo do player ("Transcrevendo…" enquanto processa; botão "Copiar"). Notas antigas têm o botão "Transcrever"; falha mostra "Tentar de novo".

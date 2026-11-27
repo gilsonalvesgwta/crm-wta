@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  channelOfTrigger, checkAnswer, flowIssues, graphSchema, keywordScore, nextNode, normalize, parsePayload, payloadFor, renderText, starterGraph, waitMinutes,
+  channelOfTrigger, checkAnswer, flowIssues, graphSchema, keywordScore, nextNode, normalize, parsePayload, payloadFor, pickOption, pickWeighted, qrMessage, renderText, starterGraph, waitMinutes,
   type FlowGraph,
 } from '../src/domain/flows.js';
 
@@ -119,4 +119,49 @@ test('WhatsApp: transmissão começa pelo modelo; blocos só do Instagram dão e
   assert.ok(flowIssues(ig).some((i) => i.nodeId === 't' && i.level === 'error'));
   assert.equal(channelOfTrigger('wa_keyword'), 'whatsapp');
   assert.equal(channelOfTrigger('comment'), 'instagram');
+});
+
+test('QR code: opções numeradas, links no fim e escolha pelo número, nome ou palavra', () => {
+  const buttons = [
+    { id: 'a', title: 'Quero saber', url: null, keywords: ['sim', 'quero'] },
+    { id: 'b', title: 'Agora não', url: null, keywords: ['nao'] },
+    { id: 'l', title: 'Site', url: 'https://exemplo.com', keywords: [] },
+  ];
+  assert.equal(qrMessage('Oi!', buttons), 'Oi!\n\n1️⃣ Quero saber\n2️⃣ Agora não\n\n🔗 Site: https://exemplo.com');
+  assert.equal(qrMessage('Só texto', []), 'Só texto');
+  assert.equal(pickOption(buttons, '1')?.id, 'a');
+  assert.equal(pickOption(buttons, ' 2. ')?.id, 'b');
+  assert.equal(pickOption(buttons, 'opção 2')?.id, 'b');
+  assert.equal(pickOption(buttons, '2️⃣')?.id, 'b');
+  assert.equal(pickOption(buttons, 'quero saber')?.id, 'a');
+  assert.equal(pickOption(buttons, 'Sim, quero!')?.id, 'a');
+  assert.equal(pickOption(buttons, 'NÃO')?.id, 'b', 'sem acento');
+  assert.equal(pickOption(buttons, '3'), null, 'link não é opção');
+  assert.equal(pickOption(buttons, 'quanto custa?'), null);
+  assert.equal(pickOption(buttons, ''), null);
+});
+
+test('sorteio: escolhe o caminho pelo peso', () => {
+  assert.equal(pickWeighted([50, 50], 0.1), 0);
+  assert.equal(pickWeighted([50, 50], 0.9), 1);
+  assert.equal(pickWeighted([0, 100], 0.0), 1);
+  assert.equal(pickWeighted([0, 0], 0.5), 0);
+});
+
+test('QR code: campanha começa por mensagem (sem modelo), até 10 opções e exemplo pronto', () => {
+  const g = starterGraph('wa_broadcast', { qr: true });
+  assert.equal(graphSchema.parse(g).nodes.length, g.nodes.length);
+  assert.deepEqual(flowIssues(g, { qr: true }).filter((i) => i.level === 'error'), []);
+  assert.ok(flowIssues(g).some((i) => i.level === 'error'), 'no oficial, a transmissão precisa de modelo');
+  const many = graphSchema.parse({
+    nodes: [
+      { id: 't', type: 'trigger', data: { type: 'wa_keyword', keywords: ['oi'] } },
+      { id: 'm', type: 'text', data: { text: 'Escolha', buttons: Array.from({ length: 5 }, (_, i) => ({ id: `b${i}`, title: `Opção ${i + 1}` })) } },
+    ],
+    edges: [{ id: 'e', source: 't', target: 'm' }],
+  });
+  assert.ok(!flowIssues(many, { qr: true }).some((i) => i.level === 'error'));
+  assert.ok(flowIssues(many).some((i) => i.nodeId === 'm' && i.level === 'error'), 'fora do QR code, até 3 botões');
+  const withTemplate = graphSchema.parse({ ...many, nodes: [...many.nodes, { id: 'tp', type: 'template', data: {} }] });
+  assert.ok(flowIssues(withTemplate, { qr: true }).some((i) => i.nodeId === 'tp' && i.level === 'error'));
 });

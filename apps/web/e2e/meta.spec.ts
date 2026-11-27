@@ -344,7 +344,7 @@ test('WhatsApp: transmissão com fluxo — modelo com botões, o que cada botão
   await expect(page.getByRole('heading', { name: 'WhatsApp', level: 1 })).toBeVisible();
   await page.getByRole('button', { name: 'Novo fluxo' }).first().click();
   const d = page.getByRole('dialog', { name: 'Novo fluxo' });
-  await expect(d.getByRole('radio', { name: /Quando você envia uma transmissão/ })).toHaveAttribute('aria-checked', 'true');
+  await expect(d.getByRole('radio', { name: /Quando você envia uma campanha/ })).toHaveAttribute('aria-checked', 'true');
   await d.getByLabel('Nome do fluxo').fill('Raio X e2e');
   await expectAccessible(page);
   await shot(page, '80-whatsapp-novo-fluxo');
@@ -373,10 +373,10 @@ test('WhatsApp: transmissão com fluxo — modelo com botões, o que cada botão
   await sim.getByRole('button', { name: 'Fechar', exact: true }).first().click();
 
   await page.getByRole('button', { name: 'Publicar' }).click();
-  await expect(page.getByText('Fluxo publicado: já pode ser usado numa transmissão.')).toBeVisible();
+  await expect(page.getByText('Fluxo publicado: já pode ser usado numa campanha (Enviar campanha).')).toBeVisible();
 
   // Enviar transmissão: a campanha já vem com o WhatsApp oficial e o fluxo.
-  await page.getByRole('link', { name: 'Enviar transmissão' }).first().click();
+  await page.getByRole('link', { name: 'Enviar campanha' }).first().click();
   await page.getByLabel('Nome *').fill('Transmissão Raio X');
   await page.getByRole('button', { name: 'Continuar' }).click();
   await page.getByRole('button', { name: 'Continuar' }).click();

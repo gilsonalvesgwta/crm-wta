@@ -1,28 +1,30 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { RotateCcw, Send } from 'lucide-react';
 import { useTags } from '@/components/crm/data';
 import {
-  COMMENT_TRIGGERS, UNIT_LABEL, checkAnswer, keywordMatches, renderText,
+  COMMENT_TRIGGERS, UNIT_LABEL, checkAnswer, keywordMatches, pickOption, qrMessage, renderText,
   type FlowChannel, type FlowGraph, type FlowNode, type NodeData,
 } from '@/lib/instagram';
 import { Dialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { QrCtx } from './flow-canvas';
 
 type Msg =
   | { from: 'them' | 'me'; text: string; buttons?: { id: string; title: string; url?: string | null }[]; public?: boolean }
   | { from: 'note'; text: string };
-type Wait = { kind: 'click' | 'reply' | 'cond'; nodeId: string } | null;
+type Wait = { kind: 'click' | 'reply' | 'cond' | 'option'; nodeId: string } | null;
 
 const START_LABEL: Record<string, string> = {
   comment: 'Comentário da pessoa', live_comment: 'Comentário na live', dm_keyword: 'Mensagem no direct',
   story_reply: 'Resposta ao story', story_mention: 'Menção em story', reaction: 'Reação a mensagem',
-  wa_broadcast: 'Envio da transmissão', wa_keyword: 'Mensagem no WhatsApp',
+  wa_broadcast: 'Envio da campanha', wa_keyword: 'Mensagem no WhatsApp',
 };
 
 /** Prévia do fluxo: roda o desenho na tela, sem mandar nada ao Instagram. */
 export function Simulator({ open, graph, onClose, channel = 'instagram' }: { open: boolean; graph: FlowGraph; onClose: () => void; channel?: FlowChannel }) {
   const tags = useTags().data ?? [];
+  const qr = useContext(QrCtx);
   const trig = graph.nodes.find((n) => n.type === 'trigger') as Extract<FlowNode, { type: 'trigger' }>;
   const t = trig.data;
   const needsText = !['story_mention', 'reaction', 'wa_broadcast'].includes(t.type);
@@ -59,13 +61,23 @@ export function Simulator({ open, graph, onClose, channel = 'instagram' }: { ope
           node = next(node.id);
           break;
         }
-        case 'private_reply':
-        case 'text': {
+        case 'text':
+          if (qr) {
+            // QR code: as opções chegam numeradas; a pessoa responde escrevendo.
+            out.push({ from: 'me', text: qrMessage(r(node.data.text), node.data.buttons) });
+            if (node.data.buttons.some((b) => !b.url && b.title.trim())) { tries.current = 0; setWait({ kind: 'option', nodeId: node.id }); return out; }
+            node = next(node.id);
+            break;
+          }
+          out.push({ from: 'me', text: r(node.data.text), buttons: node.data.buttons.filter((b) => b.title.trim()) });
+          if (node.data.buttons.some((b) => !b.url && b.title.trim())) { setWait({ kind: 'click', nodeId: node.id }); return out; }
+          node = next(node.id);
+          break;
+        case 'private_reply': {
           out.push({ from: 'me', text: r(node.data.text), buttons: node.data.buttons.filter((b) => b.title.trim()) });
           const flowBtns = node.data.buttons.filter((b) => !b.url && b.title.trim());
           if (flowBtns.length) { setWait({ kind: 'click', nodeId: node.id }); return out; }
-          if (node.type === 'private_reply') node = null;
-          else node = next(node.id);
+          node = null;
           break;
         }
         case 'template': {
@@ -87,6 +99,16 @@ export function Simulator({ open, graph, onClose, channel = 'instagram' }: { ope
           tries.current = 0;
           setWait({ kind: 'reply', nodeId: node.id });
           return out;
+        case 'random': {
+          const w = node.data.weights;
+          const total = w.reduce((a, x) => a + Math.max(0, x), 0) || 1;
+          let x = Math.random() * total;
+          let k = 0;
+          for (; k < w.length - 1; k++) { x -= Math.max(0, w[k]!); if (x < 0) break; }
+          out.push({ from: 'note', text: `🎲 Sorteio: caminho ${'ABCDE'[k]}` });
+          node = next(node.id, `r:${k}`);
+          break;
+        }
         case 'condition':
           out.push({ from: 'note', text: 'Condição: escolha o caminho para testar.' });
           setWait({ kind: 'cond', nodeId: node.id });
@@ -96,7 +118,8 @@ export function Simulator({ open, graph, onClose, channel = 'instagram' }: { ope
             out.push({
               from: 'note', text: o.kind === 'add_tag' ? `✓ Etiqueta “${tagName(o.tagId)}” adicionada` : o.kind === 'remove_tag' ? `✓ Etiqueta “${tagName(o.tagId)}” removida`
                 : o.kind === 'set_field' ? `✓ Campo ${o.key || '…'} = ${r(o.value)}` : o.kind === 'create_lead' ? `✓ Lead criado: ${r(o.title)}`
-                  : o.kind === 'create_deal' ? `✓ Negócio criado: ${r(o.title)}` : o.kind === 'notify' ? '✓ Aviso para a equipe' : '✓ Conversa passada para alguém',
+                  : o.kind === 'create_deal' ? `✓ Negócio criado: ${r(o.title)}` : o.kind === 'notify' ? '✓ Aviso para a equipe'
+                    : o.kind === 'move_deal' ? '✓ Negócio movido de etapa' : o.kind === 'opt_out' ? '✓ Contato fora das campanhas' : '✓ Conversa passada para alguém',
             });
           }
           node = next(node.id);
@@ -113,7 +136,7 @@ export function Simulator({ open, graph, onClose, channel = 'instagram' }: { ope
   function simulate() {
     const text = needsText ? input.trim() : t.type === 'reaction' ? '❤️' : t.type === 'wa_broadcast' ? '' : '(marcou você no story)';
     vars.current = { nome: 'Maria', primeiro_nome: 'Maria', nome_completo: 'Maria Silva', usuario: '@maria.silva', comentario: text, telefone: '+55 11 99999-0000', mensagem: text };
-    const out: Msg[] = t.type === 'wa_broadcast' ? [{ from: 'note', text: 'Transmissão enviada para Maria.' }] : [{ from: 'them', text, public: COMMENT_TRIGGERS.includes(t.type) }];
+    const out: Msg[] = t.type === 'wa_broadcast' ? [{ from: 'note', text: 'Campanha enviada para Maria.' }] : [{ from: 'them', text, public: COMMENT_TRIGGERS.includes(t.type) }];
     setStarted(true);
     if (KEY_TRIGGERS.includes(t.type) && !keywordMatches(t, text)) {
       out.push({ from: 'note', text: 'Não dispara: o texto não tem as palavras-chave do gatilho.' });
@@ -130,7 +153,25 @@ export function Simulator({ open, graph, onClose, channel = 'instagram' }: { ope
     setMsgs((m) => run(next(wait.nodeId, `btn:${btn.id}`), [...m, { from: 'them', text: btn.title }]));
   }
 
+  /** QR code: a resposta escrita escolhe a opção (número, nome ou palavra). */
+  function answerOption(text: string) {
+    if (!wait || wait.kind !== 'option') return;
+    const node = graph.nodes.find((n) => n.id === wait.nodeId) as Extract<FlowNode, { type: 'text' }>;
+    const out: Msg[] = [...msgs, { from: 'them', text }];
+    vars.current.resposta = text;
+    const btn = pickOption(node.data.buttons, text);
+    setInput('');
+    if (btn) { setMsgs(run(next(node.id, `btn:${btn.id}`), [...out, { from: 'note', text: `Escolheu “${btn.title}”` }])); return; }
+    if (graph.edges.some((e) => e.source === node.id && e.sourceHandle === 'other')) { setMsgs(run(next(node.id, 'other'), [...out, { from: 'note', text: 'Outra resposta' }])); return; }
+    if (tries.current < 2) {
+      tries.current++;
+      out.push({ from: 'me', text: qrMessage(renderText(node.data.retryText || 'Não entendi 😅 Responda com o número de uma das opções:', vars.current), node.data.buttons) });
+    } else out.push({ from: 'note', text: 'Resposta fora das opções: o fluxo segue esperando (a equipe vê a conversa).' });
+    setMsgs(out);
+  }
+
   function reply(text: string) {
+    if (wait?.kind === 'option') { answerOption(text); return; }
     if (!wait || wait.kind !== 'reply') return;
     const node = graph.nodes.find((n) => n.id === wait.nodeId) as Extract<FlowNode, { type: 'question' }>;
     const d: NodeData['question'] = node.data;
@@ -175,13 +216,13 @@ export function Simulator({ open, graph, onClose, channel = 'instagram' }: { ope
           {wait?.kind === 'cond' ? (
             <div className="flex justify-center gap-2"><Button variant="secondary" onClick={() => choose(true)}>Sim</Button><Button variant="secondary" onClick={() => choose(false)}>Não</Button></div>
           ) : null}
-          {wait?.kind === 'reply' ? <button type="button" onClick={timeout} className="mx-auto text-xs text-muted underline">Simular que não respondeu</button> : null}
+          {wait?.kind === 'reply' || wait?.kind === 'option' || wait?.kind === 'click' ? <button type="button" onClick={timeout} className="mx-auto text-xs text-muted underline">Simular que não respondeu</button> : null}
           <div ref={end} />
         </div>
-        {!started || wait?.kind === 'reply' ? (
+        {!started || wait?.kind === 'reply' || wait?.kind === 'option' ? (
           <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); if (!started) simulate(); else if (input.trim()) reply(input); }}>
             {needsText || started ? (
-              <input aria-label={started ? 'Resposta da pessoa' : START_LABEL[t.type]} placeholder={started ? 'Resposta da pessoa' : START_LABEL[t.type]} value={input}
+              <input aria-label={started ? 'Resposta da pessoa' : START_LABEL[t.type]} placeholder={started ? (wait?.kind === 'option' ? 'Responda como a pessoa: 1, 2, sim…' : 'Resposta da pessoa') : START_LABEL[t.type]} value={input}
                 onChange={(e) => setInput(e.target.value)} className="h-10 min-w-0 flex-1 rounded-[6px] border border-line-strong bg-surface px-3 text-sm" />
             ) : <p className="flex flex-1 items-center text-[13px] text-muted">{START_LABEL[t.type]}</p>}
             <Button type="submit" disabled={needsText && !started && !input.trim()}><Send size={15} aria-hidden />{started ? 'Responder' : 'Simular'}</Button>

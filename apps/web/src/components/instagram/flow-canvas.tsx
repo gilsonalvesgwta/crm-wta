@@ -1,7 +1,7 @@
 'use client';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
-import { Clock, ExternalLink, FileText, GitBranch, Image as ImageIcon, Maximize, MessageCircle, MessageSquareText, Minus, Plus, Reply, Send, TriangleAlert, X, Zap, CircleHelp } from 'lucide-react';
-import { TRIGGER_TITLE, UNIT_LABEL, nodeTitle, outputsOf, type FlowChannel, type FlowEdge, type FlowGraph, type FlowIssue, type FlowNode, type NodeType } from '@/lib/instagram';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
+import { Clock, ExternalLink, Shuffle, FileText, GitBranch, Image as ImageIcon, Maximize, MessageCircle, MessageSquareText, Minus, Plus, Reply, Send, TriangleAlert, X, Zap, CircleHelp } from 'lucide-react';
+import { TRIGGER_TITLE, UNIT_LABEL, nodeTitle, outputsOf, qrMessage, type FlowChannel, type FlowEdge, type FlowGraph, type FlowIssue, type FlowNode, type NodeType } from '@/lib/instagram';
 import { TriggerIcon } from './trigger-icon';
 
 type Pt = { x: number; y: number };
@@ -13,6 +13,9 @@ type Drag =
 
 export const NODE_W = 272;
 
+/** O fluxo aberto é do WhatsApp por QR code? (opções numeradas em vez de botões). */
+export const QrCtx = createContext(false);
+
 const NODE_ICON: Record<Exclude<NodeType, 'trigger'>, { icon: typeof Send; tone: string }> = {
   comment_reply: { icon: MessageCircle, tone: 'bg-[#FDE7F1] text-[#B0185E]' },
   private_reply: { icon: Reply, tone: 'bg-info-soft text-info' },
@@ -22,6 +25,7 @@ const NODE_ICON: Record<Exclude<NodeType, 'trigger'>, { icon: typeof Send; tone:
   wait: { icon: Clock, tone: 'bg-surface-2 text-muted' },
   question: { icon: CircleHelp, tone: 'bg-[#EFE7FD] text-[#6B2BD9]' },
   condition: { icon: GitBranch, tone: 'bg-warn-soft text-warn' },
+  random: { icon: Shuffle, tone: 'bg-[#E7F0FD] text-[#1D5BB8]' },
   action: { icon: Zap, tone: 'bg-accent-soft text-accent' },
 };
 
@@ -232,7 +236,8 @@ function NodeCard({ node, channel, selected, issues, readOnly, connected, onSele
   onSelect: () => void; onDragStart: (e: RPointerEvent) => void; onLinkStart: (e: RPointerEvent, handle: string) => void;
 }) {
   const hasError = issues.some((i) => i.level === 'error');
-  const outs = outputsOf(node);
+  const qr = useContext(QrCtx);
+  const outs = outputsOf(node, qr);
   const isTrigger = node.type === 'trigger';
   return (
     <div data-node-id={node.id} role="group" aria-label={nodeTitle(node.type, channel)}
@@ -274,16 +279,31 @@ function NodeCard({ node, channel, selected, issues, readOnly, connected, onSele
   );
 }
 
+function MessageBody({ node }: { node: Extract<FlowNode, { type: 'text' | 'private_reply' }> }) {
+  return (
+    <>
+      <Bubble muted={!node.data.text.trim()}>{node.data.text || 'Escreva a mensagem…'}</Bubble>
+      {node.data.buttons.filter((b) => b.url).map((b) => (
+        <span key={b.id} className="flex h-8 items-center justify-center gap-1.5 rounded-[8px] border border-line text-xs font-medium">
+          {b.title || 'Link'}<ExternalLink size={12} aria-hidden />
+        </span>
+      ))}
+      {node.type === 'private_reply' && node.data.buttons.some((b) => !b.url) ? <p className="text-xs text-muted">Sem o clique, a conversa para aqui.</p> : null}
+    </>
+  );
+}
+
 function Bubble({ children, muted }: { children: ReactNode; muted?: boolean }) {
   return <p className={`line-clamp-4 whitespace-pre-wrap break-words rounded-[10px] px-2.5 py-2 ${muted ? 'bg-surface-2 text-muted italic' : 'bg-surface-2'}`}>{children}</p>;
 }
 
 function NodeBody({ node }: { node: FlowNode }) {
+  const qr = useContext(QrCtx);
   switch (node.type) {
     case 'trigger': {
       const d = node.data;
       const where = d.type === 'comment' ? (d.posts === 'any' ? 'Qualquer post ou reels' : `${d.postIds.length} publicação(ões) escolhida(s)`) : null;
-      if (d.type === 'wa_broadcast') return <p className="text-muted">Quando a campanha com este fluxo for enviada</p>;
+      if (d.type === 'wa_broadcast') return <p className="text-muted">Quando a campanha com este fluxo for enviada (Campanhas › Nova)</p>;
       return (
         <>
           {where ? <p className="text-muted">{where}</p> : null}
@@ -306,19 +326,18 @@ function NodeBody({ node }: { node: FlowNode }) {
         </>
       );
     }
-    case 'private_reply':
     case 'text':
-      return (
-        <>
-          <Bubble muted={!node.data.text.trim()}>{node.data.text || 'Escreva a mensagem…'}</Bubble>
-          {node.data.buttons.filter((b) => b.url).map((b) => (
-            <span key={b.id} className="flex h-8 items-center justify-center gap-1.5 rounded-[8px] border border-line text-xs font-medium">
-              {b.title || 'Link'}<ExternalLink size={12} aria-hidden />
-            </span>
-          ))}
-          {node.type === 'private_reply' && node.data.buttons.some((b) => !b.url) ? <p className="text-xs text-muted">Sem o clique, a conversa para aqui.</p> : null}
-        </>
-      );
+      if (qr) {
+        return (
+          <>
+            <Bubble muted={!node.data.text.trim()}>{node.data.text.trim() ? qrMessage(node.data.text, node.data.buttons) : 'Escreva a mensagem…'}</Bubble>
+            {node.data.buttons.some((b) => !b.url) ? <p className="text-xs text-muted">Espera a pessoa responder com o número ou o nome da opção.</p> : null}
+          </>
+        );
+      }
+      return <MessageBody node={node} />;
+    case 'private_reply':
+      return <MessageBody node={node} />;
     case 'template':
       return node.data.templateId ? (
         <>
@@ -340,6 +359,8 @@ function NodeBody({ node }: { node: FlowNode }) {
       );
     case 'condition':
       return <p className="text-muted">{node.data.rules.length} regra(s) · {node.data.match === 'all' ? 'todas' : 'qualquer uma'}</p>;
+    case 'random':
+      return <p className="text-muted">Sorteia entre {node.data.weights.length} caminhos ({node.data.weights.map((w) => `${w}%`).join(' / ')})</p>;
     case 'action':
       return <p className="text-muted">{node.data.ops.length} ação(ões) no CRM</p>;
   }

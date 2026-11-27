@@ -40,6 +40,8 @@ const button = z.object({
   title: text(20).default(''),
   // Com endereço, abre o link; sem, o fluxo continua pela seta do botão.
   url: z.string().max(2000).nullable().optional(),
+  // WhatsApp por QR code: outras respostas que valem como esta opção ("sim", "quero", "claro").
+  keywords: z.array(text(40)).max(10).default([]),
 });
 export type FlowButton = z.infer<typeof button>;
 
@@ -74,6 +76,10 @@ const op = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('create_deal'), pipelineId: z.string().default(''), title: text(200).default('') }),
   z.object({ kind: z.literal('notify'), membershipId: z.string().nullable().default(null), text: text(300).default('') }),
   z.object({ kind: z.literal('assign'), membershipId: z.string().default('') }),
+  // Passa o negócio aberto mais recente do contato para outra etapa (ou cria, se não houver).
+  z.object({ kind: z.literal('move_deal'), pipelineId: z.string().default(''), stageId: z.string().default(''), title: text(200).default('') }),
+  // Tira o contato das campanhas (pediu para não receber mais).
+  z.object({ kind: z.literal('opt_out') }),
 ]);
 export type FlowOp = z.infer<typeof op>;
 
@@ -83,7 +89,18 @@ const nodeSchema = z.discriminatedUnion('type', [
   z.object({ id, type: z.literal('trigger'), position, data: triggerData }),
   z.object({ id, type: z.literal('comment_reply'), position, data: z.object({ variants: z.array(text(300)).max(3).default(['']) }) }),
   z.object({ id, type: z.literal('private_reply'), position, data: z.object({ text: text(640).default(''), buttons: z.array(button).max(3).default([]) }) }),
-  z.object({ id, type: z.literal('text'), position, data: z.object({ text: text(1000).default(''), buttons: z.array(button).max(3).default([]) }) }),
+  z.object({
+    id, type: z.literal('text'), position,
+    data: z.object({
+      text: text(1000).default(''),
+      // Instagram e WhatsApp oficial: até 3 botões. WhatsApp por QR code: até 10 opções numeradas.
+      buttons: z.array(button).max(10).default([]),
+      // WhatsApp por QR code: o que mandar quando a resposta não bate com nenhuma opção (sem seta "Outra resposta").
+      retryText: text(300).default('Não entendi 😅 Responda com o número de uma das opções:'),
+      // Quanto esperar a escolha antes de seguir pela seta "Se não responder" (vazio: 7 dias).
+      timeoutHours: z.number().int().min(1).max(168).nullable().default(null),
+    }),
+  }),
   // WhatsApp oficial: modelo aprovado pela Meta (chega mesmo fora das 24 h). Os botões são as respostas rápidas do modelo ("q" + posição).
   z.object({
     id, type: z.literal('template'), position,
@@ -115,6 +132,8 @@ const nodeSchema = z.discriminatedUnion('type', [
     }),
   }),
   z.object({ id, type: z.literal('condition'), position, data: z.object({ match: z.enum(['all', 'any']).default('all'), rules: z.array(rule).max(10).default([]) }) }),
+  // Sorteio (teste A/B): cada caminho tem um peso; a pessoa vai por um deles.
+  z.object({ id, type: z.literal('random'), position, data: z.object({ weights: z.array(z.number().int().min(0).max(100)).min(2).max(5).default([50, 50]) }) }),
   z.object({ id, type: z.literal('action'), position, data: z.object({ ops: z.array(op).max(10).default([]) }) }),
 ]);
 export type FlowNode = z.infer<typeof nodeSchema>;
@@ -123,8 +142,8 @@ export type NodeType = FlowNode['type'];
 const edgeSchema = z.object({
   id: z.string().max(140),
   source: id,
-  // next; btn:<id>; yes; no; timeout
-  sourceHandle: z.string().regex(/^(next|yes|no|timeout|btn:[A-Za-z0-9_-]{1,64})$/).default('next'),
+  // next; btn:<id>; yes; no; timeout; other (resposta que não é nenhuma opção); r:<n> (sorteio)
+  sourceHandle: z.string().regex(/^(next|yes|no|timeout|other|r:[0-9]|btn:[A-Za-z0-9_-]{1,64})$/).default('next'),
   target: id,
 });
 export type FlowEdge = z.infer<typeof edgeSchema>;
@@ -156,16 +175,22 @@ export function triggerOf(g: FlowGraph): TriggerData {
 export type FlowIssue = { nodeId: string | null; level: 'error' | 'warning'; message: string };
 
 const DM_NODES: readonly NodeType[] = ['text', 'media', 'question'];
+/** Opções de um bloco no WhatsApp por QR code (o WhatsApp não mostra botões fora da API oficial). */
+export const QR_MAX_OPTIONS = 10;
+
+/** Onde o fluxo roda: Instagram, WhatsApp oficial ou WhatsApp por QR code (Evolution). */
+export type FlowMode = 'instagram' | 'cloud' | 'qr';
 /** Botão de resposta rápida de um modelo: "q" + posição do botão no modelo. */
 export const TEMPLATE_BUTTON_RE = /^q([0-9])$/;
 const URL_RE = /^https?:\/\/[^\s]+\.[^\s]+$/i;
 
 /** O que falta ou pode dar errado no desenho, por bloco. */
-export function flowIssues(g: FlowGraph): FlowIssue[] {
+export function flowIssues(g: FlowGraph, opts: { qr?: boolean } = {}): FlowIssue[] {
   const out: FlowIssue[] = [];
   const t = triggerOf(g);
   const trig = g.nodes.find((n) => n.type === 'trigger')!;
   const wa = channelOfTrigger(t.type) === 'whatsapp';
+  const qr = wa && !!opts.qr;
   const fromComment = COMMENT_TRIGGERS.includes(t.type);
   const add = (nodeId: string | null, level: FlowIssue['level'], message: string) => out.push({ nodeId, level, message });
 
@@ -175,7 +200,7 @@ export function flowIssues(g: FlowGraph): FlowIssue[] {
   }
   if (t.type === 'comment' && t.posts === 'chosen' && !t.postIds.length) add(trig.id, 'error', 'Escolha ao menos uma publicação, ou "qualquer post ou reels".');
   if (!g.edges.some((e) => e.source === trig.id)) add(trig.id, 'warning', 'Ligue o gatilho ao primeiro passo.');
-  if (t.type === 'wa_broadcast') {
+  if (t.type === 'wa_broadcast' && !qr) {
     const first = nextNode(g, trig.id, 'next');
     if (first && first.type !== 'template') {
       add(first.id, 'error', 'A transmissão começa com um modelo aprovado: fora das 24 h, o WhatsApp só entrega modelo.');
@@ -184,14 +209,14 @@ export function flowIssues(g: FlowGraph): FlowIssue[] {
 
   const reach = reachable(g);
   // Blocos que podem rodar sem a conversa estar aberta (antes de qualquer clique ou resposta da pessoa).
-  const closed = fromComment || t.type === 'wa_broadcast' ? closedWindowNodes(g) : new Set<string>();
+  const closed = fromComment || (t.type === 'wa_broadcast' && !qr) ? closedWindowNodes(g) : new Set<string>();
 
   for (const n of g.nodes) {
     if (n.type === 'trigger') continue;
     if (!reach.has(n.id)) add(n.id, 'warning', 'Este bloco não está ligado ao fluxo e não vai rodar.');
     switch (n.type) {
       case 'template':
-        if (!wa) { add(n.id, 'error', 'Modelo aprovado só existe no WhatsApp oficial.'); break; }
+        if (!wa || qr) { add(n.id, 'error', qr ? 'Modelo aprovado só existe no WhatsApp oficial. No QR code, use "Mensagem".' : 'Modelo aprovado só existe no WhatsApp oficial.'); break; }
         if (!n.data.templateId) add(n.id, 'error', 'Escolha o modelo aprovado.');
         if (n.data.params.some((p) => !p.trim())) add(n.id, 'warning', 'Preencha todas as variáveis do modelo.');
         if (n.data.buttons.some((b) => !TEMPLATE_BUTTON_RE.test(b.id))) add(n.id, 'error', 'Escolha o modelo de novo: os botões não conferem.');
@@ -216,14 +241,18 @@ export function flowIssues(g: FlowGraph): FlowIssue[] {
       case 'text':
         if (!n.data.text.trim()) add(n.id, 'warning', 'Escreva a mensagem.');
         checkButtons(n.id, n.data.buttons, add);
-        if (wa && n.data.buttons.some((b) => b.url)) add(n.id, 'warning', 'No WhatsApp, o botão de link vai como link no fim do texto.');
+        if (!qr && n.data.buttons.length > 3) add(n.id, 'error', 'Aqui cabem até 3 botões (no WhatsApp por QR code, até 10 opções).');
+        if (wa && !qr && n.data.buttons.some((b) => b.url)) add(n.id, 'warning', 'No WhatsApp, o botão de link vai como link no fim do texto.');
+        if (qr && postbackButtons(n.data.buttons).length && !g.edges.some((e) => e.source === n.id && e.sourceHandle.startsWith('btn:'))) {
+          add(n.id, 'warning', 'Ligue as opções aos próximos passos: a resposta da pessoa é o que continua a conversa.');
+        }
         break;
       case 'media':
         if (!n.data.fileId) add(n.id, 'warning', 'Escolha o arquivo na biblioteca de mídia.');
         break;
       case 'wait': {
         const minutes = n.data.amount * (n.data.unit === 'days' ? 1440 : n.data.unit === 'hours' ? 60 : 1);
-        if (minutes > 23 * 60) {
+        if (minutes > 23 * 60 && !qr) {
           add(n.id, 'warning', wa
             ? 'O WhatsApp só deixa mandar mensagem livre até 24 h depois da última mensagem da pessoa: depois disso, use um bloco "Modelo aprovado".'
             : 'O Instagram só deixa mandar mensagem até 24 h depois da última mensagem da pessoa: depois disso, o próximo passo pode não chegar.');
@@ -241,9 +270,13 @@ export function flowIssues(g: FlowGraph): FlowIssue[] {
         if (n.data.rules.some((r) => ('tagId' in r && !r.tagId) || ('key' in r && !r.key))) add(n.id, 'warning', 'Complete as regras.');
         if (wa && n.data.rules.some((r) => r.kind === 'follows' || r.kind === 'not_follows')) add(n.id, 'error', '"Segue a conta" só existe no Instagram.');
         break;
+      case 'random':
+        if (n.data.weights.every((w) => w === 0)) add(n.id, 'error', 'Dê peso a pelo menos um caminho.');
+        if (!g.edges.some((e) => e.source === n.id)) add(n.id, 'warning', 'Ligue os caminhos do sorteio aos próximos passos.');
+        break;
       case 'action':
         if (!n.data.ops.length) add(n.id, 'warning', 'Adicione pelo menos uma ação.');
-        if (n.data.ops.some((o) => ('tagId' in o && !o.tagId) || (o.kind === 'set_field' && !o.key) || (o.kind === 'create_deal' && !o.pipelineId) || (o.kind === 'assign' && !o.membershipId))) {
+        if (n.data.ops.some((o) => ('tagId' in o && !o.tagId) || (o.kind === 'set_field' && !o.key) || (o.kind === 'create_deal' && !o.pipelineId) || (o.kind === 'assign' && !o.membershipId) || (o.kind === 'move_deal' && (!o.pipelineId || !o.stageId)))) {
           add(n.id, 'warning', 'Complete as ações.');
         }
         break;
@@ -251,7 +284,7 @@ export function flowIssues(g: FlowGraph): FlowIssue[] {
     if (fromComment && DM_NODES.includes(n.type) && closed.has(n.id)) {
       add(n.id, 'warning', 'A conversa ainda não está aberta aqui: no comentário, o direct só abre pela "Resposta no privado" e o clique no botão.');
     }
-    if (t.type === 'wa_broadcast' && DM_NODES.includes(n.type) && closed.has(n.id)) {
+    if (t.type === 'wa_broadcast' && !qr && DM_NODES.includes(n.type) && closed.has(n.id)) {
       add(n.id, 'warning', 'A pessoa ainda não respondeu aqui: fora das 24 h, só o modelo aprovado chega. Ligue este passo depois de um botão do modelo.');
     }
   }
@@ -347,6 +380,60 @@ export function postbackButtons(buttons: FlowButton[]): FlowButton[] {
   return buttons.filter((b) => !b.url && b.title.trim());
 }
 
+const KEYCAPS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+
+/**
+ * WhatsApp por QR code: o texto com as opções numeradas (o WhatsApp só mostra
+ * botões de verdade pela API oficial) e os links no fim.
+ */
+export function qrMessage(text: string, buttons: FlowButton[]): string {
+  const opts = postbackButtons(buttons).slice(0, QR_MAX_OPTIONS);
+  const links = buttons.filter((b) => b.url && b.title.trim());
+  const parts = [text.trim()];
+  if (opts.length) parts.push(opts.map((b, i) => `${KEYCAPS[i]} ${b.title.trim()}`).join('\n'));
+  if (links.length) parts.push(links.map((l) => `🔗 ${l.title.trim()}: ${l.url}`).join('\n'));
+  return parts.filter(Boolean).join('\n\n');
+}
+
+/**
+ * Qual opção a pessoa escolheu: o número ("2", "2️⃣", "opção 2"), o nome da
+ * opção ou uma das palavras dela. Nulo se não deu para saber.
+ */
+export function pickOption(buttons: FlowButton[], raw: string | null | undefined): FlowButton | null {
+  const opts = postbackButtons(buttons).slice(0, QR_MAX_OPTIONS);
+  if (!opts.length || !raw) return null;
+  const keycap = KEYCAPS.findIndex((k) => raw.includes(k));
+  if (keycap >= 0 && keycap < opts.length) return opts[keycap]!;
+  const s = normalize(raw).replace(/[!?.,;:*_~()"'“”]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!s) return null;
+  const num = /^(?:opcao|opção|op|n|numero|número|#)?\s*([0-9]{1,2})(?:\s.*)?$/.exec(s);
+  if (num) {
+    const i = Number(num[1]) - 1;
+    if (i >= 0 && i < opts.length) return opts[i]!;
+  }
+  // Nome exato da opção ou de uma palavra dela.
+  for (const b of opts) {
+    const words = [b.title, ...(b.keywords ?? [])].map(normalize).filter(Boolean);
+    if (words.includes(s)) return b;
+  }
+  // A resposta começa com o nome da opção ou com uma palavra dela ("sim, quero saber").
+  const hits = opts.filter((b) => [b.title, ...(b.keywords ?? [])].map(normalize).filter((w) => w.length >= 2)
+    .some((w) => new RegExp(`^${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^a-z0-9])`).test(s)));
+  return hits.length === 1 ? hits[0]! : null;
+}
+
+/** Sorteio: índice do caminho escolhido pelos pesos (r é um número de 0 a 1). */
+export function pickWeighted(weights: number[], r: number): number {
+  const total = weights.reduce((a, w) => a + Math.max(0, w), 0);
+  if (total <= 0) return 0;
+  let x = r * total;
+  for (let i = 0; i < weights.length; i++) {
+    x -= Math.max(0, weights[i]!);
+    if (x < 0) return i;
+  }
+  return weights.length - 1;
+}
+
 /** Dado de clique no botão: "f:<execução>:<botão>". */
 export function payloadFor(runId: string, buttonId: string): string {
   return `f:${runId}:${buttonId}`;
@@ -357,7 +444,7 @@ export function parsePayload(p: string | null | undefined): { runId: string; but
 }
 
 /** Desenho inicial de um fluxo novo, por gatilho (como no exemplo do comentário "Eu quero"). */
-export function starterGraph(type: TriggerType): FlowGraph {
+export function starterGraph(type: TriggerType, opts: { qr?: boolean } = {}): FlowGraph {
   const trigger: FlowNode = {
     id: 'trigger', type: 'trigger', position: { x: 0, y: 0 },
     data: {
@@ -365,6 +452,7 @@ export function starterGraph(type: TriggerType): FlowGraph {
       frequency: COMMENT_TRIGGERS.includes(type) ? 'once_per_post' : 'every',
     },
   };
+  if (opts.qr && (type === 'wa_broadcast' || type === 'wa_keyword')) return qrStarter(trigger);
   if (type === 'wa_broadcast') {
     return {
       nodes: [trigger, { id: 'n1', type: 'template', position: { x: 380, y: 80 }, data: { templateId: null, name: null, params: [], buttons: [] } }],
@@ -376,7 +464,7 @@ export function starterGraph(type: TriggerType): FlowGraph {
       nodes: [
         trigger,
         { id: 'n1', type: 'comment_reply', position: { x: 380, y: 200 }, data: { variants: ['Te mandei no direct! 📩', 'Acabei de te chamar no direct 😉', 'Olha seu direct! 💌'] } },
-        { id: 'n2', type: 'private_reply', position: { x: 760, y: 120 }, data: { text: 'Oi, {{nome}}! Que bom que você comentou 😊 Toque no botão abaixo que eu te mando tudo por aqui.', buttons: [{ id: 'b1', title: 'Quero', url: null }] } },
+        { id: 'n2', type: 'private_reply', position: { x: 760, y: 120 }, data: { text: 'Oi, {{nome}}! Que bom que você comentou 😊 Toque no botão abaixo que eu te mando tudo por aqui.', buttons: [{ id: 'b1', title: 'Quero', url: null, keywords: [] }] } },
       ],
       edges: [{ id: 'e1', source: 'trigger', sourceHandle: 'next', target: 'n1' }, { id: 'e2', source: 'n1', sourceHandle: 'next', target: 'n2' }],
     };
@@ -385,7 +473,50 @@ export function starterGraph(type: TriggerType): FlowGraph {
     : type === 'story_reply' ? 'Oi, {{nome}}! Que bom que você respondeu nosso story 😊'
       : type === 'reaction' ? 'Oi, {{nome}}! Vi sua reação por aqui 😊' : 'Oi, {{nome}}! Que bom falar com você 😊';
   return {
-    nodes: [trigger, { id: 'n1', type: 'text', position: { x: 380, y: 120 }, data: { text: greet, buttons: [] } }],
+    nodes: [trigger, { id: 'n1', type: 'text', position: { x: 380, y: 120 }, data: { text: greet, buttons: [], retryText: 'Não entendi 😅 Responda com o número de uma das opções:', timeoutHours: null } }],
     edges: [{ id: 'e1', source: 'trigger', sourceHandle: 'next', target: 'n1' }],
+  };
+}
+
+/**
+ * Exemplo pronto para o WhatsApp por QR code (estilo campanha de promoção):
+ * pergunta com opções, caminho do "sim", do "não", de quem não responde e de
+ * quem pede para sair. É só trocar os textos.
+ */
+function qrStarter(trigger: FlowNode): FlowGraph {
+  const btn = (id: string, title: string, keywords: string[]) => ({ id, title, url: null, keywords });
+  return {
+    nodes: [
+      trigger,
+      {
+        id: 'n1', type: 'text', position: { x: 380, y: 60 },
+        data: {
+          text: 'Oi, {{primeiro_nome}}! Tudo bem? 😊\nEstamos com uma condição especial de *Black Friday* só para clientes. Quer saber mais?',
+          buttons: [btn('b1', 'Quero saber mais', ['sim', 'quero', 'claro', 'pode']), btn('b2', 'Agora não', ['nao', 'depois']), btn('b3', 'Não quero receber', ['sair', 'parar', 'pare'])],
+          retryText: 'Não entendi 😅 Responda com o número de uma das opções:', timeoutHours: 24,
+        },
+      },
+      {
+        id: 'n2', type: 'text', position: { x: 820, y: -120 },
+        data: { text: 'Que bom! 🎉 Vou te passar os detalhes. Qual é o melhor horário para falarmos?', buttons: [btn('c1', 'Manhã', []), btn('c2', 'Tarde', []), btn('c3', 'Noite', [])], retryText: 'Responda com o número do horário:', timeoutHours: null },
+      },
+      { id: 'n3', type: 'action', position: { x: 1260, y: -120 }, data: { ops: [{ kind: 'notify', membershipId: null, text: '{{nome}} quer saber da promoção de Black Friday.' }] } },
+      { id: 'n4', type: 'text', position: { x: 1640, y: -120 }, data: { text: 'Perfeito! Alguém da equipe vai te chamar em instantes. 🙌', buttons: [], retryText: '', timeoutHours: null } },
+      { id: 'n5', type: 'text', position: { x: 820, y: 160 }, data: { text: 'Tudo bem! Se mudar de ideia, é só responder *QUERO* aqui. 😉', buttons: [], retryText: '', timeoutHours: null } },
+      { id: 'n6', type: 'action', position: { x: 1260, y: 340 }, data: { ops: [{ kind: 'opt_out' }] } },
+      { id: 'n7', type: 'text', position: { x: 820, y: 340 }, data: { text: 'Pronto, você não vai mais receber nossas campanhas. Obrigado! 🙏', buttons: [], retryText: '', timeoutHours: null } },
+    ],
+    edges: [
+      { id: 'e1', source: 'trigger', sourceHandle: 'next', target: 'n1' },
+      { id: 'e2', source: 'n1', sourceHandle: 'btn:b1', target: 'n2' },
+      { id: 'e3', source: 'n2', sourceHandle: 'btn:c1', target: 'n3' },
+      { id: 'e4', source: 'n2', sourceHandle: 'btn:c2', target: 'n3' },
+      { id: 'e5', source: 'n2', sourceHandle: 'btn:c3', target: 'n3' },
+      { id: 'e6', source: 'n3', sourceHandle: 'next', target: 'n4' },
+      { id: 'e7', source: 'n1', sourceHandle: 'btn:b2', target: 'n5' },
+      // Primeiro confirma, depois tira das campanhas (depois disso, nenhuma mensagem automática chega).
+      { id: 'e8', source: 'n1', sourceHandle: 'btn:b3', target: 'n7' },
+      { id: 'e9', source: 'n7', sourceHandle: 'next', target: 'n6' },
+    ],
   };
 }

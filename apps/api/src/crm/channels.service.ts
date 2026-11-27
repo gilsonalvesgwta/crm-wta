@@ -12,6 +12,7 @@ import { Evolution, EvolutionError } from '../infra/evolution.js';
 import { sendTenantMail, SmtpError, textToHtml, verifyTenantSmtp } from '../infra/tenant-mail.js';
 import { assertWithin, tenantLimits } from './limits.js';
 import { MessagesService } from './messages.service.js';
+import { IgFlowEngine } from './ig-flows.engine.js';
 import { metaWebhook } from './meta.service.js';
 
 export type EmailAccountInput = {
@@ -63,6 +64,7 @@ export class ChannelsService {
     @Inject(CONFIG) private readonly cfg: Config,
     @Inject(Evolution) private readonly evo: Evolution,
     @Inject(MessagesService) private readonly messages: MessagesService,
+    @Inject(IgFlowEngine) private readonly flows: IgFlowEngine,
   ) {}
 
   private webhookUrl(token: string): string {
@@ -304,6 +306,15 @@ export class ChannelsService {
         if (ev.type === 'message') {
           const stored = await this.messages.receiveWhatsapp(acc.tenant_id, acc.account_id, ev);
           if (stored !== 'duplicate') handled++;
+          if (stored === 'stored') {
+            // Fluxos do WhatsApp por QR code: a resposta da pessoa escolhe a opção, responde a pergunta
+            // ou começa um fluxo pela palavra-chave. Resposta da equipe pelo celular para o fluxo.
+            const fa = { id: acc.account_id, external_id: acc.external_id, secret: null, config: {}, kind: 'whatsapp_evolution' };
+            const job = ev.fromMe
+              ? this.flows.humanReplied(acc.tenant_id, fa, ev.e164)
+              : this.flows.onWhatsapp(acc.tenant_id, fa, { id: ev.id, from: ev.e164, text: ev.text });
+            await Promise.resolve(job).catch((err: unknown) => this.log.error(`fluxos do WhatsApp (QR code): ${String(err)}`));
+          }
           // O aviso veio sem o arquivo (áudio, foto...): busca na Evolution sem segurar a resposta do aviso.
           // Chegou vazia (o WhatsApp ainda estava decifrando ou é um tipo novo): busca de novo daqui a pouco.
           if (stored === 'stored' && ev.kind === 'other' && !ev.text && acc.external_id) {

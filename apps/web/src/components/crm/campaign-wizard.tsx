@@ -101,14 +101,16 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
   // Conta da campanha: a primeira do canal, se ainda não escolhida.
   const usable = accounts.filter((a) => d.channel && channelOfKind(a.kind) === d.channel);
   const isCloud = accounts.find((a) => a.id === d.accountId)?.kind === 'whatsapp_cloud';
+  // WhatsApp por QR code: campanha com texto simples ou com fluxo (opções numeradas que continuam a conversa).
+  const isQr = accounts.find((a) => a.id === d.accountId)?.kind === 'whatsapp_evolution';
   useEffect(() => {
     if (!isCloud) return;
     api<{ items: WaTemplate[] }>('GET', `/api/v1/whatsapp-templates?accountId=${d.accountId}&approved=1`).then((r) => setTemplates(r.items)).catch(() => setTemplates([]));
   }, [isCloud, d.accountId]);
-  const flowMode = isCloud && d.useFlow;
+  const flowMode = (isCloud || isQr) && d.useFlow;
   const chosen = isCloud && !d.useFlow ? templates.find((t) => t.id === d.templateId) ?? null : null;
   // Fluxos de transmissão (WhatsApp oficial) para escolher; o fluxo indicado no endereço já escolhe o número.
-  const anyCloud = accounts.some((a) => a.kind === 'whatsapp_cloud');
+  const anyCloud = accounts.some((a) => a.kind === 'whatsapp_cloud' || a.kind === 'whatsapp_evolution');
   useEffect(() => {
     if (!anyCloud) return;
     api<FlowItem[]>('GET', '/api/v1/whatsapp/flows').then((r) => setFlows(r.filter((f) => f.triggerType === 'wa_broadcast'))).catch(() => setFlows([]));
@@ -331,14 +333,29 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
                 ))}
               </div>
             ) : null}
+            {isQr ? (
+              <div role="radiogroup" aria-label="Conteúdo da campanha" className="grid gap-2 sm:grid-cols-2">
+                {[
+                  { v: false, t: 'Mensagem simples', s: 'O mesmo texto para todos.' },
+                  { v: true, t: 'Conversa com fluxo', s: 'Mensagem com opções; cada resposta continua a conversa.' },
+                ].map((o) => (
+                  <button key={String(o.v)} type="button" role="radio" aria-checked={d.useFlow === o.v}
+                    onClick={() => set({ useFlow: o.v, ...(o.v && !d.flowId && accountFlows[0] ? { flowId: accountFlows[0].id } : {}) })}
+                    className={`flex flex-col rounded-[10px] border p-3 text-left ${d.useFlow === o.v ? 'border-primary bg-accent-soft' : 'border-line hover:bg-surface-2'}`}>
+                    <span className="text-sm font-semibold">{o.t}</span><span className="text-[13px] text-muted">{o.s}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {flowMode && isQr ? <Alert tone="info">Para proteger o número, campanhas com fluxo pelo QR code saem no máximo 15 por minuto (com intervalos variados) e com “digitando…”. Mande só para clientes que conhecem você.</Alert> : null}
             {flowMode ? (
               <>
-                <Select label="Fluxo da transmissão *" value={d.flowId} error={fieldErr('flowId')} onChange={(e) => set({ flowId: e.target.value })}>
-                  <option value="">{accountFlows.length ? 'Escolha o fluxo' : 'Nenhum fluxo de transmissão neste número'}</option>
+                <Select label={isQr ? "Fluxo da campanha *" : "Fluxo da transmissão *"} value={d.flowId} error={fieldErr('flowId')} onChange={(e) => set({ flowId: e.target.value })}>
+                  <option value="">{accountFlows.length ? 'Escolha o fluxo' : 'Nenhum fluxo de campanha neste número'}</option>
                   {accountFlows.map((f) => <option key={f.id} value={f.id}>{f.name} ({FLOW_STATUS[f.status].label.toLowerCase()})</option>)}
                 </Select>
                 {chosenFlow && chosenFlow.status !== 'active' ? <Alert tone="warning">Publique o fluxo antes de enviar: só fluxo ativo pode ser usado.</Alert> : null}
-                <p className="text-[13px] text-muted">O modelo, as variáveis e os botões vêm do fluxo. <Link href={chosenFlow ? `/whatsapp/fluxos/${chosenFlow.id}` : '/whatsapp'} className="underline">{chosenFlow ? 'Abrir o fluxo' : 'Criar um fluxo de transmissão'}</Link></p>
+                <p className="text-[13px] text-muted">{isQr ? 'As mensagens e as opções vêm do fluxo.' : 'O modelo, as variáveis e os botões vêm do fluxo.'} <Link href={chosenFlow ? `/whatsapp/fluxos/${chosenFlow.id}` : '/whatsapp'} className="underline">{chosenFlow ? 'Abrir o fluxo' : 'Criar um fluxo de campanha'}</Link></p>
               </>
             ) : null}
             {isCloud && !d.useFlow ? (
@@ -363,7 +380,7 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
                 ) : null}
               </>
             ) : null}
-            {!isCloud && replies.some((r) => r.channel === d.channel) ? (
+            {!isCloud && !flowMode && replies.some((r) => r.channel === d.channel) ? (
               <Select label="Começar de uma resposta pronta" value="" onChange={(e) => {
                 const r = replies.find((x) => x.id === e.target.value);
                 if (r) set({ body: r.body, subject: r.subject ?? d.subject });
@@ -373,8 +390,8 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
               </Select>
             ) : null}
             {isCloud ? null : d.channel === 'email' ? <Field label="Assunto *" value={d.subject} onChange={(e) => set({ subject: e.target.value })} error={fieldErr('subject')} maxLength={998} /> : null}
-            {!isCloud ? <Textarea label="Mensagem *" value={d.body} onChange={(e) => set({ body: e.target.value })} rows={8} error={fieldErr('body')} /> : null}
-            <div className={`flex flex-wrap items-center gap-1.5 text-[12px] text-muted ${isCloud ? 'hidden' : ''}`}>
+            {!isCloud && !flowMode ? <Textarea label="Mensagem *" value={d.body} onChange={(e) => set({ body: e.target.value })} rows={8} error={fieldErr('body')} /> : null}
+            <div className={`flex flex-wrap items-center gap-1.5 text-[12px] text-muted ${isCloud || flowMode ? 'hidden' : ''}`}>
               <span>Inserir:</span>
               {CAMPAIGN_VARIABLES.map((v) => (
                 <button key={v.key} type="button" onClick={() => set({ body: `${d.body}{{${v.key}}}` })} title={v.label}

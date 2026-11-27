@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { BarChart3, ChevronLeft, Copy, Eye, MoreHorizontal, Pause, Play, Redo2, Rocket, Send, Trash2, TriangleAlert, Undo2, Check, CloudOff } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { COMMENT_TRIGGERS, FLOW_BASE, FLOW_STATUS, newId, newNode, nodeTitle, outputsOf, type Flow, type FlowChannel, type FlowGraph, type FlowNode, type NodeType } from '@/lib/instagram';
-import { FlowCanvas, NODE_W } from './flow-canvas';
+import { FlowCanvas, NODE_W, QrCtx } from './flow-canvas';
 import { NodeSettings, Palette } from './node-settings';
 import { Simulator } from './simulator';
 import { Badge } from '@/components/ui/badge';
@@ -132,6 +132,7 @@ export function FlowEditor({ initial, readOnly, channel = 'instagram' }: { initi
   const commentFlow = COMMENT_TRIGGERS.includes(trigger.data.type);
   const broadcast = trigger.data.type === 'wa_broadcast';
   const errors = meta.issues.filter((i) => i.level === 'error');
+  const qr = meta.mode === 'qr';
 
   function add(type: Exclude<NodeType, 'trigger'>) {
     const g = graphRef.current;
@@ -141,7 +142,7 @@ export function FlowEditor({ initial, readOnly, channel = 'instagram' }: { initi
     const n = newNode(type, pos);
     const edges = [...g.edges];
     if (from) {
-      const free = outputsOf(from).find((o) => !g.edges.some((e) => e.source === from.id && e.sourceHandle === o.handle));
+      const free = outputsOf(from, qr).find((o) => !g.edges.some((e) => e.source === from.id && e.sourceHandle === o.handle));
       if (free) edges.push({ id: newId('e'), source: from.id, sourceHandle: free.handle, target: n.id });
     }
     change({ nodes: [...g.nodes, n], edges });
@@ -180,7 +181,7 @@ export function FlowEditor({ initial, readOnly, channel = 'instagram' }: { initi
       else if (saving.current) await saving.current;
       const f = await api<Flow>('POST', `${base.api}/flows/${initial.id}/publish`);
       setMeta((m) => ({ ...m, ...f, draft: m.draft }));
-      setNotice({ tone: 'success', text: channel === 'whatsapp' ? (graphRef.current.nodes.some((n) => n.type === 'trigger' && n.data.type === 'wa_broadcast') ? 'Fluxo publicado: já pode ser usado numa transmissão.' : 'Fluxo publicado: já está funcionando no WhatsApp.') : 'Fluxo publicado: já está funcionando no Instagram.' });
+      setNotice({ tone: 'success', text: channel === 'whatsapp' ? (graphRef.current.nodes.some((n) => n.type === 'trigger' && n.data.type === 'wa_broadcast') ? 'Fluxo publicado: já pode ser usado numa campanha (Enviar campanha).' : 'Fluxo publicado: já está funcionando no WhatsApp.') : 'Fluxo publicado: já está funcionando no Instagram.' });
     } catch (e) {
       const err = e as ApiError;
       setNotice({ tone: 'error', text: err.type === 'flow-errors' ? 'Corrija os erros marcados nos blocos antes de publicar.' : err.title });
@@ -217,6 +218,7 @@ export function FlowEditor({ initial, readOnly, channel = 'instagram' }: { initi
 
   const st = FLOW_STATUS[meta.status];
   return (
+    <QrCtx.Provider value={qr}>
     <div className="-mx-4 -my-6 flex h-[calc(100dvh-65px)] min-h-[560px] flex-col sm:-mx-6">
       <header className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-3 py-2 sm:px-4">
         <Link href={base.path} aria-label="Voltar aos fluxos" className="flex size-9 items-center justify-center rounded-[6px] text-muted hover:bg-surface-2 hover:text-ink"><ChevronLeft size={18} aria-hidden /></Link>
@@ -224,6 +226,7 @@ export function FlowEditor({ initial, readOnly, channel = 'instagram' }: { initi
           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
           className="h-9 min-w-0 max-w-[280px] flex-1 rounded-[6px] border border-transparent bg-transparent px-2 text-[15px] font-semibold hover:border-line focus:border-line-strong" />
         <Badge tone={st.tone}>{st.label}</Badge>
+        {qr ? <Badge tone="neutral">WhatsApp QR code</Badge> : null}
         {meta.unpublishedChanges ? <span className="hidden text-xs text-warn md:inline">Alterações não publicadas</span> : null}
         <div className="flex-1" />
         <span className="flex items-center gap-1 text-xs text-muted" role="status">
@@ -258,14 +261,14 @@ export function FlowEditor({ initial, readOnly, channel = 'instagram' }: { initi
           </div>
         ) : null}
         <Button variant="secondary" onClick={() => setPreview(true)}><Eye size={15} aria-hidden />Visualizar</Button>
-        {broadcast && meta.status === 'active' && !meta.unpublishedChanges ? <Link href={`/campanhas/nova?fluxo=${initial.id}`} className="hidden h-9 items-center gap-1.5 rounded-[6px] border border-line px-3 text-[13px] font-medium hover:bg-surface-2 sm:inline-flex"><Send size={15} aria-hidden />Enviar transmissão</Link> : null}
+        {broadcast && meta.status === 'active' && !meta.unpublishedChanges ? <Link href={`/campanhas/nova?fluxo=${initial.id}`} className="hidden h-9 items-center gap-1.5 rounded-[6px] border border-line px-3 text-[13px] font-medium hover:bg-surface-2 sm:inline-flex"><Send size={15} aria-hidden />Enviar campanha</Link> : null}
         {!readOnly ? <Button loading={busy === 'publish'} onClick={publish}><Rocket size={15} aria-hidden />{meta.status === 'draft' ? 'Publicar' : meta.unpublishedChanges ? 'Publicar alterações' : 'Publicado'}</Button> : null}
         <div className="relative">
           <button type="button" aria-label="Mais opções" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(!menu)} className="flex size-9 items-center justify-center rounded-[6px] text-muted hover:bg-surface-2 hover:text-ink"><MoreHorizontal size={18} aria-hidden /></button>
           {menu ? (
             <div role="menu" className="absolute right-0 top-11 z-30 w-56 rounded-[10px] border border-line bg-surface p-1.5 shadow-lg">
               <Link role="menuitem" href={`${base.path}/resultados?fluxo=${initial.id}`} className="flex h-9 items-center gap-2 rounded-[6px] px-2.5 text-[13px] hover:bg-surface-2"><BarChart3 size={15} aria-hidden />Resultados</Link>
-              {broadcast && meta.status === 'active' ? <Link role="menuitem" href={`/campanhas/nova?fluxo=${initial.id}`} className="flex h-9 items-center gap-2 rounded-[6px] px-2.5 text-[13px] hover:bg-surface-2"><Send size={15} aria-hidden />Enviar transmissão</Link> : null}
+              {broadcast && meta.status === 'active' ? <Link role="menuitem" href={`/campanhas/nova?fluxo=${initial.id}`} className="flex h-9 items-center gap-2 rounded-[6px] px-2.5 text-[13px] hover:bg-surface-2"><Send size={15} aria-hidden />Enviar campanha</Link> : null}
               {!readOnly && meta.status === 'active' ? <button role="menuitem" type="button" onClick={() => act('pause')} className="flex h-9 w-full items-center gap-2 rounded-[6px] px-2.5 text-[13px] hover:bg-surface-2"><Pause size={15} aria-hidden />Pausar</button> : null}
               {!readOnly && meta.status === 'paused' ? <button role="menuitem" type="button" onClick={() => act('resume')} className="flex h-9 w-full items-center gap-2 rounded-[6px] px-2.5 text-[13px] hover:bg-surface-2"><Play size={15} aria-hidden />Reativar</button> : null}
               {!readOnly ? <button role="menuitem" type="button" onClick={() => act('duplicate')} className="flex h-9 w-full items-center gap-2 rounded-[6px] px-2.5 text-[13px] hover:bg-surface-2"><Copy size={15} aria-hidden />Duplicar fluxo</button> : null}
@@ -294,6 +297,17 @@ export function FlowEditor({ initial, readOnly, channel = 'instagram' }: { initi
                   <li>Arraste da bolinha à direita de um bloco até outro para ligar.</li>
                   <li>Use <strong className="text-ink">Visualizar</strong> para testar e <strong className="text-ink">Publicar</strong> para ligar.</li>
                 </ol>
+                {qr ? (
+                  <div className="mt-3 rounded-[8px] border border-line bg-surface-2 p-2.5 text-[13px] text-muted">
+                    <p className="font-medium text-ink">WhatsApp por QR code</p>
+                    <ul className="mt-1 flex list-disc flex-col gap-0.5 pl-4">
+                      <li>As opções chegam numeradas (1️⃣ 2️⃣ 3️⃣) e a pessoa responde com o número ou o nome.</li>
+                      <li>As mensagens saem com “digitando…”, como uma pessoa.</li>
+                      <li>Se alguém da equipe responder pelo celular, o fluxo daquela pessoa para.</li>
+                      <li>Campanhas com fluxo saem no máximo 15 por minuto, para proteger o número.</li>
+                    </ul>
+                  </div>
+                ) : null}
               </div>
               {!readOnly ? <Palette channel={channel} commentFlow={commentFlow} from={null} onAdd={add} /> : null}
             </div>
@@ -309,5 +323,6 @@ export function FlowEditor({ initial, readOnly, channel = 'instagram' }: { initi
         O fluxo para de funcionar e some da lista. As mensagens já mandadas continuam nas conversas.
       </Confirm>
     </div>
+    </QrCtx.Provider>
   );
 }

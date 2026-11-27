@@ -29,19 +29,19 @@ export default function WhatsappFlowsPage() {
   const noAccount = accounts.data && accounts.data.length === 0;
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-5">
-      <PageHeader title="WhatsApp" subtitle="Transmissões pela API oficial com modelos aprovados e conversas que seguem conforme a pessoa toca nos botões."
+      <PageHeader title="WhatsApp" subtitle="Fluxos de conversa arrastando e soltando: campanhas para a sua base e respostas automáticas que seguem conforme a pessoa responde. Funciona no WhatsApp por QR code e no oficial."
         actions={can('campaigns:edit') && !noAccount ? <Button onClick={() => setCreating(true)}><Plus size={16} aria-hidden />Novo fluxo</Button> : undefined} />
       <WhatsappTabs />
       {noAccount ? (
-        <Empty title="Conecte um WhatsApp oficial"
+        <Empty title="Conecte um WhatsApp"
           action={<Link href="/configuracoes/canais" className="inline-flex h-10 items-center rounded-[6px] bg-primary px-4 text-sm font-semibold text-primary-fg">Ir para Canais</Link>}>
-          Os fluxos e as transmissões usam o WhatsApp oficial (Cloud API da Meta) cadastrado em Configurações › Canais.
+          Os fluxos usam um número conectado em Configurações › Canais: por QR code (WhatsApp normal ou Business) ou o oficial (Cloud API da Meta).
         </Empty>
       ) : (
         <Panel title="Fluxos" description="Cada fluxo começa com um gatilho e segue os passos que você desenhar.">
           {flows.error ? <LoadError error={flows.error} retry={flows.reload} /> : flows.loading && !flows.data ? <Loading /> : flows.data!.length === 0 ? (
             <Empty title="Nenhum fluxo ainda" action={can('campaigns:edit') ? <Button onClick={() => setCreating(true)}><Plus size={16} aria-hidden />Criar o primeiro fluxo</Button> : undefined}>
-              Comece pela transmissão: um modelo aprovado com botões (&ldquo;Quero saber mais&rdquo;, &ldquo;Como funciona?&rdquo;) e o que cada botão responde.
+              Comece por uma campanha: uma mensagem com opções (&ldquo;1 Quero saber mais&rdquo;, &ldquo;2 Agora não&rdquo;) e o que cada resposta faz. O fluxo novo já vem com um exemplo pronto para editar.
             </Empty>
           ) : (
             <ul className="-mx-5 divide-y divide-line">
@@ -50,7 +50,7 @@ export default function WhatsappFlowsPage() {
                   <TriggerIcon type={f.triggerType} />
                   <div className="min-w-0 flex-1">
                     <Link href={`/whatsapp/fluxos/${f.id}`} className="font-medium hover:underline">{f.name}</Link>
-                    <p className="text-[13px] text-muted">{TRIGGER_TITLE[f.triggerType]} · {f.accountName}{f.unpublishedChanges ? ' · alterações não publicadas' : ''}</p>
+                    <p className="text-[13px] text-muted">{TRIGGER_TITLE[f.triggerType]} · {f.accountName}{f.mode === 'qr' ? ' (QR code)' : f.mode === 'cloud' ? ' (oficial)' : ''}{f.unpublishedChanges ? ' · alterações não publicadas' : ''}</p>
                   </div>
                   <div className="flex items-center gap-5 text-[13px]">
                     <span className="text-right"><span className="block font-semibold text-ink">{f.triggered7d.toLocaleString('pt-BR')}</span><span className="text-muted">7 dias</span></span>
@@ -77,6 +77,8 @@ function NewFlowDialog({ open, accounts, onClose }: { open: boolean; accounts: W
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
   const accountId = account || accounts[0]?.id || '';
+  const chosen = accounts.find((a) => a.id === accountId);
+  const qr = chosen?.mode === 'qr';
 
   async function create() {
     setBusy(true);
@@ -108,10 +110,15 @@ function NewFlowDialog({ open, accounts, onClose }: { open: boolean; accounts: W
         </div>
         <Field label="Nome do fluxo" placeholder={TRIGGER_TITLE[type]} maxLength={80} value={name} onChange={(e) => setName(e.target.value)}
           hint="Só você vê. Ex.: Raio X — novembro." />
-        {accounts.length > 1 ? (
-          <Select label="WhatsApp oficial" value={accountId} onChange={(e) => setAccount(e.target.value)}>
-            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}{a.address ? ` (${a.address})` : ''}</option>)}
-          </Select>
+        <Select label="Número de WhatsApp" value={accountId} onChange={(e) => setAccount(e.target.value)}>
+          {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}{a.address ? ` (${a.address})` : ''} · {a.mode === 'qr' ? 'QR code' : 'oficial'}{a.status !== 'connected' ? ' · desconectado' : ''}</option>)}
+        </Select>
+        {chosen ? (
+          <Alert tone="info">
+            {qr
+              ? 'WhatsApp por QR code: as opções chegam numeradas (1️⃣ 2️⃣…) e a pessoa responde com o número ou o nome. Não precisa de modelo aprovado. Para proteger o número, campanhas saem no máximo 15 por minuto e só para quem já conhece você.'
+              : 'WhatsApp oficial: a campanha começa com um modelo aprovado pela Meta, com botões clicáveis.'}
+          </Alert>
         ) : null}
         {error ? <Alert tone="error">{error.errors[0]?.message ?? error.title}</Alert> : null}
       </div>

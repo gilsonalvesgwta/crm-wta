@@ -16,6 +16,9 @@ import { Params } from './sql.js';
 
 type Channel = 'whatsapp' | 'email';
 
+/** Campanha com fluxo pelo WhatsApp por QR code: envios por minuto, no máximo. */
+export const QR_FLOW_MAX_PER_MINUTE = 15;
+
 const STATS = (alias: string) => `(
   select json_build_object(
     'total', count(*),
@@ -164,7 +167,7 @@ export class CampaignsService {
       b.body, b.perMinute, b.windowStart ?? null, b.windowEnd ?? null, b.optOutHint, flow ? null : b.templateId ?? null, JSON.stringify(flow ? [] : b.templateParams), flow];
   }
 
-  /** Fluxo de transmissão: do WhatsApp oficial, do mesmo número e com gatilho "transmissão". */
+  /** Fluxo de campanha: do mesmo número de WhatsApp e com gatilho "campanha" (transmissão). */
   private async checkFlow(q: Q, b: CampaignInput) {
     if (b.channel !== 'whatsapp' || !b.flowId) return;
     const f = (await q.query<{ channel: string; trigger_type: string; channel_account_id: string }>(
@@ -236,7 +239,13 @@ export class CampaignsService {
       const errors: { field: string; message: string }[] = [];
       if (!k.channel_account_id) errors.push({ field: 'accountId', message: k.channel === 'email' ? 'Escolha a conta de e-mail que envia.' : 'Escolha o WhatsApp que envia.' });
       const kind = k.channel_account_id ? (await q.query<{ kind: string }>('select kind from channel_accounts where id = $1', [k.channel_account_id])).rows[0]?.kind : null;
-      if (kind === 'whatsapp_cloud' && k.flow_id) {
+      if (kind === 'whatsapp_evolution' && k.flow_id) {
+        // WhatsApp por QR code com fluxo: o fluxo precisa estar ativo e ser deste número (começa por qualquer mensagem).
+        const f = (await q.query<{ status: string; channel_account_id: string; published: unknown; trigger_type: string }>(
+          'select status, channel_account_id, published, trigger_type from ig_flows where id = $1', [k.flow_id])).rows[0];
+        if (!f || f.trigger_type !== 'wa_broadcast' || f.channel_account_id !== k.channel_account_id) errors.push({ field: 'flowId', message: 'Escolha um fluxo de campanha deste número.' });
+        else if (f.status !== 'active' || !graphSchema.safeParse(f.published).success) errors.push({ field: 'flowId', message: 'Publique o fluxo (e deixe ativo) antes de enviar.' });
+      } else if (kind === 'whatsapp_cloud' && k.flow_id) {
         // Transmissão com fluxo: o fluxo precisa estar ativo, ser deste número e começar por um modelo aprovado.
         const f = (await q.query<{ status: string; channel_account_id: string; published: unknown; trigger_type: string }>(
           'select status, channel_account_id, published, trigger_type from ig_flows where id = $1', [k.flow_id])).rows[0];
@@ -322,9 +331,11 @@ export class CampaignsService {
     const k = await this.db.app(ctx, async (q) => {
       const c = (await q.query<{ status: string; channel: Channel; audience: Audience; channel_account_id: string | null; subject: string | null;
         body: string | null; per_minute: number; prepared_at: Date | null; opt_out_hint: boolean; tenant_name: string;
-        template_id: string | null; template_params: string[]; flow_id: string | null }>(
+        template_id: string | null; template_params: string[]; flow_id: string | null; account_kind: string | null }>(
         `select k.status, k.channel, k.audience, k.channel_account_id, k.subject, k.body, k.per_minute, k.prepared_at, k.opt_out_hint,
-                k.template_id, k.template_params, k.flow_id, t.name as tenant_name from campaigns k join tenants t on t.id = k.tenant_id where k.id = $1`, [campaignId])).rows[0];
+                k.template_id, k.template_params, k.flow_id, t.name as tenant_name,
+                (select a.kind from channel_accounts a where a.id = k.channel_account_id) as account_kind
+           from campaigns k join tenants t on t.id = k.tenant_id where k.id = $1`, [campaignId])).rows[0];
       if (!c || c.status !== 'sending') return null;
       if (!c.prepared_at) {
         const p = new Params();
@@ -343,6 +354,8 @@ export class CampaignsService {
     });
     if (!k) return 0;
 
+    // Fluxo no WhatsApp por QR code: no máximo 15 por minuto (o WhatsApp bloqueia número que dispara rápido demais).
+    if (k.flow_id && k.account_kind === 'whatsapp_evolution') k.per_minute = Math.min(k.per_minute, QR_FLOW_MAX_PER_MINUTE);
     const tick = Math.max(this.cfg.DISPATCH_INTERVAL_S, 1);
     const size = Math.max(1, Math.min(50, Math.round((k.per_minute * tick) / 60)));
     const picked = await this.db.app(ctx, async (q) => (await q.query<{ id: string; contact_id: string; address: string; name: string; first_name: string; owner_name: string | null }>(
@@ -368,7 +381,7 @@ export class CampaignsService {
       const text = k.template_id ? null : render(k.body ?? '', vars) + (k.channel === 'whatsapp' && k.opt_out_hint ? OPT_OUT_HINT : '');
       try {
         const m = k.flow_id
-          // Transmissão com fluxo: o fluxo manda o modelo (com o dado de cada botão) e segue com o clique.
+          // Campanha com fluxo: o fluxo manda a primeira mensagem (modelo no oficial; texto com opções no QR code) e segue com a resposta.
           ? await this.flows.startBroadcast(tenantId, { campaignId, flowId: k.flow_id, contactId: r.contact_id, to: r.address })
           : await this.messages.sendByCampaign(tenantId, campaignId, r.contact_id, {
             accountId: k.channel_account_id!, to: r.address, text, subject: k.subject ? render(k.subject, vars) : null,

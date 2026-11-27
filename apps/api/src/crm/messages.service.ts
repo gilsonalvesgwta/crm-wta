@@ -32,8 +32,10 @@ export type FlowSendExtras = {
   buttonPayloads?: { index: number; payload: string }[];
   /** Mensagem interativa com até 3 botões de resposta (o id volta no clique). */
   replyButtons?: { id: string; title: string }[];
-  /** Arquivo da biblioteca de mídia (vai por link assinado). */
+  /** Arquivo da biblioteca de mídia (vai por link assinado; no QR code, o arquivo vai junto). */
   mediaFileId?: string | null;
+  /** WhatsApp por QR code: mostra "digitando…" antes de mandar, como uma pessoa. */
+  typing?: boolean;
 };
 
 /** Canal de cada tipo de conta. */
@@ -366,7 +368,9 @@ export class MessagesService {
       // Mídia da biblioteca (fluxo do WhatsApp oficial): vai por link assinado; no histórico fica o nome do arquivo.
       let library: { name: string; contentType: string } | null = null;
       if (extras.mediaFileId) {
-        if (a.kind !== 'whatsapp_cloud') throw Problem.badRequest('Arquivo da biblioteca só pelo WhatsApp oficial.', [{ field: 'accountId', message: 'Escolha o WhatsApp oficial.' }]);
+        if (a.kind !== 'whatsapp_cloud' && a.kind !== 'whatsapp_evolution') {
+          throw Problem.badRequest('Arquivo da biblioteca só pelo WhatsApp.', [{ field: 'accountId', message: 'Escolha um WhatsApp.' }]);
+        }
         const lf = (await q.query<{ original_name: string; content_type: string }>(
           `select original_name, content_type from files where id = $1 and purpose = 'media' and deleted_at is null`, [extras.mediaFileId])).rows[0];
         if (!lf) throw new Problem(409, 'O arquivo saiu da biblioteca de mídia.', 'media-missing');
@@ -445,7 +449,18 @@ export class MessagesService {
         }
       } else if (prep.channel === 'whatsapp') {
         const number = toEvolutionNumber(prep.to);
-        if (file && input.voice) {
+        // Fluxo no QR code: "digitando…" por um tempo proporcional ao texto (de 1 a 4 s).
+        const delay = extras.typing ? Math.min(4000, 1000 + (text?.length ?? 0) * 25) : undefined;
+        if (extras.mediaFileId && prep.library) {
+          const fid = extras.mediaFileId;
+          const data = await this.db.app({ tenantId: by.tenantId, userId: null }, (q) => this.files.readIn(q, fid));
+          externalId = prep.kind === 'audio' && /ogg|opus|mpeg|mp4|aac|m4a|wav|webm/.test(prep.library.contentType)
+            ? await this.evo.sendAudio(prep.account.external_id!, number, data.toString('base64'))
+            : await this.evo.sendMedia(prep.account.external_id!, number, {
+              mediatype: prep.kind === 'image' || prep.kind === 'video' ? prep.kind : 'document',
+              mimetype: prep.library.contentType, base64: data.toString('base64'), fileName: prep.library.name, caption: text ?? undefined,
+            }, delay);
+        } else if (file && input.voice) {
           externalId = await this.evo.sendAudio(prep.account.external_id!, number, file.data.toString('base64'));
         } else if (file) {
           externalId = await this.evo.sendMedia(prep.account.external_id!, number, {
@@ -453,7 +468,7 @@ export class MessagesService {
             mimetype: prep.contentType!, base64: file.data.toString('base64'), fileName: file.name, caption: text ?? undefined,
           });
         } else {
-          externalId = await this.evo.sendText(prep.account.external_id!, number, text!);
+          externalId = await this.evo.sendText(prep.account.external_id!, number, text!, delay);
         }
       } else {
         const c = prep.account.config as { host: string; port: number; secure: boolean; user: string; fromName: string };

@@ -7,7 +7,7 @@ export function WhatsappTabs() {
   const pathname = usePathname();
   const tabs = [
     { href: '/whatsapp', label: 'Fluxos', active: pathname === '/whatsapp' || pathname.startsWith('/whatsapp/fluxos') },
-    { href: '/whatsapp/transmissoes', label: 'Transmissões', active: pathname.startsWith('/whatsapp/transmissoes') },
+    { href: '/whatsapp/transmissoes', label: 'Campanhas', active: pathname.startsWith('/whatsapp/transmissoes') },
     { href: '/whatsapp/resultados', label: 'Resultados', active: pathname.startsWith('/whatsapp/resultados') },
     { href: '/configuracoes/canais', label: 'Modelos', active: false },
   ];
