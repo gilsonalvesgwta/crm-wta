@@ -9,6 +9,7 @@ import { phone, type Page } from '@/lib/crm';
 import { CAMPAIGN_STATUS, RECIPIENT_STATUS, type Campaign, type Recipient } from '@/lib/campaigns';
 import { useSession } from '@/components/shell/session';
 import { CampaignWizard } from '@/components/crm/campaign-wizard';
+import { TagPicker } from '@/components/crm/pickers';
 import { PaceFields, paceToApi, type Pace } from '@/components/crm/campaign-audience';
 import { Dialog } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/field';
@@ -118,6 +119,7 @@ function CampaignView({ id }: { id: string }) {
         : c.status === 'paused' && c.lastError ? <Alert tone="error">Pausada sozinha: {c.lastError} Resolva e clique em Retomar.</Alert> : null}
       {c.status === 'sending' && c.lastError?.startsWith('Limite de') ? <Alert tone="info">{c.lastError}</Alert> : null}
       {c.pauseAt && ['scheduled', 'sending'].includes(c.status) ? <Alert tone="info">Pausa automática marcada para {dateTime.format(new Date(c.pauseAt))}.</Alert> : null}
+      {can('campaigns:edit') ? <SuccessTag campaign={c} onSaved={(n, tagged) => { setC(n); setMsg(n.successTagId ? `Etiqueta salva: ${tagged} contato(s) que já receberam foram marcados; os próximos envios com sucesso também serão.` : 'Etiqueta removida da campanha (quem já foi marcado continua com ela).'); }} /> : null}
       {pacing ? <PaceDialog open campaign={c} onClose={() => setPacing(false)} onSaved={(n) => { setPacing(false); setC(n); setMsg('Ritmo e limites atualizados. O envio segue de onde parou.'); }} /> : null}
       {c.status === 'scheduled' && c.scheduledAt ? <Alert tone="info">Envio marcado para {dateTime.format(new Date(c.scheduledAt))}.</Alert> : null}
 
@@ -253,5 +255,36 @@ function PaceDialog({ open, campaign: c, onClose, onSaved }: { open: boolean; ca
         <PaceFields value={pace} onChange={(p) => setPace((cur) => ({ ...cur, ...p }))} />
       </div>
     </Dialog>
+  );
+}
+
+/** Etiqueta de quem recebeu com sucesso: escolher marca também quem já recebeu. */
+function SuccessTag({ campaign: c, onSaved }: { campaign: Campaign; onSaved: (c: Campaign, tagged: number) => void }) {
+  const [tag, setTag] = useState(c.successTagId ?? '');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const changed = (tag || null) !== (c.successTagId ?? null);
+  async function save() {
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await api<Campaign & { tagged: number }>('PATCH', `/api/v1/campaigns/${c.id}/success-tag`, { tagId: tag || null });
+      onSaved(r, r.tagged);
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.title : 'Não foi possível salvar.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section aria-label="Etiqueta de quem recebeu" className="flex flex-wrap items-end gap-3 rounded-[10px] border border-line bg-surface p-4">
+      <div className="min-w-[260px] flex-1">
+        <TagPicker label="Etiqueta de quem recebeu com sucesso" value={tag ? [tag] : []}
+          onChange={(v) => setTag(v.filter((x) => x !== tag).at(-1) ?? (v.includes(tag) ? tag : ''))} />
+        <p className="mt-1 text-[12px] text-muted">Para filtrar depois quem recebeu esta campanha. Ao salvar, marca também quem já recebeu.</p>
+      </div>
+      {err ? <Alert tone="error">{err}</Alert> : null}
+      <Button variant="secondary" loading={busy} disabled={!changed} onClick={save}>Salvar etiqueta</Button>
+    </section>
   );
 }

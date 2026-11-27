@@ -30,6 +30,8 @@ type Draft = {
   useFlow: boolean; flowId: string;
   /** Dias, limites por hora e por dia e pausa programada. */
   pace: Pace;
+  /** Etiqueta para quem recebeu com sucesso. */
+  successTagId: string;
 };
 
 export type CampaignPreset = { flowId?: string | null; broadcast?: boolean };
@@ -43,6 +45,7 @@ function fromCampaign(c: Campaign | null, preset?: CampaignPreset): Draft {
     scheduledAt: c?.scheduledAt ? toLocalInput(new Date(c.scheduledAt)) : '',
     templateId: c?.templateId ?? '', templateParams: c?.templateParams ?? [],
     useFlow: !!c?.flowId || (!c && !!(preset?.flowId || preset?.broadcast)), flowId: c?.flowId ?? (!c ? preset?.flowId ?? '' : ''),
+    successTagId: c?.successTagId ?? '',
     pace: {
       windowDays: c?.windowDays ?? [], maxPerHour: c?.maxPerHour ? String(c.maxPerHour) : '', maxPerDay: c?.maxPerDay ? String(c.maxPerDay) : '',
       pauseAt: c?.pauseAt ? toLocalInput(new Date(c.pauseAt)) : '',
@@ -167,6 +170,7 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
       templateId: isCloud && !d.useFlow && d.templateId ? d.templateId : null, templateParams: isCloud && !d.useFlow ? d.templateParams : [],
       flowId: flowMode && d.flowId ? d.flowId : null,
       ...paceToApi(d.pace),
+      successTagId: d.successTagId || null,
     };
   }
 
@@ -488,6 +492,11 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
                 <Field label="Às" type="time" value={d.windowEnd} onChange={(e) => set({ windowEnd: e.target.value })} error={fieldErr('windowEnd')} />
               </div>
             ) : null}
+            <div className="flex max-w-md flex-col gap-1">
+              <TagPicker label="Ao enviar com sucesso, marcar com a etiqueta" value={d.successTagId ? [d.successTagId] : []}
+                onChange={(v) => set({ successTagId: v.filter((x) => x !== d.successTagId).at(-1) ?? (v.includes(d.successTagId) ? d.successTagId : '') })} />
+              <p className="text-[12px] text-muted">Opcional. Depois é só filtrar por essa etiqueta (em Contatos ou na próxima campanha) para achar quem recebeu. Crie uma nova digitando o nome, ex.: “Recebeu Black Friday 2026”.</p>
+            </div>
             <details className="rounded-[10px] border border-line p-3" open={!!(d.pace.windowDays.length || d.pace.maxPerHour || d.pace.maxPerDay || d.pace.pauseAt)}>
               <summary className="cursor-pointer text-sm font-semibold">Dias, limites e pausa programada</summary>
               <div className="mt-3"><PaceFields value={d.pace} onChange={(patch) => set({ pace: { ...d.pace, ...patch } })} /></div>

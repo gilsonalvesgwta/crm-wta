@@ -38,7 +38,8 @@ const COLUMNS = `
      from channel_accounts a where a.id = k.channel_account_id) as account,
   k.subject, k.body, k.per_minute as "perMinute", to_char(k.window_start, 'HH24:MI') as "windowStart",
   to_char(k.window_end, 'HH24:MI') as "windowEnd", k.window_days as "windowDays", k.max_per_hour as "maxPerHour", k.max_per_day as "maxPerDay",
-  k.pause_at as "pauseAt", k.opt_out_hint as "optOutHint", k.scheduled_at as "scheduledAt",
+  k.pause_at as "pauseAt", k.success_tag_id as "successTagId",
+  (select json_build_object('id', g.id, 'name', g.name, 'color', g.color) from tags g where g.id = k.success_tag_id) as "successTag", k.opt_out_hint as "optOutHint", k.scheduled_at as "scheduledAt",
   k.started_at as "startedAt", k.finished_at as "finishedAt", k.last_error as "lastError",
   ${memberJson('k.created_by')} as "createdBy", ${memberJson('k.started_by')} as "startedBy",
   k.created_at as "createdAt", k.updated_at as "updatedAt", ${STATS('k')} as stats,
@@ -193,7 +194,7 @@ export class CampaignsService {
     const flow = b.channel === 'whatsapp' ? b.flowId ?? null : null;
     return [b.name, b.description, b.channel, JSON.stringify(b.audience), b.accountId ?? null, b.channel === 'email' ? b.subject : null,
       b.body, b.perMinute, b.windowStart ?? null, b.windowEnd ?? null, b.optOutHint, flow ? null : b.templateId ?? null, JSON.stringify(flow ? [] : b.templateParams), flow,
-      [...new Set(b.windowDays ?? [])].sort(), b.maxPerHour ?? null, b.maxPerDay ?? null, b.pauseAt ?? null];
+      [...new Set(b.windowDays ?? [])].sort(), b.maxPerHour ?? null, b.maxPerDay ?? null, b.pauseAt ?? null, b.successTagId ?? null];
   }
 
   /** Fluxo de campanha: do mesmo número de WhatsApp e com gatilho "campanha" (transmissão). */
@@ -211,11 +212,14 @@ export class CampaignsService {
     return this.db.app(tenantCtx(actor), async (q) => {
       await this.checkAccount(q, b.channel, b.accountId);
       await this.checkFlow(q, b);
+      if (b.successTagId && !(await q.query('select 1 from tags where id = $1', [b.successTagId])).rowCount) {
+        throw Problem.badRequest('Etiqueta inválida.', [{ field: 'successTagId', message: 'Escolha uma etiqueta da empresa.' }]);
+      }
       const r = await q.query<{ id: string }>(
         `insert into campaigns (tenant_id, name, description, channel, audience, channel_account_id, subject, body, per_minute,
                                 window_start, window_end, opt_out_hint, template_id, template_params, flow_id,
-                                window_days, max_per_hour, max_per_day, pause_at, created_by)
-         values (app.tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) returning id`,
+                                window_days, max_per_hour, max_per_day, pause_at, success_tag_id, created_by)
+         values (app.tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) returning id`,
         [...this.values(b), actor.membershipId]);
       return this.row(q, r.rows[0]!.id);
     });
@@ -227,10 +231,13 @@ export class CampaignsService {
       if (cur.status !== 'draft' && cur.status !== 'scheduled') throw Problem.conflict('Só dá para editar a campanha antes de o envio começar.');
       await this.checkAccount(q, b.channel, b.accountId);
       await this.checkFlow(q, b);
+      if (b.successTagId && !(await q.query('select 1 from tags where id = $1', [b.successTagId])).rowCount) {
+        throw Problem.badRequest('Etiqueta inválida.', [{ field: 'successTagId', message: 'Escolha uma etiqueta da empresa.' }]);
+      }
       await q.query(
         `update campaigns set name = $2, description = $3, channel = $4, audience = $5, channel_account_id = $6, subject = $7, body = $8,
                 per_minute = $9, window_start = $10, window_end = $11, opt_out_hint = $12, template_id = $13, template_params = $14, flow_id = $15,
-                window_days = $16, max_per_hour = $17, max_per_day = $18, pause_at = $19 where id = $1`, [id, ...this.values(b)]);
+                window_days = $16, max_per_hour = $17, max_per_day = $18, pause_at = $19, success_tag_id = $20 where id = $1`, [id, ...this.values(b)]);
       return this.row(q, id);
     });
   }
@@ -254,14 +261,37 @@ export class CampaignsService {
     });
   }
 
+  /**
+   * Etiqueta de quem recebeu com sucesso: muda a qualquer momento e já marca
+   * quem recebeu até agora (os próximos envios com sucesso também ganham).
+   */
+  async setSuccessTag(actor: Actor, id: string, tagId: string | null) {
+    return this.db.app(tenantCtx(actor), async (q) => {
+      await this.row(q, id);
+      if (tagId && !(await q.query('select 1 from tags where id = $1', [tagId])).rowCount) {
+        throw Problem.badRequest('Etiqueta inválida.', [{ field: 'tagId', message: 'Escolha uma etiqueta da empresa.' }]);
+      }
+      await q.query('update campaigns set success_tag_id = $2 where id = $1', [id, tagId]);
+      let tagged = 0;
+      if (tagId) {
+        tagged = (await q.query(
+          `insert into contact_tags (tenant_id, contact_id, tag_id)
+           select app.tenant_id(), r.contact_id, $2 from campaign_recipients r where r.campaign_id = $1 and r.status = 'sent'
+           on conflict do nothing`, [id, tagId])).rowCount ?? 0;
+      }
+      await audit(q, actor, 'campaign.success_tag', 'campaign', id, { tagId, tagged });
+      return { ...(await this.row(q, id)), tagged };
+    });
+  }
+
   async duplicate(actor: Actor, id: string) {
     return this.db.app(tenantCtx(actor), async (q) => {
       await this.row(q, id);
       const r = await q.query<{ id: string }>(
         `insert into campaigns (tenant_id, name, description, channel, audience, channel_account_id, subject, body, per_minute,
-                                window_start, window_end, opt_out_hint, window_days, max_per_hour, max_per_day, created_by)
+                                window_start, window_end, opt_out_hint, window_days, max_per_hour, max_per_day, success_tag_id, created_by)
          select tenant_id, left(name || ' (cópia)', 120), description, channel, audience, channel_account_id, subject, body, per_minute,
-                window_start, window_end, opt_out_hint, window_days, max_per_hour, max_per_day, $2 from campaigns where id = $1 returning id`, [id, actor.membershipId]);
+                window_start, window_end, opt_out_hint, window_days, max_per_hour, max_per_day, success_tag_id, $2 from campaigns where id = $1 returning id`, [id, actor.membershipId]);
       await q.query('update campaigns k set template_id = o.template_id, template_params = o.template_params, flow_id = o.flow_id from campaigns o where k.id = $1 and o.id = $2',
         [r.rows[0]!.id, id]);
       return this.row(q, r.rows[0]!.id);
@@ -382,9 +412,9 @@ export class CampaignsService {
       const c = (await q.query<{ status: string; channel: Channel; audience: Audience; channel_account_id: string | null; subject: string | null;
         body: string | null; per_minute: number; prepared_at: Date | null; opt_out_hint: boolean; tenant_name: string;
         template_id: string | null; template_params: string[]; flow_id: string | null; account_kind: string | null;
-        max_per_hour: number | null; max_per_day: number | null; pause_at: Date | null; timezone: string }>(
+        max_per_hour: number | null; max_per_day: number | null; pause_at: Date | null; timezone: string; success_tag_id: string | null }>(
         `select k.status, k.channel, k.audience, k.channel_account_id, k.subject, k.body, k.per_minute, k.prepared_at, k.opt_out_hint,
-                k.template_id, k.template_params, k.flow_id, t.name as tenant_name, k.max_per_hour, k.max_per_day, k.pause_at, t.timezone,
+                k.template_id, k.template_params, k.flow_id, t.name as tenant_name, k.max_per_hour, k.max_per_day, k.pause_at, t.timezone, k.success_tag_id,
                 (select a.kind from channel_accounts a where a.id = k.channel_account_id) as account_kind
            from campaigns k join tenants t on t.id = k.tenant_id where k.id = $1`, [campaignId])).rows[0];
       if (!c || c.status !== 'sending') return null;
@@ -463,9 +493,15 @@ export class CampaignsService {
             accountId: k.channel_account_id!, to: r.address, text, subject: k.subject ? render(k.subject, vars) : null,
             templateId: k.template_id, templateParams: k.template_id ? (k.template_params ?? []).map((v) => render(v, vars) || '-') : null,
           }) as { id: string | null; status: string; error: string | null };
-        await this.db.app(ctx, (q) => q.query(
-          `update campaign_recipients set status = $2, reason = $3, message_id = $4, sent_at = case when $2 = 'sent' then now() end where id = $1`,
-          [r.id, m.status === 'failed' ? 'failed' : 'sent', m.status === 'failed' ? m.error : null, m.id]));
+        await this.db.app(ctx, async (q) => {
+          await q.query(
+            `update campaign_recipients set status = $2, reason = $3, message_id = $4, sent_at = case when $2 = 'sent' then now() end where id = $1`,
+            [r.id, m.status === 'failed' ? 'failed' : 'sent', m.status === 'failed' ? m.error : null, m.id]);
+          // Etiqueta de quem recebeu com sucesso (para filtrar depois).
+          if (m.status !== 'failed' && k.success_tag_id) {
+            await q.query('insert into contact_tags (tenant_id, contact_id, tag_id) values (app.tenant_id(), $1, $2) on conflict do nothing', [r.contact_id, k.success_tag_id]);
+          }
+        });
         if (m.status !== 'failed') sent++;
       } catch (err) {
         const p = err instanceof Problem ? err : null;

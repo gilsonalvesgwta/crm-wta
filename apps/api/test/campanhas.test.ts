@@ -336,4 +336,28 @@ describe('campanha de e-mail, pausa e conta desconectada', () => {
     // Formato antigo (um funil e uma etapa) continua valendo.
     assert.deepEqual(await names({ pipelineId: pl.id, stageId: s2 }), [1, ['Gama']]);
   });
+
+  test('etiqueta de quem recebeu com sucesso: na hora do envio e depois, para quem já recebeu', async () => {
+    const ok1 = await contact({ firstName: 'Recebe 1', phones: [{ number: '+55 21 95555-0001' }] });
+    const ok2 = await contact({ firstName: 'Recebe 2', phones: [{ number: '+55 21 95555-0002' }] });
+    const tag = (await admin.post('/api/v1/tags', { name: 'Recebeu Black Friday' })).body.id;
+    assert.equal((await admin.post('/api/v1/campaigns', { name: 'X', channel: 'whatsapp', accountId: wa, body: 'Oi', audience: { contactIds: [ok1] }, successTagId: '00000000-0000-4000-8000-000000000000' })).status, 422);
+    const c = await admin.post('/api/v1/campaigns', { name: 'Com etiqueta', channel: 'whatsapp', accountId: wa, body: 'Oi', audience: { contactIds: [ok1, ok2] }, perMinute: 120, successTagId: tag });
+    assert.equal(c.status, 201, JSON.stringify(c.body));
+    assert.equal(c.body.successTag.name, 'Recebeu Black Friday');
+    assert.equal((await admin.post(`/api/v1/campaigns/${c.body.id}/start`, {})).status, 200);
+    assert.equal(await drain(c.body.id), 'done');
+    const has = async (tagId: string) => (await f.admin.query('select contact_id from contact_tags where tag_id = $1 order by contact_id', [tagId])).rows.map((x) => x.contact_id).sort();
+    assert.deepEqual(await has(tag), [ok1, ok2].sort());
+    // Depois do envio: outra etiqueta marca quem já recebeu.
+    const later = (await admin.post('/api/v1/tags', { name: 'Campanha novembro' })).body.id;
+    const r = await marketing.patch(`/api/v1/campaigns/${c.body.id}/success-tag`, { tagId: later });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal(r.body.tagged, 2);
+    assert.deepEqual(await has(later), [ok1, ok2].sort());
+    assert.equal((await sales.patch(`/api/v1/campaigns/${c.body.id}/success-tag`, { tagId: null })).status, 403);
+    // Filtrar depois: o público da próxima campanha pela etiqueta.
+    const pv = await marketing.post('/api/v1/campaigns/preview', { channel: 'whatsapp', audience: { tagIds: [later] } });
+    assert.equal(pv.body.eligible, 2);
+  });
 });
