@@ -1,0 +1,13 @@
+
+> crm-wta@ typecheck /home/runner/work/crm-wta/crm-wta
+> pnpm -r --if-present typecheck
+
+Scope: 2 of 3 workspace projects
+apps/api typecheck$ tsc -p tsconfig.json --noEmit
+apps/web typecheck$ tsc --noEmit
+apps/api typecheck: test/whatsapp-qr-fluxos.test.ts(56,188): error TS2322: Type 'string' is not assignable to type 'null'.
+apps/api typecheck: Failed
+/home/runner/work/crm-wta/crm-wta/apps/api:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @crm/api@ typecheck: `tsc -p tsconfig.json --noEmit`
+Exit status 2
+ ELIFECYCLE  Command failed with exit code 2.
