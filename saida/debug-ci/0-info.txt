@@ -1,0 +1,4 @@
+commit: 01319e2da069399c5d39d6da68dd3c82e48453a7
+ramo: debug-ci
+execucao: 46082092036
+inicio: 2026-11-27T23:22:37Z
