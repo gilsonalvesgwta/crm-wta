@@ -1,9 +1,9 @@
 Creating network crmwta_interna
-Creating service crmwta_backup
 Creating service crmwta_db
 Creating service crmwta_migrate
 Creating service crmwta_api
 Creating service crmwta_web
+Creating service crmwta_backup
 aguardando os serviços...
 crmwta_api 1/1
 crmwta_backup 1/1
@@ -12,7 +12,7 @@ crmwta_migrate 0/1
 crmwta_web 1/1
 traefik-teste 1/1
 docker 29.4.2 (API 1.54, mínima 1.40)
-traefik-teste.1.947oyml5wm7q@runnervm0hi8g    | [90m2026-11-27T19:17:27Z[0m [31mERR[0m [1mUnable to obtain ACME certificate for domains[0m [36merror=[0m[31m[1m"cannot get ACME client get directory at 'https://127.0.0.1:1/dir': Get \"https://127.0.0.1:1/dir\": dial tcp 127.0.0.1:1: connect: connection refused"[0m[0m [36mACME CA=[0mhttps://127.0.0.1:1/dir [36macmeCA=[0mhttps://127.0.0.1:1/dir [36mdomains=[0m["crm.teste.localhost"] [36mproviderName=[0mletsencryptresolver.acme [36mrouterName=[0mcrmwta-web@docker [36mrule=[0mHost(`crm.teste.localhost`)
+traefik-teste.1.arcan3asvgx5@runnervm3lb7s    | [90m2026-11-27T19:44:10Z[0m [31mERR[0m [1mUnable to obtain ACME certificate for domains[0m [36merror=[0m[31m[1m"cannot get ACME client get directory at 'https://127.0.0.1:1/dir': Get \"https://127.0.0.1:1/dir\": dial tcp 127.0.0.1:1: connect: connection refused"[0m[0m [36mACME CA=[0mhttps://127.0.0.1:1/dir [36macmeCA=[0mhttps://127.0.0.1:1/dir [36mdomains=[0m["crm.teste.localhost"] [36mproviderName=[0mletsencryptresolver.acme [36mrouterName=[0mcrmwta-api@docker [36mrule=[0m"Host(`crm.teste.localhost`) && PathPrefix(`/api`)"
 OK   API pronta atrás do Traefik
 OK   interface responde
 OK   login do superadministrador criado na configuração inicial
@@ -24,9 +24,9 @@ OK   arquivo gravado no volume e baixado pelo endereço assinado
 OK   nenhuma porta da stack publicada
 OK   reimplantar não duplica a configuração inicial
 OK   transcrição no servidor funciona (whisper.cpp)
-backup: crm-20261127-161814.dump (508K)
+backup: crm-20261127-164508.dump (508K)
 OK   cópia do banco
-restaurado em crm_restaurado: 28 migrações, 1 empresas
+restaurado em crm_restaurado: 29 migrações, 1 empresas
 OK   restauração em banco novo
 OK   dados conferidos depois de restaurar
 OK   restauração recusa banco com dados
@@ -46,18 +46,18 @@ OK   serviço db em 1/1
 OK   serviço api em 1/1
 OK   serviço web em 1/1
 OK   serviço backup em 1/1
-migrate| crmwta_migrate.1.4d42rqf7gzeb@runnervm0hi8g    | aplicando 0018_modelos_midia
-migrate| crmwta_migrate.1.4d42rqf7gzeb@runnervm0hi8g    | aplicando 0019_midia_instagram
-migrate| crmwta_migrate.1.4d42rqf7gzeb@runnervm0hi8g    | aplicando 0020_aviso_equipe
-migrate| crmwta_migrate.1.4d42rqf7gzeb@runnervm0hi8g    | aplicando 0021_importar_negocios
-migrate| crmwta_migrate.1.4d42rqf7gzeb@runnervm0hi8g    | aplicando 0022_funis_arquivados
-migrate| crmwta_migrate.1.4d42rqf7gzeb@runnervm0hi8g    | aplicando 0023_whatsapp_fluxos
-migrate| crmwta_migrate.1.4d42rqf7gzeb@runnervm0hi8g    | aplicando 0024_conversas_ocultas
-migrate| crmwta_migrate.1.4d42rqf7gzeb@runnervm0hi8g    | aplicando 0025_notas_audio_negocio_parado
-migrate| crmwta_migrate.1.4d42rqf7gzeb@runnervm0hi8g    | aplicando 0026_aviso_parado_destinatarios
-migrate| crmwta_migrate.1.4d42rqf7gzeb@runnervm0hi8g    | aplicando 0027_transcricao_nota_audio
-migrate| crmwta_migrate.1.4d42rqf7gzeb@runnervm0hi8g    | aplicando 0028_campanha_limites
-migrate| crmwta_migrate.1.4d42rqf7gzeb@runnervm0hi8g    | migrações aplicadas agora: 28
-migrate| crmwta_migrate.1.4d42rqf7gzeb@runnervm0hi8g    | papel crm_api pronto
-migrate| crmwta_migrate.1.4d42rqf7gzeb@runnervm0hi8g    | pronto: empresa c3928775-f92a-47ee-bda8-725b2523fee7, superadministrador d17aee6e-15f0-4309-8547-548a1d21a5f6
-migrate| crmwta_migrate.1.4d42rqf7gzeb@runnervm0hi8g    | migrate: concluído
+migrate| crmwta_migrate.1.iz9dixlqv0vm@runnervm3lb7s    | aplicando 0019_midia_instagram
+migrate| crmwta_migrate.1.iz9dixlqv0vm@runnervm3lb7s    | aplicando 0020_aviso_equipe
+migrate| crmwta_migrate.1.iz9dixlqv0vm@runnervm3lb7s    | aplicando 0021_importar_negocios
+migrate| crmwta_migrate.1.iz9dixlqv0vm@runnervm3lb7s    | aplicando 0022_funis_arquivados
+migrate| crmwta_migrate.1.iz9dixlqv0vm@runnervm3lb7s    | aplicando 0023_whatsapp_fluxos
+migrate| crmwta_migrate.1.iz9dixlqv0vm@runnervm3lb7s    | aplicando 0024_conversas_ocultas
+migrate| crmwta_migrate.1.iz9dixlqv0vm@runnervm3lb7s    | aplicando 0025_notas_audio_negocio_parado
+migrate| crmwta_migrate.1.iz9dixlqv0vm@runnervm3lb7s    | aplicando 0026_aviso_parado_destinatarios
+migrate| crmwta_migrate.1.iz9dixlqv0vm@runnervm3lb7s    | aplicando 0027_transcricao_nota_audio
+migrate| crmwta_migrate.1.iz9dixlqv0vm@runnervm3lb7s    | aplicando 0028_campanha_limites
+migrate| crmwta_migrate.1.iz9dixlqv0vm@runnervm3lb7s    | aplicando 0029_campanha_etiqueta_sucesso
+migrate| crmwta_migrate.1.iz9dixlqv0vm@runnervm3lb7s    | migrações aplicadas agora: 29
+migrate| crmwta_migrate.1.iz9dixlqv0vm@runnervm3lb7s    | papel crm_api pronto
+migrate| crmwta_migrate.1.iz9dixlqv0vm@runnervm3lb7s    | pronto: empresa ad6a4794-2521-4ea2-a0ce-cff3f7301146, superadministrador bd2b19bf-9769-4b82-a7af-de420bb2f4c4
+migrate| crmwta_migrate.1.iz9dixlqv0vm@runnervm3lb7s    | migrate: concluído
