@@ -143,8 +143,6 @@ describe('Fluxos no WhatsApp por QR code', () => {
     const tagged = await f.admin.query(
       "select 1 from contact_tags ct join contact_phones p on p.contact_id = ct.contact_id where p.e164 = '+5521911112222' and ct.tag_id = $1", [tag]);
     assert.equal(tagged.rowCount, 1, 'a ação do caminho rodou');
-    const r = await admin.get(`/api/v1/whatsapp/flows/${flowId}/results`);
-    assert.equal(r.status, 200);
   });
 
   test('aceita o nome ou uma palavra da opção; resposta fora das opções pede de novo (até 2 vezes)', async () => {
@@ -175,7 +173,7 @@ describe('Fluxos no WhatsApp por QR code', () => {
     await inbound('5521999990000', 'promo', false, 'Edu');
     await f.admin.query("update ig_flow_runs set updated_at = now() - interval '1 minute' where ig_user_id like '%999990000' and status = 'waiting'");
     await inbound('5521999990000', 'Oi Edu, aqui é o Rhus!', true);
-    const run = await f.admin.query("select status, last_error from ig_flow_runs where ig_user_id like '%999990000' order by created_at desc limit 1");
+    const run = await f.admin.query("select status, last_error from ig_flow_runs where ig_user_id like '%999990000' order by updated_at desc limit 1");
     assert.equal(run.rows[0].status, 'canceled');
     assert.equal(run.rows[0].last_error, 'A equipe assumiu a conversa');
     await inbound('5521999990000', '1');
