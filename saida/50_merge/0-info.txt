@@ -1,0 +1,4 @@
+commit: 609f0b140454ffccb6dc5ca36aadea4183033d70
+ramo: 50/merge
+execucao: 46067121534
+inicio: 2026-11-27T20:58:26Z
