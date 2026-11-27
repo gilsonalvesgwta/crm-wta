@@ -70,10 +70,15 @@ function audienceSql(p: Params, a: Audience, channel: Channel): string {
   if (a.createdFrom) conds.push(`c.created_at >= (${p.add(a.createdFrom)}::date at time zone (select timezone from tenants where id = app.tenant_id()))`);
   if (a.createdTo) conds.push(`c.created_at < ((${p.add(a.createdTo)}::date + 1) at time zone (select timezone from tenants where id = app.tenant_id()))`);
   const ch = p.add(channel);
-  const address = channel === 'whatsapp'
+  // WhatsApp: qualquer telefone do contato (celular, WhatsApp, trabalho, casa ou fixo; o tipo não importa),
+  // o principal primeiro; sem telefone no contato, o da organização dele.
+  const own = channel === 'whatsapp'
     ? '(select x.e164 from contact_phones x where x.contact_id = c.id order by x.is_primary desc, x.created_at limit 1)'
     : '(select x.email from contact_emails x where x.contact_id = c.id order by x.is_primary desc, x.created_at limit 1)';
-  return `select c.id, c.name, ${address} as address,
+  const org = channel === 'whatsapp'
+    ? '(select o.phone from organizations o where o.id = c.organization_id)'
+    : '(select o.email from organizations o where o.id = c.organization_id)';
+  return `select c.id, c.name, coalesce(${own}, ${org}) as address, (${own} is null and ${org} is not null) as from_org,
             (select s.status from consents s where s.contact_id = c.id and s.channel = ${ch} and s.purpose = 'marketing'
               order by s.recorded_at desc limit 1) as consent
           from contacts c where ${conds.join(' and ')}`;
@@ -137,7 +142,8 @@ export class CampaignsService {
       const p = new Params();
       const base = audienceSql(p, a, channel);
       const ok = eligibleSql(p, a.consentOnly, channel);
-      const r = await q.query<{ total: number; eligible: number; no_address: number; revoked: number; no_consent: number; suppressed: number; sample: string[] | null }>(
+      const r = await q.query<{ total: number; eligible: number; no_address: number; revoked: number; no_consent: number; suppressed: number; sample: string[] | null;
+        from_org: number; duplicates: number; missing: { id: string; name: string; twin: string | null }[] | null }>(
         `with a as (${base})
          select count(*)::int as total,
                 count(*) filter (where ${ok})::int as eligible,
@@ -145,10 +151,21 @@ export class CampaignsService {
                 count(*) filter (where a.address is not null and a.consent = 'revoked')::int as revoked,
                 count(*) filter (where a.address is not null and coalesce(a.consent, '') <> 'revoked' and ${a.consentOnly ? `a.consent is distinct from 'granted'` : 'false'})::int as no_consent,
                 count(*) filter (where a.address is not null and exists (select 1 from suppression_list s where s.channel = ${p.add(channel)} and s.value = a.address))::int as suppressed,
-                (array_agg(a.name order by a.name) filter (where ${ok}))[1:5] as sample
-           from a`, p.values);
+                (array_agg(a.name order by a.name) filter (where ${ok}))[1:5] as sample,
+                count(*) filter (where ${ok} and a.from_org)::int as from_org,
+                count(*) filter (where a.address is null and a.twin is not null)::int as duplicates,
+                (array_agg(json_build_object('id', a.id, 'name', a.name, 'twin', a.twin) order by a.twin is null, a.name) filter (where a.address is null))[1:50] as missing
+           from (select a.*,
+                        -- Sem telefone, mas há outro contato com o mesmo nome que tem: provável cadastro duplicado (ex.: importação).
+                        case when a.address is null then (select t.id from contacts t where t.id <> a.id and t.anonymized_at is null
+                            and app.norm(t.name) = app.norm(a.name)
+                            and exists (select 1 from ${channel === 'whatsapp' ? 'contact_phones' : 'contact_emails'} x where x.contact_id = t.id) limit 1) end as twin
+                   from a) a`, p.values);
       const x = r.rows[0]!;
-      return { total: x.total, eligible: x.eligible, noAddress: x.no_address, revoked: x.revoked, noConsent: x.no_consent, suppressed: x.suppressed, sample: x.sample ?? [] };
+      return {
+        total: x.total, eligible: x.eligible, noAddress: x.no_address, revoked: x.revoked, noConsent: x.no_consent, suppressed: x.suppressed, sample: x.sample ?? [],
+        fromOrganization: x.from_org, duplicates: x.duplicates, missing: x.missing ?? [],
+      };
     });
   }
 

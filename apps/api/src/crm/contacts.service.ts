@@ -37,6 +37,8 @@ export type ContactInput = {
 export type ContactFilters = {
   q?: string; ownerId?: string; teamId?: string; organizationId?: string; tagId?: string;
   createdFrom?: string; createdTo?: string; birthdayMonth?: number;
+  /** none: sem nenhum telefone; any: com telefone. */
+  phone?: 'none' | 'any';
   sort: 'name' | 'created' | 'updated' | 'activity'; dir: 'asc' | 'desc'; page: number; pageSize: number;
 };
 
@@ -56,7 +58,7 @@ export const contactOwnExtra = (me: string) => `(
           or exists (select 1 from deal_participants dp where dp.deal_id = d.id and dp.membership_id = ${me})))
   or exists (select 1 from leads l where l.contact_id = c.id and l.owner_membership_id = ${me}))`;
 
-export type DuplicateCandidate = { id: string; name: string; matchedBy: ('email' | 'phone')[]; visible: boolean };
+export type DuplicateCandidate = { id: string; name: string; matchedBy: ('email' | 'phone' | 'name')[]; visible: boolean };
 
 @Injectable()
 export class ContactsService {
@@ -86,6 +88,7 @@ export class ContactsService {
       if (f.createdFrom) where.push(`c.created_at >= ${p.add(f.createdFrom)}`);
       if (f.createdTo) where.push(`c.created_at < ${p.add(f.createdTo)}`);
       if (f.birthdayMonth) where.push(`c.birth_month = ${p.add(f.birthdayMonth)}`);
+      if (f.phone) where.push(`${f.phone === 'none' ? 'not ' : ''}exists (select 1 from contact_phones ph where ph.contact_id = c.id)`);
       const dir = f.dir === 'asc' ? 'asc' : 'desc';
       const order = {
         name: `lower(c.first_name) ${dir}, lower(coalesce(c.last_name, '')) ${dir}`,
@@ -208,8 +211,19 @@ export class ContactsService {
       await this.visible(q, r, id);
       const e = await q.query<{ email: string }>('select email from contact_emails where contact_id = $1', [id]);
       const ph = await q.query<{ e164: string }>('select e164 from contact_phones where contact_id = $1', [id]);
-      const all = await this.findDuplicates(q, r, e.rows.map((x) => x.email), ph.rows.map((x) => x.e164), id);
-      return all.filter((d) => d.visible);
+      const all = (await this.findDuplicates(q, r, e.rows.map((x) => x.email), ph.rows.map((x) => x.e164), id)).filter((d) => d.visible);
+      // Sem e-mail ou sem telefone: o mesmo nome também indica duplicado (ex.: pessoas e negócios importados separados).
+      if (!e.rows.length || !ph.rows.length) {
+        const p = new Params();
+        const vis = reachSql(p, 'c', r, contactOwnExtra);
+        const same = await q.query<{ id: string; name: string }>(
+          `select c.id, c.name from contacts c
+            where app.norm(c.name) = (select app.norm(x.name) from contacts x where x.id = ${p.add(id)})
+              and c.id <> ${p.add(id)} and c.anonymized_at is null and ${vis}
+            order by c.created_at limit 10`, p.values);
+        for (const x of same.rows) if (!all.some((d) => d.id === x.id)) all.push({ id: x.id, name: x.name, matchedBy: ['name'], visible: true });
+      }
+      return all;
     });
   }
 

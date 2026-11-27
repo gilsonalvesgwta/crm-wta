@@ -24,7 +24,15 @@ export type Campaign = {
   flowStats?: { clicked: number; completed: number; waiting: number } | null;
 };
 
-export type AudiencePreview = { total: number; eligible: number; noAddress: number; revoked: number; noConsent: number; suppressed: number; sample: string[] };
+export type AudiencePreview = {
+  total: number; eligible: number; noAddress: number; revoked: number; noConsent: number; suppressed: number; sample: string[];
+  /** Vão receber pelo telefone (ou e-mail) da organização, porque o contato não tem. */
+  fromOrganization?: number;
+  /** Sem telefone, mas há outro contato com o mesmo nome que tem (provável duplicado). */
+  duplicates?: number;
+  /** Os que ficam de fora por falta de endereço (até 50), com o possível duplicado. */
+  missing?: { id: string; name: string; twin: string | null }[];
+};
 
 export type Recipient = {
   id: string; status: 'pending' | 'sending' | 'sent' | 'failed' | 'skipped'; reason: string | null; address: string;

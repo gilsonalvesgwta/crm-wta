@@ -26,7 +26,7 @@ function Contacts() {
   const router = useRouter();
   const { data: dir } = useDirectory();
   const { data: tags } = useTags();
-  const [f, setF] = useQueryState({ q: '', ownerId: '', tagId: '', birthdayMonth: '', sort: 'created', page: '1' });
+  const [f, setF] = useQueryState({ q: '', ownerId: '', tagId: '', birthdayMonth: '', telefone: '', sort: 'created', page: '1' });
   const [q, setQ] = useState(f.q);
   const dq = useDebounced(q);
   useEffect(() => { if (dq !== f.q) setF({ q: dq, page: '1' }); }, [dq]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -37,8 +37,9 @@ function Contacts() {
   if (f.ownerId) params.set('ownerId', f.ownerId);
   if (f.tagId) params.set('tagId', f.tagId);
   if (f.birthdayMonth) params.set('birthdayMonth', f.birthdayMonth);
+  if (f.telefone === 'sem' || f.telefone === 'com') params.set('phone', f.telefone === 'sem' ? 'none' : 'any');
   const list = useLoad(() => api<Page<ContactItem>>('GET', `/api/v1/contacts?${params}`), [params.toString()]);
-  const filtered = !!(f.q || f.ownerId || f.tagId || f.birthdayMonth);
+  const filtered = !!(f.q || f.ownerId || f.tagId || f.birthdayMonth || f.telefone);
 
   const exportHref = `/api/v1/contacts/export.csv?${new URLSearchParams(Object.fromEntries(Object.entries({ ownerId: f.ownerId, tagId: f.tagId }).filter(([, v]) => v)))}`;
 
@@ -70,11 +71,14 @@ function Contacts() {
           <option value="">Aniversário: todos</option>
           {MONTHS.map((m, i) => <option key={m} value={i + 1}>Aniversário em {m}</option>)}
         </select>
+        <select aria-label="Telefone" value={f.telefone} onChange={(e) => setF({ telefone: e.target.value, page: '1' })} className="h-10 rounded-[6px] border border-line-strong bg-surface px-2.5 text-sm">
+          <option value="">Telefone: todos</option><option value="com">Com telefone</option><option value="sem">Sem telefone</option>
+        </select>
         <select aria-label="Ordenar" value={f.sort} onChange={(e) => setF({ sort: e.target.value, page: '1' })} className="h-10 rounded-[6px] border border-line-strong bg-surface px-2.5 text-sm">
           <option value="created">Mais recentes</option><option value="name">Nome (A–Z)</option>
           <option value="activity">Última atividade</option><option value="updated">Alterados por último</option>
         </select>
-        {filtered ? <Button variant="ghost" onClick={() => { setQ(''); setF({ q: '', ownerId: '', tagId: '', birthdayMonth: '', page: '1' }); }}>Limpar filtros</Button> : null}
+        {filtered ? <Button variant="ghost" onClick={() => { setQ(''); setF({ q: '', ownerId: '', tagId: '', birthdayMonth: '', telefone: '', page: '1' }); }}>Limpar filtros</Button> : null}
       </div>
 
       <section aria-label="Lista de contatos" className="rounded-[10px] border border-line bg-surface">

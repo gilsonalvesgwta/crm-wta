@@ -110,10 +110,38 @@ describe('campanha de WhatsApp', () => {
     const r = await marketing.post('/api/v1/campaigns/preview', { channel: 'whatsapp', audience: { tagIds: [vip], excludeTagIds: [cold] } });
     assert.equal(r.status, 200, JSON.stringify(r.body));
     // VIP sem "Frio": Ana, Bia, Caio, Eva. Caio sem telefone; Bia pediu para sair; Eva revogou.
-    assert.deepEqual(r.body, { total: 4, eligible: 1, noAddress: 1, revoked: 1, noConsent: 0, suppressed: 1, sample: ['Ana'] });
+    const { missing, ...rest } = r.body;
+    assert.deepEqual(rest, { total: 4, eligible: 1, noAddress: 1, revoked: 1, noConsent: 0, suppressed: 1, sample: ['Ana'], fromOrganization: 0, duplicates: 0 });
+    assert.deepEqual(missing.map((m: { name: string; twin: string | null }) => [m.name, m.twin]), [['Caio', null]], 'mostra quem está sem telefone');
     const e = await marketing.post('/api/v1/campaigns/preview', { channel: 'email', audience: { tagIds: [vip] } });
     assert.equal(e.body.eligible, 4, 'por e-mail: Ana, Bia, Caio e Eva');
     assert.equal((await sales.post('/api/v1/campaigns/preview', { channel: 'whatsapp', audience: {} })).status, 403);
+  });
+
+  test('qualquer telefone vale (fixo também); sem telefone, usa o da organização e aponta o provável duplicado', async () => {
+    const t = (await admin.post('/api/v1/tags', { name: 'Base importada' })).body.id;
+    const org = await admin.post('/api/v1/organizations', { name: 'Clínica Sol', phone: '(11) 3333-4444' });
+    assert.equal(org.status, 201, JSON.stringify(org.body));
+    const fixo = await contact({ firstName: 'Fixo', phones: [{ number: '(11) 3222-1111', label: 'home' }] });
+    const semTel = await contact({ firstName: 'Gil Org', organizationId: org.body.id });
+    const dup = await contact({ firstName: 'Hugo Prado' });
+    const twin = await contact({ firstName: 'Hugo Prado', phones: [{ number: '+55 11 95555-0009' }], allowDuplicate: true });
+    for (const id of [fixo, semTel, dup]) await f.admin.query('insert into contact_tags (tenant_id, contact_id, tag_id) values ($1, $2, $3)', [f.tenantA, id, t]);
+    const r = await marketing.post('/api/v1/campaigns/preview', { channel: 'whatsapp', audience: { tagIds: [t] } });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal(r.body.eligible, 2, 'o fixo e o da organização');
+    assert.equal(r.body.fromOrganization, 1);
+    assert.equal(r.body.noAddress, 1);
+    assert.equal(r.body.duplicates, 1);
+    assert.deepEqual(r.body.missing, [{ id: dup, name: 'Hugo Prado', twin }]);
+    // A página do contato também avisa o duplicado pelo nome.
+    const d = await admin.get(`/api/v1/contacts/${dup}/duplicates`);
+    assert.deepEqual(d.body.map((x: { id: string; matchedBy: string[] }) => [x.id, x.matchedBy]), [[twin, ['name']]]);
+    // Contatos: filtro "sem telefone".
+    const sem = await admin.get('/api/v1/contacts?phone=none&pageSize=100');
+    assert.equal(sem.status, 200);
+    const ids = sem.body.items.map((x: { id: string }) => x.id);
+    assert.ok(ids.includes(dup) && ids.includes(semTel) && !ids.includes(fixo));
   });
 
   test('o marketing cria o rascunho; só quem aprova inicia o envio', async () => {

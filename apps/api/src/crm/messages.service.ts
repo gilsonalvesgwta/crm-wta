@@ -317,6 +317,12 @@ export class MessagesService {
         : channel === 'instagram'
           ? (await q.query<{ v: string }>("select value as v from contact_handles where contact_id = $1 and kind = 'instagram' order by created_at", [contactId])).rows.map((r) => r.v)
           : (await q.query<{ v: string }>('select email as v from contact_emails where contact_id = $1 order by is_primary desc, created_at', [contactId])).rows.map((r) => r.v);
+      // Sem telefone (ou e-mail) no contato: usa o da organização dele, como no público das campanhas.
+      if (!options.length && channel !== 'instagram') {
+        const o = (await q.query<{ v: string | null }>(
+          `select ${channel === 'whatsapp' ? 'o.phone' : 'o.email'} as v from contacts c join organizations o on o.id = c.organization_id where c.id = $1`, [contactId])).rows[0]?.v;
+        if (o) options.push(o);
+      }
       if (!options.length) {
         throw Problem.badRequest(channel === 'whatsapp' ? 'O contato não tem telefone.' : channel === 'instagram' ? 'O contato não tem Instagram.' : 'O contato não tem e-mail.',
           [{ field: 'to', message: channel === 'whatsapp' ? 'Cadastre um telefone no contato.' : channel === 'instagram' ? 'O Instagram aparece quando a pessoa manda mensagem.' : 'Cadastre um e-mail no contato.' }]);

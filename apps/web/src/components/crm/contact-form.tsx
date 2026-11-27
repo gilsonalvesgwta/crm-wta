@@ -91,7 +91,7 @@ function ContactForm({ contact, organization, onSaved, onCancel }: {
             <li key={d.id} className="flex items-center justify-between gap-3 rounded-[8px] border border-line px-3 py-2.5">
               <div>
                 <p className="font-medium">{d.name}</p>
-                <p className="text-[13px] text-muted">Mesmo {d.matchedBy.map((m) => (m === 'email' ? 'e-mail' : 'telefone')).join(' e ')}</p>
+                <p className="text-[13px] text-muted">Mesmo {d.matchedBy.map((m) => (m === 'email' ? 'e-mail' : m === 'phone' ? 'telefone' : 'nome')).join(' e ')}</p>
               </div>
               {d.visible ? <Link href={`/contatos/${d.id}`} className="text-[13px] font-medium text-accent hover:underline">Abrir</Link>
                 : <span className="text-[13px] text-muted">De outro responsável</span>}

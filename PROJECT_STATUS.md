@@ -10,6 +10,12 @@ Atualizado em 9 de novembro de 2026.
 
 ## Concluído, com teste
 
+### Telefones no público das campanhas (27 nov 2026)
+
+- Campanha de WhatsApp usa qualquer telefone do contato (celular, WhatsApp, trabalho, casa ou fixo; o tipo nunca foi filtro). Contato sem telefone usa o da organização dele.
+- A prévia do público mostra "Ver quem está sem telefone" (até 50, com link) e aponta o provável duplicado: outro contato com o mesmo nome que tem telefone (comum depois de importar pessoas e negócios separados).
+- A página do contato avisa duplicado também pelo mesmo nome (quando falta e-mail ou telefone), com "Mesclar aqui".
+- Contatos: filtro "Com telefone / Sem telefone".
 ### Fluxos no WhatsApp por QR code (27 nov 2026)
 
 - O construtor de fluxos (arrastar e soltar) agora funciona com o número conectado por QR code (Evolution), além do oficial e do Instagram.

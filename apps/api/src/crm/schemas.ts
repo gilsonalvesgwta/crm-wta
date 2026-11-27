@@ -51,6 +51,7 @@ export const contactQuery = z.object({
   createdFrom: isoDateTime.optional(),
   createdTo: isoDateTime.optional(),
   birthdayMonth: z.coerce.number().int().min(1).max(12).optional(),
+  phone: z.enum(['none', 'any']).optional(),
   sort: z.enum(['name', 'created', 'updated', 'activity']).default('created'),
   dir: z.enum(['asc', 'desc']).default('desc'),
   page, pageSize,

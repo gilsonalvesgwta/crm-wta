@@ -305,6 +305,27 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
                       {preview.noConsent ? <li>{preview.noConsent} sem consentimento registrado</li> : null}
                     </ul>
                   ) : null}
+                  {d.channel === 'whatsapp' ? (
+                    <p className="text-[12px] text-muted">Vale qualquer telefone do contato (celular, WhatsApp, trabalho, casa ou fixo): o tipo escolhido no cadastro não importa. Número que não tem WhatsApp aparece como falha no relatório da campanha.</p>
+                  ) : null}
+                  {preview.fromOrganization ? <p className="text-[13px] text-muted">{preview.fromOrganization} pelo {d.channel === 'email' ? 'e-mail' : 'telefone'} da organização (o contato não tem).</p> : null}
+                  {preview.missing?.length ? (
+                    <details className="mt-1 text-[13px]">
+                      <summary className="cursor-pointer font-medium text-ink">Ver quem está sem {d.channel === 'email' ? 'e-mail' : 'telefone'}{preview.duplicates ? ` (${preview.duplicates} parecem duplicados)` : ''}</summary>
+                      {preview.duplicates ? (
+                        <p className="mt-1.5 text-muted">“Duplicado?” quer dizer que existe outro contato com o mesmo nome que tem {d.channel === 'email' ? 'e-mail' : 'telefone'} (comum depois de importar pessoas e negócios separados). Abra o contato e use “Mesclar aqui” para ficar com um só, com o negócio e o telefone.</p>
+                      ) : null}
+                      <ul className="mt-1.5 flex max-h-56 flex-col gap-0.5 overflow-y-auto">
+                        {preview.missing.map((m) => (
+                          <li key={m.id} className="flex flex-wrap items-center gap-2">
+                            <Link href={`/contatos/${m.id}`} target="_blank" className="underline">{m.name}</Link>
+                            {m.twin ? <Link href={`/contatos/${m.twin}`} target="_blank" className="rounded-full bg-warn-soft px-2 py-0.5 text-[12px] font-medium text-warn">Duplicado? ver o outro</Link> : null}
+                          </li>
+                        ))}
+                      </ul>
+                      {preview.noAddress > preview.missing.length ? <p className="mt-1 text-muted">Mostrando {preview.missing.length} de {preview.noAddress}. Em Contatos, filtre por “Sem telefone” para ver todos.</p> : null}
+                    </details>
+                  ) : null}
                   {fieldErr('audience') ? <p className="font-medium text-bad">{fieldErr('audience')}</p> : null}
                 </div>
               )}
