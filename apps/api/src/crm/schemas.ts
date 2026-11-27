@@ -170,7 +170,7 @@ export const dealBody = z.object({
 export const dealPatch = dealBody.omit({ pipelineId: true, stageId: true }).partial();
 /** Data em que o negócio foi fechado (AAAA-MM-DD), para acertar negócios antigos: não pode ser no futuro. */
 export const closedDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'Use uma data válida.' })
-  .refine((v) => !Number.isNaN(Date.parse(`${v}T12:00:00Z`)) && v >= '2000-01-01', { message: 'Use uma data válida.' })
+  .refine((v) => { const t = Date.parse(`${v}T12:00:00Z`); return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === v && v >= '2000-01-01'; }, { message: 'Use uma data válida.' })
   .refine((v) => Date.parse(`${v}T00:00:00Z`) <= Date.now() + 14 * 3600_000, { message: 'A data do fechamento não pode ser no futuro.' });
 export const dealMove = z.object({
   stageId: uuid, pipelineId: uuid.optional(), reasonId: uuid.nullable().optional(), note: optText(1000),

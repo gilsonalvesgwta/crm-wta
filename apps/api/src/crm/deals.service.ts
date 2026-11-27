@@ -466,7 +466,7 @@ export class DealsService {
     }
   }
 
-  /** Grava a data do fechamento (meio-dia no fuso da empresa) e acerta a última passagem no funil. */
+  /** Grava a data do fechamento (meio-dia no fuso da empresa); relatórios e metas usam esta data. */
   private async applyClosedAt(q: Q, id: string, day: string): Promise<Date> {
     const r = await q.query<{ closed_at: Date }>(
       `update deals d set closed_at = ($2::date + time '12:00') at time zone t.timezone
@@ -474,9 +474,7 @@ export class DealsService {
     const at = r.rows[0]!.closed_at;
     // Se o dia é hoje e meio-dia ainda não chegou, fica a hora atual.
     if (at.getTime() > Date.now()) await q.query('update deals set closed_at = now() where id = $1', [id]);
-    await q.query(
-      `update deal_stage_history set moved_at = least((select closed_at from deals where id = $1), now())
-        where id = (select id from deal_stage_history where deal_id = $1 order by moved_at desc limit 1)`, [id]);
+    // O caminho no funil (deal_stage_history) só aceita inserção: guarda a hora real da mudança.
     return at;
   }
 

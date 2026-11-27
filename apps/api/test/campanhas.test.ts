@@ -423,7 +423,9 @@ describe('corrigir a mensagem com a campanha pausada e nome estranho no cadastro
     assert.equal((await marketing.patch(`/api/v1/campaigns/${c.body.id}/content`, { body: 'x' })).status, 409, 'enviando: pause antes');
     const before = evo.sent.length;
     assert.equal(await drain(c.body.id), 'done');
-    const texts = evo.sent.slice(before).map((x) => String(x.body.text).split('\n')[0]).sort();
+    // Só as mensagens desta campanha (outra campanha de teste pode estar terminando junto).
+    const texts = evo.sent.slice(before).filter((x) => ['5511922220001', '5511922220002'].includes(String(x.body.number)))
+      .map((x) => String(x.body.text).split('\n')[0]).sort();
     assert.deepEqual(texts, ['Olá Reinaldo, oferta!', 'Olá amigo, oferta!']);
     assert.equal((await marketing.patch(`/api/v1/campaigns/${c.body.id}/content`, { body: 'x' })).status, 409, 'terminada não muda');
   });
