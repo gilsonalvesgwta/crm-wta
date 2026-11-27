@@ -34,12 +34,44 @@ export const audience = z.object({
 }).default({ tagIds: [], tagMode: 'any', excludeTagIds: [], deals: [], excludeDeals: [], ownerIds: [], teamIds: [], sources: [], contactIds: [], consentOnly: false });
 export type Audience = z.infer<typeof audience>;
 
+/** O que acontece quando a pessoa aperta uma tecla na ligação. */
+const keyAction = z.object({
+  label: z.string().trim().max(80).default(''),
+  tagId: uuid.nullable().optional(),
+  optOut: z.boolean().default(false),
+  whatsapp: z.boolean().default(false),
+  sms: z.boolean().default(false),
+  notifyOwner: z.boolean().default(false),
+});
+export type KeyAction = z.infer<typeof keyAction>;
+/** Quando o WhatsApp ou o SMS sai: junto da ligação, se atendeu, se não atendeu ou ao apertar uma tecla marcada. */
+const extraWhen = z.enum(['with_call', 'answered', 'not_answered', 'key']);
+export type ExtraWhen = z.infer<typeof extraWhen>;
+
+/** Campanha de voz: teclas, tempo chamando, caixa postal, WhatsApp e SMS junto. */
+export const voiceSettings = z.object({
+  digits: z.boolean().default(false),
+  keys: z.record(z.string().regex(/^[0-9]$/, { message: 'Use as teclas de 0 a 9.' }), keyAction).default({}),
+  ringSeconds: z.number().int().min(10, { message: 'Mínimo 10 segundos.' }).max(60, { message: 'Máximo 60 segundos.' }).default(30),
+  machineDetection: z.boolean().default(false),
+  whatsapp: z.object({
+    accountId: uuid,
+    text: z.string().trim().min(1, { message: 'Escreva a mensagem do WhatsApp.' }).max(4000),
+    when: extraWhen.default('with_call'),
+  }).nullable().default(null),
+  sms: z.object({
+    text: z.string().trim().min(1, { message: 'Escreva o SMS.' }).max(612, { message: 'SMS de até 612 caracteres.' }),
+    when: extraWhen.default('not_answered'),
+  }).nullable().default(null),
+}).default({ digits: false, keys: {}, ringSeconds: 30, machineDetection: false, whatsapp: null, sms: null });
+export type VoiceSettings = z.infer<typeof voiceSettings>;
+
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'Use HH:MM.' });
 
 export const campaignBody = z.object({
   name: z.string().trim().min(1, { message: 'Informe o nome da campanha.' }).max(120),
   description: z.string().trim().max(1000).nullable().optional().transform((v) => v || null),
-  channel: z.enum(['whatsapp', 'email'], { message: 'Escolha WhatsApp ou e-mail.' }),
+  channel: z.enum(['whatsapp', 'email', 'voice'], { message: 'Escolha WhatsApp, e-mail ou voz.' }),
   audience,
   accountId: uuid.nullable().optional(),
   subject: z.string().trim().max(998).nullable().optional().transform((v) => v || null),
@@ -62,6 +94,10 @@ export const campaignBody = z.object({
   pauseAt: z.string().datetime({ offset: true, message: 'Data e hora inválidas.' }).nullable().optional(),
   /** Etiqueta posta em quem recebeu com sucesso. */
   successTagId: uuid.nullable().optional(),
+  /** Voz: operadora escolhida, áudio (da biblioteca) e opções. */
+  voiceProviderId: uuid.nullable().optional(),
+  audioFileId: uuid.nullable().optional(),
+  voice: voiceSettings,
 }).refine((v) => !!v.windowStart === !!v.windowEnd, { message: 'Informe o início e o fim da janela.', path: ['windowEnd'] });
 export type CampaignInput = z.infer<typeof campaignBody>;
 

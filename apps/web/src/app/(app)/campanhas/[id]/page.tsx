@@ -2,11 +2,11 @@
 import { Suspense, use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Copy, Gauge, Mail, MessageCircle, Pause, Pencil, Play, Trash2, XCircle } from 'lucide-react';
+import { Copy, Gauge, Mail, MessageCircle, Pause, Pencil, Phone, Play, Trash2, XCircle } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { dateTime } from '@/lib/admin-types';
 import { phone, type Page } from '@/lib/crm';
-import { CAMPAIGN_STATUS, RECIPIENT_STATUS, type Campaign, type Recipient } from '@/lib/campaigns';
+import { CALL_STATUS, CAMPAIGN_STATUS, EXTRA_WHEN, RECIPIENT_STATUS, type Campaign, type Recipient } from '@/lib/campaigns';
 import { useSession } from '@/components/shell/session';
 import { CampaignWizard } from '@/components/crm/campaign-wizard';
 import { TagPicker } from '@/components/crm/pickers';
@@ -98,7 +98,12 @@ function CampaignView({ id }: { id: string }) {
   const processed = s.sent + s.failed + s.skipped;
   const pct = s.total ? Math.round((processed / s.total) * 100) : 0;
   const approve = can('campaigns:approve');
-  const cards: [string, number, string?][] = [
+  const voice = c.channel === 'voice';
+  const cards: [string, number, string?][] = voice ? [
+    ['Público', s.total], ['Ligações feitas', s.sent], ['Atenderam', s.answered ?? 0], ['Apertaram tecla', s.pressed ?? 0],
+    ['Não atenderam', s.noAnswer ?? 0, 'Não atendeu, ocupado ou falha na ligação'], ['Caixa postal', s.machine ?? 0],
+    ['Não ligadas', s.failed + s.skipped, 'Pediram para sair, cancelada, sem telefone ou a operadora recusou'],
+  ] : [
     ['Público', s.total], ['Enviadas', s.sent], ['Entregues', s.delivered], ['Lidas', s.read], ['Respostas', s.replied],
     ['Falharam', s.failed], ['Não enviadas', s.skipped, 'Pediram para sair, cancelada ou sem contato'],
     ...(c.flowId ? [['Tocaram num botão', c.flowStats?.clicked ?? 0, 'Pessoas que tocaram num botão do fluxo'] as [string, number, string]] : []),
@@ -108,8 +113,8 @@ function CampaignView({ id }: { id: string }) {
     <div className="mx-auto flex max-w-6xl flex-col gap-5">
       <PageHeader back={{ href: '/campanhas', label: 'Campanhas' }}
         title={<span className="flex flex-wrap items-center gap-3">{c.name}<Badge tone={CAMPAIGN_STATUS[c.status].tone}>{CAMPAIGN_STATUS[c.status].label}</Badge></span>}
-        subtitle={<span className="inline-flex items-center gap-1.5">{c.channel === 'email' ? <Mail size={14} aria-hidden /> : <MessageCircle size={14} aria-hidden />}
-          {c.channel === 'email' ? 'E-mail' : 'WhatsApp'}{c.account ? ` · ${c.account.name}` : ''}{c.description ? ` · ${c.description}` : ''}</span>}
+        subtitle={<span className="inline-flex items-center gap-1.5">{voice ? <Phone size={14} aria-hidden /> : c.channel === 'email' ? <Mail size={14} aria-hidden /> : <MessageCircle size={14} aria-hidden />}
+          {voice ? `Ligação${c.voiceProvider ? ` · ${c.voiceProvider.name}` : ''}` : c.channel === 'email' ? 'E-mail' : 'WhatsApp'}{c.account && !voice ? ` · ${c.account.name}` : ''}{c.description ? ` · ${c.description}` : ''}</span>}
         actions={<div className="flex flex-wrap gap-2">
           {approve && c.status === 'scheduled' ? <Button variant="secondary" onClick={() => setEditing(true)}><Pencil size={16} aria-hidden />Editar</Button> : null}
           {approve && (c.status === 'sending' || c.status === 'scheduled') ? <Button variant="secondary" loading={busy === 'pause'} onClick={() => void act('pause')}><Pause size={16} aria-hidden />Pausar</Button> : null}
@@ -148,9 +153,21 @@ function CampaignView({ id }: { id: string }) {
         </div>
       </Panel>
 
-      <Recipients id={id} version={processed} />
+      <Recipients id={id} version={processed + (s.answered ?? 0) + (s.noAnswer ?? 0)} voice={voice} />
 
-      <Panel title="Mensagem">
+      {voice ? (
+        <Panel title="Ligação">
+          <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[160px_1fr]">
+            <dt className="text-muted">Áudio</dt><dd>{c.audio?.name ?? '—'}</dd>
+            <dt className="text-muted">Teclas</dt>
+            <dd>{c.voice?.digits && Object.keys(c.voice.keys ?? {}).length ? Object.entries(c.voice.keys ?? {}).sort().map(([k, v]) => `${k}: ${v.label || 'sem descrição'}`).join(' · ') : 'Só toca o áudio'}</dd>
+            <dt className="text-muted">WhatsApp junto</dt><dd>{c.voice?.whatsapp ? `${EXTRA_WHEN[c.voice.whatsapp.when]}: ${c.voice.whatsapp.text}` : 'Não'}</dd>
+            <dt className="text-muted">SMS junto</dt><dd>{c.voice?.sms ? `${EXTRA_WHEN[c.voice.sms.when]}: ${c.voice.sms.text}` : 'Não'}</dd>
+          </dl>
+        </Panel>
+      ) : null}
+
+      <Panel title="Mensagem" className={voice ? 'hidden' : undefined}>
         {c.subject ? <p className="mb-1 font-semibold">{c.subject}</p> : null}
         {c.flow ? <p className="mb-1 text-[13px] text-muted">Transmissão com o fluxo <Link href={`/whatsapp/fluxos/${c.flow.id}`} className="font-medium text-ink underline">{c.flow.name}</Link>: o modelo e os botões vêm do fluxo; os resultados de cada botão ficam em WhatsApp › Resultados.</p> : null}
         {c.template ? <p className="mb-1 text-[13px] text-muted">Modelo do WhatsApp oficial: <span className="font-mono">{c.template.name}</span> · valores: {c.templateParams.join(', ') || '—'}</p> : null}
@@ -169,7 +186,7 @@ function CampaignView({ id }: { id: string }) {
   );
 }
 
-function Recipients({ id, version }: { id: string; version: number }) {
+function Recipients({ id, version, voice }: { id: string; version: number; voice: boolean }) {
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
   const [data, setData] = useState<Page<Recipient> | null>(null);
@@ -194,8 +211,13 @@ function Recipients({ id, version }: { id: string; version: number }) {
                 <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-2 text-sm first:border-t-0">
                   <span className="min-w-0"><Link href={`/contatos/${r.contactId}`} className="font-medium hover:underline">{r.name}</Link>
                     <span className="ml-2 text-[13px] text-muted">{r.address.startsWith('+') ? phone(r.address) : r.address}</span></span>
-                  <span className="text-[13px] text-muted">
-                    {RECIPIENT_STATUS[r.status]}{r.messageStatus === 'read' ? ' · lida' : r.messageStatus === 'delivered' ? ' · entregue' : ''}
+                  <span className="flex flex-wrap items-center gap-1.5 text-[13px] text-muted">
+                    {voice && r.callStatus ? <Badge tone={CALL_STATUS[r.callStatus].tone}>{CALL_STATUS[r.callStatus].label}</Badge> : null}
+                    {voice && r.callDigits ? <span className="font-medium text-ink">apertou {r.callDigits}</span> : null}
+                    {voice && r.callSeconds ? <span>{r.callSeconds}s</span> : null}
+                    {voice && r.callExtras?.whatsapp ? <span>WhatsApp {r.callExtras.whatsapp === 'sent' ? 'enviado' : 'falhou'}</span> : null}
+                    {voice && r.callExtras?.sms ? <span>SMS {r.callExtras.sms === 'sent' ? 'enviado' : 'falhou'}</span> : null}
+                    {voice && r.status === 'sent' ? '' : RECIPIENT_STATUS[r.status]}{r.messageStatus === 'read' ? ' · lida' : r.messageStatus === 'delivered' ? ' · entregue' : ''}
                     {r.sentAt ? ` · ${dateTime.format(new Date(r.sentAt))}` : ''}{r.reason ? ` · ${r.reason}` : ''}
                   </span>
                 </li>

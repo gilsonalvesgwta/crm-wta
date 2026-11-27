@@ -13,10 +13,44 @@ export type Audience = {
 
 export type CampaignStatus = 'draft' | 'scheduled' | 'sending' | 'paused' | 'done' | 'canceled';
 
-export type CampaignStats = { total: number; pending: number; sent: number; failed: number; skipped: number; delivered: number; read: number; replied: number };
+export type CampaignStats = {
+  total: number; pending: number; sent: number; failed: number; skipped: number; delivered: number; read: number; replied: number;
+  /** Voz: atenderam, apertaram tecla, não atenderam (inclui ocupado/falha) e caixa postal. */
+  answered?: number; pressed?: number; noAnswer?: number; machine?: number;
+};
+
+/** Canal da campanha: WhatsApp, e-mail ou ligação (voz). */
+export type CampaignChannel = Channel | 'voice';
+
+export type KeyAction = { label: string; tagId?: string | null; optOut: boolean; whatsapp: boolean; sms: boolean; notifyOwner: boolean };
+export type ExtraWhen = 'with_call' | 'answered' | 'not_answered' | 'key';
+export type VoiceSettings = {
+  digits: boolean; keys: Record<string, KeyAction>; ringSeconds: number; machineDetection: boolean;
+  whatsapp: { accountId: string; text: string; when: ExtraWhen } | null;
+  sms: { text: string; when: ExtraWhen } | null;
+};
+export const emptyVoice = (): VoiceSettings => ({ digits: false, keys: {}, ringSeconds: 30, machineDetection: false, whatsapp: null, sms: null });
+
+export const EXTRA_WHEN: Record<ExtraWhen, string> = {
+  with_call: 'Junto com a ligação (para todos)',
+  answered: 'Só se atender',
+  not_answered: 'Só se não atender',
+  key: 'Só se apertar uma tecla marcada',
+};
+
+export type CallStatus = 'queued' | 'answered' | 'no_answer' | 'busy' | 'failed' | 'machine' | 'canceled';
+export const CALL_STATUS: Record<CallStatus, { label: string; tone: 'ok' | 'warn' | 'bad' | 'neutral' | 'info' }> = {
+  queued: { label: 'Chamando', tone: 'info' },
+  answered: { label: 'Atendeu', tone: 'ok' },
+  no_answer: { label: 'Não atendeu', tone: 'warn' },
+  busy: { label: 'Ocupado', tone: 'warn' },
+  failed: { label: 'Falhou', tone: 'bad' },
+  machine: { label: 'Caixa postal', tone: 'neutral' },
+  canceled: { label: 'Cancelada', tone: 'neutral' },
+};
 
 export type Campaign = {
-  id: string; name: string; description: string | null; channel: Channel; status: CampaignStatus; audience: Partial<Audience>;
+  id: string; name: string; description: string | null; channel: CampaignChannel; status: CampaignStatus; audience: Partial<Audience>;
   accountId: string | null; account: { id: string; name: string; kind: string; address: string | null; status: string } | null;
   subject: string | null; body: string | null; perMinute: number; windowStart: string | null; windowEnd: string | null; optOutHint: boolean;
   windowDays?: number[]; maxPerHour?: number | null; maxPerDay?: number | null; pauseAt?: string | null;
@@ -29,6 +63,10 @@ export type Campaign = {
   /** WhatsApp oficial: fluxo de transmissão (o modelo e os botões vêm dele). */
   flowId?: string | null; flow?: { id: string; name: string; status: string } | null;
   flowStats?: { clicked: number; completed: number; waiting: number } | null;
+  /** Voz: operadora, áudio e opções da ligação. */
+  voiceProviderId?: string | null; voiceProvider?: { id: string; name: string; provider: string; status: string } | null;
+  audioFileId?: string | null; audio?: { id: string; name: string; contentType: string } | null;
+  voice?: Partial<VoiceSettings>;
 };
 
 export type AudiencePreview = {
@@ -44,6 +82,7 @@ export type AudiencePreview = {
 export type Recipient = {
   id: string; status: 'pending' | 'sending' | 'sent' | 'failed' | 'skipped'; reason: string | null; address: string;
   sentAt: string | null; contactId: string; name: string; messageStatus: string | null;
+  callStatus?: CallStatus | null; callSeconds?: number | null; callDigits?: string | null; callExtras?: { whatsapp?: string; sms?: string };
 };
 
 export const CAMPAIGN_STATUS: Record<CampaignStatus, { label: string; tone: 'ok' | 'warn' | 'bad' | 'neutral' | 'info' }> = {

@@ -46,6 +46,12 @@ export async function createApp(cfg: Config, opts: { logger?: boolean } = {}): P
     if (route.url.startsWith('/api/v1/webhooks/evolution/')) route.bodyLimit = Math.ceil(cfg.UPLOAD_MAX_MB * 1.4 + 1) * 1024 * 1024;
   });
   await app.init();
+  // Operadoras de voz (Twilio, Plivo, Telnyx) avisam em formulário (application/x-www-form-urlencoded).
+  if (!fastify.hasContentTypeParser('application/x-www-form-urlencoded')) {
+    fastify.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string', bodyLimit: 65_536 }, (_req, body, done) => {
+      done(null, Object.fromEntries(new URLSearchParams(String(body))));
+    });
+  }
   await fastify.ready();
   return app;
 }

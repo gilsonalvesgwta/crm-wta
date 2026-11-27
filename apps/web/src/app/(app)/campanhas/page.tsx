@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
-import { Mail, MessageCircle, Plus, Trash2 } from 'lucide-react';
+import { Mail, MessageCircle, Phone, Plus, Trash2 } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { useLoad } from '@/lib/use-load';
 import { dateTime } from '@/lib/admin-types';
@@ -47,7 +47,7 @@ export default function CampaignsPage() {
   }
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-5">
-      <PageHeader title="Campanhas" subtitle="Mensagens de WhatsApp e e-mail em massa para um público escolhido."
+      <PageHeader title="Campanhas" subtitle="WhatsApp, e-mail e ligações (torpedo de voz) em massa para um público escolhido."
         actions={can('campaigns:edit') ? (
           <Link href="/campanhas/nova" className="inline-flex h-10 items-center gap-2 rounded-[6px] bg-primary px-4 text-sm font-semibold text-primary-fg hover:opacity-90">
             <Plus size={16} aria-hidden />Nova campanha
@@ -87,7 +87,7 @@ export default function CampaignsPage() {
                       ) : null}
                       <td className="py-2.5 pr-3"><Link href={`/campanhas/${c.id}`} className="font-medium hover:underline">{c.name}</Link>
                         {c.description ? <p className="max-w-[320px] truncate text-[13px] text-muted">{c.description}</p> : null}</td>
-                      <td className="py-2.5 pr-3"><span className="inline-flex items-center gap-1.5">{c.channel === 'email' ? <Mail size={14} aria-hidden /> : <MessageCircle size={14} aria-hidden />}{c.channel === 'email' ? 'E-mail' : 'WhatsApp'}</span></td>
+                      <td className="py-2.5 pr-3"><span className="inline-flex items-center gap-1.5">{c.channel === 'voice' ? <Phone size={14} aria-hidden /> : c.channel === 'email' ? <Mail size={14} aria-hidden /> : <MessageCircle size={14} aria-hidden />}{c.channel === 'voice' ? 'Ligação' : c.channel === 'email' ? 'E-mail' : 'WhatsApp'}</span></td>
                       <td className="py-2.5 pr-3"><Badge tone={CAMPAIGN_STATUS[c.status].tone}>{CAMPAIGN_STATUS[c.status].label}</Badge></td>
                       <td className="py-2.5 pr-3 whitespace-nowrap">{c.stats.total ? `${c.stats.sent} de ${c.stats.total} (${pct}%)` : c.scheduledAt && c.status === 'scheduled' ? dateTime.format(new Date(c.scheduledAt)) : '—'}</td>
                       <td className="py-2.5 whitespace-nowrap text-muted">{dateTime.format(new Date(c.createdAt))}</td>

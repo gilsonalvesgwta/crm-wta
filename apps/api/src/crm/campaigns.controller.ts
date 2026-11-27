@@ -30,7 +30,7 @@ export class CampaignsController {
   @Post('preview')
   @HttpCode(200)
   preview(@CurrentActor() a: Actor, @Body() b: unknown) {
-    const v = parse(z.object({ channel: z.enum(['whatsapp', 'email']), audience }), b);
+    const v = parse(z.object({ channel: z.enum(['whatsapp', 'email', 'voice']), audience }), b);
     return this.svc.preview(a, v.channel, v.audience);
   }
 

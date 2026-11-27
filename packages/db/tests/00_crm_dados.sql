@@ -130,6 +130,8 @@ begin
   insert into kpi_settings (tenant_id, lead_tag_ids) values (p_tenant, array[t.id(p_tenant, 14)]);
   -- Transcrição das notas de áudio no próprio servidor.
   insert into transcription_settings (tenant_id, provider, updated_by) values (p_tenant, 'local', p_member);
+  -- Operadora de voz (campanhas de ligação).
+  insert into voice_providers (tenant_id, name, provider, config, created_by) values (p_tenant, 'Central', 'sip', '{"ariUrl": "https://pbx.test"}', p_member);
   insert into kpi_exclusions (tenant_id, kind, record_id, created_by) values (p_tenant, 'contact', t.id(p_tenant, 2), p_member);
   insert into kpi_funnels (id, tenant_id, name, tag_ids, manual_prospecting, created_by)
   values (t.id(p_tenant, 29), p_tenant, 'Prospecção ativa', array[t.id(p_tenant, 14)], true, p_member);

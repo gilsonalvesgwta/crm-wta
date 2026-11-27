@@ -36,3 +36,32 @@ export async function convertVoice(data: Buffer, target: 'ogg' | 'm4a', timeoutM
     await rm(dir, { recursive: true, force: true });
   }
 }
+
+/**
+ * Áudio para ligação telefônica: MP3 mono (operadoras) ou WAV 8 kHz 16 bits
+ * (centrais Asterisk). Corta em 3 minutos.
+ */
+export async function convertForPhone(data: Buffer, target: 'mp3' | 'wav', timeoutMs = 60_000): Promise<Buffer> {
+  const dir = await mkdtemp(path.join(tmpdir(), 'crm-ligacao-'));
+  try {
+    const input = path.join(dir, 'entrada');
+    const output = path.join(dir, `saida.${target}`);
+    await writeFile(input, data);
+    const codec = target === 'mp3'
+      ? ['-c:a', 'libmp3lame', '-b:a', '48k', '-ar', '22050', '-f', 'mp3']
+      : ['-c:a', 'pcm_s16le', '-ar', '8000', '-f', 'wav'];
+    await new Promise<void>((resolve, reject) => {
+      const p = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-i', input, '-vn', '-ac', '1', '-t', '180', ...codec, output], { stdio: ['ignore', 'ignore', 'pipe'] });
+      let err = '';
+      const t = setTimeout(() => { p.kill('SIGKILL'); reject(new AudioError('A conversão do áudio demorou demais.')); }, timeoutMs);
+      p.stderr.on('data', (c: Buffer) => { if (err.length < 2000) err += c.toString(); });
+      p.on('error', (e: NodeJS.ErrnoException) => { clearTimeout(t); reject(new AudioError(e.code === 'ENOENT' ? 'O conversor de áudio (ffmpeg) não está instalado no servidor.' : 'Não foi possível converter o áudio.')); });
+      p.on('close', (code) => { clearTimeout(t); if (code === 0) resolve(); else reject(new AudioError(`Não foi possível converter o áudio${err ? `: ${err.trim().split('\n').at(-1)}` : '.'}`)); });
+    });
+    const out = await readFile(output);
+    if (out.length < 200) throw new AudioError('O áudio está vazio.');
+    return out;
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
