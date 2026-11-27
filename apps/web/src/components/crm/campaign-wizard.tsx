@@ -12,6 +12,7 @@ import { FLOW_STATUS, type FlowItem } from '@/lib/instagram';
 import { useSession } from '@/components/shell/session';
 import { useDirectory, usePipelines } from './data';
 import { TagPicker } from './pickers';
+import { DealGroupsEditor, PaceFields, paceToApi, type Pace } from './campaign-audience';
 import { Field } from '@/components/ui/field';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -27,6 +28,8 @@ type Draft = {
   templateId: string; templateParams: string[];
   /** WhatsApp oficial: transmissão com fluxo (modelo com botões que continuam a conversa). */
   useFlow: boolean; flowId: string;
+  /** Dias, limites por hora e por dia e pausa programada. */
+  pace: Pace;
 };
 
 export type CampaignPreset = { flowId?: string | null; broadcast?: boolean };
@@ -34,14 +37,24 @@ export type CampaignPreset = { flowId?: string | null; broadcast?: boolean };
 function fromCampaign(c: Campaign | null, preset?: CampaignPreset): Draft {
   return {
     name: c?.name ?? '', description: c?.description ?? '', channel: c?.channel ?? '',
-    audience: { ...emptyAudience(), ...(c?.audience ?? {}) }, accountId: c?.accountId ?? '', subject: c?.subject ?? '', body: c?.body ?? '',
+    audience: legacyDeals({ ...emptyAudience(), ...(c?.audience ?? {}) }), accountId: c?.accountId ?? '', subject: c?.subject ?? '', body: c?.body ?? '',
     perMinute: c?.perMinute ?? 10, useWindow: !!c?.windowStart, windowStart: c?.windowStart ?? '08:00', windowEnd: c?.windowEnd ?? '20:00',
     optOutHint: c?.optOutHint ?? true, when: c?.scheduledAt && c.status === 'scheduled' ? 'later' : 'now',
     scheduledAt: c?.scheduledAt ? toLocalInput(new Date(c.scheduledAt)) : '',
     templateId: c?.templateId ?? '', templateParams: c?.templateParams ?? [],
     useFlow: !!c?.flowId || (!c && !!(preset?.flowId || preset?.broadcast)), flowId: c?.flowId ?? (!c ? preset?.flowId ?? '' : ''),
+    pace: {
+      windowDays: c?.windowDays ?? [], maxPerHour: c?.maxPerHour ? String(c.maxPerHour) : '', maxPerDay: c?.maxPerDay ? String(c.maxPerDay) : '',
+      pauseAt: c?.pauseAt ? toLocalInput(new Date(c.pauseAt)) : '',
+    },
     ...(!c && (preset?.flowId || preset?.broadcast) ? { channel: 'whatsapp' as const } : {}),
   };
+}
+
+/** Campanha antiga (um funil e uma etapa): vira um grupo de negócio na tela nova. */
+function legacyDeals(a: Audience): Audience {
+  if (!a.pipelineId) return a;
+  return { ...a, deals: [...(a.deals ?? []), { pipelineId: a.pipelineId, stageIds: a.stageId ? [a.stageId] : [], status: 'open' }], pipelineId: null, stageId: null };
 }
 
 function toLocalInput(d: Date): string {
@@ -153,6 +166,7 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
       windowStart: d.useWindow ? d.windowStart : null, windowEnd: d.useWindow ? d.windowEnd : null, optOutHint: d.optOutHint,
       templateId: isCloud && !d.useFlow && d.templateId ? d.templateId : null, templateParams: isCloud && !d.useFlow ? d.templateParams : [],
       flowId: flowMode && d.flowId ? d.flowId : null,
+      ...paceToApi(d.pace),
     };
   }
 
@@ -206,7 +220,6 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
   const fieldErr = (k: string) => (showErrors ? errs[k] : undefined) ?? err?.fieldError(k);
   const tenantName = me.tenants.find((t) => t.id === me.tenantId)?.name ?? 'sua empresa';
   const sample = renderTemplate(d.body, { nome: 'Maria Souza', primeiro_nome: 'Maria', empresa: tenantName, responsavel: me.user.name });
-  const stages = pipelines.data?.find((p) => p.id === d.audience.pipelineId)?.stages ?? [];
   const account = accounts.find((a) => a.id === d.accountId);
 
   return (
@@ -263,7 +276,17 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
           <>
             <p className="text-[13px] text-muted">Quem recebe: os contatos que atendem a todos os filtros abaixo. Sem filtro, todos os contatos com {d.channel === 'email' ? 'e-mail' : 'telefone'}.</p>
             <div className="grid gap-4 sm:grid-cols-2">
-              <TagPicker label="Com alguma destas etiquetas" value={d.audience.tagIds} onChange={(v) => setA({ tagIds: v })} />
+              <div className="flex flex-col gap-1.5">
+                <TagPicker label={d.audience.tagMode === 'all' ? 'Com todas estas etiquetas' : 'Com alguma destas etiquetas'} value={d.audience.tagIds} onChange={(v) => setA({ tagIds: v })} />
+                {d.audience.tagIds.length > 1 ? (
+                  <div role="radiogroup" aria-label="Como combinar as etiquetas" className="flex gap-1.5 text-[12px]">
+                    {([['any', 'Alguma delas'], ['all', 'Todas elas']] as const).map(([v, l]) => (
+                      <button key={v} type="button" role="radio" aria-checked={(d.audience.tagMode ?? 'any') === v} onClick={() => setA({ tagMode: v })}
+                        className={`h-7 rounded-full border px-2.5 font-medium ${(d.audience.tagMode ?? 'any') === v ? 'border-primary bg-accent-soft' : 'border-line'}`}>{l}</button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
               <TagPicker label="Sem estas etiquetas" value={d.audience.excludeTagIds} onChange={(v) => setA({ excludeTagIds: v })} />
               <Select label="Responsável" value={d.audience.ownerIds[0] ?? ''} onChange={(e) => setA({ ownerIds: e.target.value ? [e.target.value] : [] })}>
                 <option value="">Qualquer um</option>
@@ -273,14 +296,14 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
                 <option value="">Qualquer uma</option>
                 {(dir.data?.teams ?? []).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </Select>
-              <Select label="Com negócio aberto no funil" value={d.audience.pipelineId ?? ''} onChange={(e) => setA({ pipelineId: e.target.value || null, stageId: null })}>
-                <option value="">Não filtrar</option>
-                {(pipelines.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </Select>
-              <Select label="Na etapa" value={d.audience.stageId ?? ''} onChange={(e) => setA({ stageId: e.target.value || null })} disabled={!d.audience.pipelineId}>
-                <option value="">Qualquer etapa</option>
-                {stages.filter((s) => s.kind === 'open').map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </Select>
+              <div className="sm:col-span-2 flex flex-col gap-3">
+                <DealGroupsEditor label="Incluir quem tem negócio em" pipelines={pipelines.data ?? []} value={d.audience.deals ?? []}
+                  hint="Marque uma ou mais etapas (nenhuma marcada = o funil todo). Com mais de um funil, vale estar em qualquer um deles."
+                  onChange={(v) => setA({ deals: v })} />
+                <DealGroupsEditor tone="exclude" label="Excluir quem tem negócio em" pipelines={pipelines.data ?? []} value={d.audience.excludeDeals ?? []}
+                  hint="Tira do público quem está nestes funis/etapas. Ex.: todo o funil X menos a etapa Y; ou etiqueta Z menos quem está na etapa Q."
+                  onChange={(v) => setA({ excludeDeals: v })} />
+              </div>
               <Field label="Origem (separe por vírgula)" value={d.audience.sources.join(', ')} placeholder="google, instagram, indicação"
                 onChange={(e) => setA({ sources: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} />
               <div className="grid grid-cols-2 gap-2">
@@ -465,6 +488,10 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
                 <Field label="Às" type="time" value={d.windowEnd} onChange={(e) => set({ windowEnd: e.target.value })} error={fieldErr('windowEnd')} />
               </div>
             ) : null}
+            <details className="rounded-[10px] border border-line p-3" open={!!(d.pace.windowDays.length || d.pace.maxPerHour || d.pace.maxPerDay || d.pace.pauseAt)}>
+              <summary className="cursor-pointer text-sm font-semibold">Dias, limites e pausa programada</summary>
+              <div className="mt-3"><PaceFields value={d.pace} onChange={(patch) => set({ pace: { ...d.pace, ...patch } })} /></div>
+            </details>
             {d.channel === 'whatsapp' && !isCloud ? (
               <label className="flex min-h-11 items-center gap-2 text-sm">
                 <input type="checkbox" checked={d.optOutHint} onChange={(e) => set({ optOutHint: e.target.checked })} className="size-[18px] accent-[var(--primary)]" />

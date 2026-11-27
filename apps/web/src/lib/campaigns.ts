@@ -1,8 +1,12 @@
 // Campanhas: tipos e rótulos da interface.
 import type { Channel } from './messages';
 
+/** Negócios num funil: etapas marcadas (vazio = todas) e a situação. */
+export type DealGroup = { pipelineId: string; stageIds: string[]; status: 'open' | 'won' | 'lost' | 'any' };
+
 export type Audience = {
-  tagIds: string[]; excludeTagIds: string[]; ownerIds: string[]; teamIds: string[];
+  tagIds: string[]; tagMode?: 'any' | 'all'; excludeTagIds: string[]; ownerIds: string[]; teamIds: string[];
+  deals?: DealGroup[]; excludeDeals?: DealGroup[];
   pipelineId?: string | null; stageId?: string | null; sources: string[]; contactIds: string[];
   createdFrom?: string | null; createdTo?: string | null; consentOnly: boolean;
 };
@@ -15,6 +19,7 @@ export type Campaign = {
   id: string; name: string; description: string | null; channel: Channel; status: CampaignStatus; audience: Partial<Audience>;
   accountId: string | null; account: { id: string; name: string; kind: string; address: string | null; status: string } | null;
   subject: string | null; body: string | null; perMinute: number; windowStart: string | null; windowEnd: string | null; optOutHint: boolean;
+  windowDays?: number[]; maxPerHour?: number | null; maxPerDay?: number | null; pauseAt?: string | null;
   scheduledAt: string | null; startedAt: string | null; finishedAt: string | null; lastError: string | null;
   createdBy: { id: string; name: string } | null; startedBy: { id: string; name: string } | null;
   createdAt: string; updatedAt: string; stats: CampaignStats;
@@ -60,6 +65,6 @@ export const CAMPAIGN_VARIABLES: { key: string; label: string }[] = [
 ];
 
 export const emptyAudience = (): Audience => ({
-  tagIds: [], excludeTagIds: [], ownerIds: [], teamIds: [], pipelineId: null, stageId: null, sources: [], contactIds: [],
+  tagIds: [], tagMode: 'any', excludeTagIds: [], ownerIds: [], teamIds: [], deals: [], excludeDeals: [], pipelineId: null, stageId: null, sources: [], contactIds: [],
   createdFrom: null, createdTo: null, consentOnly: false,
 });

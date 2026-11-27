@@ -22,3 +22,12 @@ select t.ctx(t.b(), t.ub());
 select t.ok(t.count($$select 1 from transcription_settings where openai_key is not null$$) = 0, 'outra empresa não vê a chave da OpenAI');
 select t.ctx(null, null);
 reset role;
+
+-- Campanhas: dias da semana e limites.
+set role crm_app;
+select t.ctx(t.a(), t.ua());
+select t.throws($$update campaigns set window_days = array[8]::smallint[] where tenant_id = t.a()$$, '23514', 'dia da semana fora de 1 a 7');
+select t.throws($$update campaigns set max_per_hour = 0 where tenant_id = t.a()$$, '23514', 'limite por hora precisa ser positivo');
+select t.ok(t.affected($$update campaigns set window_days = array[1,2,3,4,5]::smallint[], max_per_day = 200 where tenant_id = t.a()$$) >= 0, 'dias úteis e limite por dia');
+select t.ctx(null, null);
+reset role;

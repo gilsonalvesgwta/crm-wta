@@ -274,4 +274,66 @@ describe('campanha de e-mail, pausa e conta desconectada', () => {
     g = await admin.get(`/api/v1/campaigns/${c.body.id}`);
     assert.equal(g.body.stats.sent, 3);
   });
+
+  test('limite por hora: envia até o limite, espera e continua de onde parou; pausa programada', async () => {
+    const extra = [];
+    for (let i = 0; i < 3; i++) extra.push(await contact({ firstName: `Limite ${i}`, phones: [{ number: `+55 21 93333-000${i}` }] }));
+    const c = await admin.post('/api/v1/campaigns', { name: 'Limite', channel: 'whatsapp', accountId: wa, body: 'Oi', audience: { contactIds: extra }, perMinute: 120, maxPerHour: 1, windowDays: [1, 2, 3, 4, 5, 6, 7] });
+    assert.equal(c.status, 201, JSON.stringify(c.body));
+    assert.equal(c.body.maxPerHour, 1);
+    assert.deepEqual(c.body.windowDays, [1, 2, 3, 4, 5, 6, 7]);
+    assert.equal((await admin.post(`/api/v1/campaigns/${c.body.id}/start`, {})).status, 200);
+    for (let i = 0; i < 3; i++) { await f.admin.query('update campaigns set next_at = now() where id = $1', [c.body.id]); await run(); }
+    let g = await admin.get(`/api/v1/campaigns/${c.body.id}`);
+    assert.equal(g.body.stats.sent, 1, 'para no limite da hora');
+    assert.equal(g.body.status, 'sending');
+    assert.match(g.body.lastError, /^Limite de 1 por hora/);
+    // Muda o limite com a campanha andando e marca uma pausa para já.
+    const p = await admin.patch(`/api/v1/campaigns/${c.body.id}/pace`, { perMinute: 120, maxPerHour: null, pauseAt: new Date(Date.now() - 1000).toISOString() });
+    assert.equal(p.status, 200, JSON.stringify(p.body));
+    assert.equal((await marketing.patch(`/api/v1/campaigns/${c.body.id}/pace`, { perMinute: 10 })).status, 403, 'só quem aprova muda o ritmo');
+    await run();
+    g = await admin.get(`/api/v1/campaigns/${c.body.id}`);
+    assert.equal(g.body.status, 'paused');
+    assert.equal(g.body.lastError, 'Pausa programada');
+    assert.equal(g.body.stats.pending, 2, 'ninguém é perdido');
+    assert.equal((await admin.post(`/api/v1/campaigns/${c.body.id}/resume`)).body.status, 'sending');
+    assert.equal(await drain(c.body.id), 'done');
+    g = await admin.get(`/api/v1/campaigns/${c.body.id}`);
+    assert.equal(g.body.stats.sent, 3);
+  });
+
+  test('público por funil e várias etapas, com exclusão por etapa e por etiqueta, e etiquetas "todas"', async () => {
+    const pl = (await admin.post('/api/v1/pipelines', { name: 'Funil campanha' })).body as { id: string; stages: { id: string; kind: string }[] };
+    const open = pl.stages.filter((s) => s.kind === 'open');
+    assert.ok(open.length >= 3);
+    const [s0, s1, s2] = open.map((s) => s.id) as [string, string, string];
+    const t = (await admin.post('/api/v1/tags', { name: 'Já comprou' })).body.id;
+    const u = (await admin.post('/api/v1/tags', { name: 'Indicação' })).body.id;
+    const mk = async (name: string, phone: string, stageId: string, tags: string[]) => {
+      const id = await contact({ firstName: name, phones: [{ number: phone }] });
+      const d = await admin.post('/api/v1/deals', { pipelineId: pl.id, stageId, title: `Negócio ${name}`, contactId: id });
+      assert.equal(d.status, 201, JSON.stringify(d.body));
+      for (const x of tags) await f.admin.query('insert into contact_tags (tenant_id, contact_id, tag_id) values ($1, $2, $3)', [f.tenantA, id, x]);
+      return id;
+    };
+    await mk('Alfa', '+55 21 94444-0001', s0, []);
+    await mk('Beta', '+55 21 94444-0002', s1, [t]);
+    await mk('Gama', '+55 21 94444-0003', s2, []);
+    await mk('Delta', '+55 21 94444-0004', s1, [t, u]);
+    const names = async (a: Record<string, unknown>) => {
+      const r = await marketing.post('/api/v1/campaigns/preview', { channel: 'whatsapp', audience: a });
+      assert.equal(r.status, 200, JSON.stringify(r.body));
+      return [r.body.eligible, r.body.sample] as [number, string[]];
+    };
+    assert.deepEqual(await names({ deals: [{ pipelineId: pl.id, stageIds: [s0, s1] }] }), [3, ['Alfa', 'Beta', 'Delta']], 'etapas a e b');
+    assert.deepEqual(await names({ deals: [{ pipelineId: pl.id, stageIds: [s0, s1] }], excludeTagIds: [t] }), [1, ['Alfa']], 'menos quem tem a etiqueta');
+    assert.deepEqual(await names({ deals: [{ pipelineId: pl.id }], excludeDeals: [{ pipelineId: pl.id, stageIds: [s2] }] }), [3, ['Alfa', 'Beta', 'Delta']], 'o funil todo menos uma etapa');
+    assert.deepEqual(await names({ tagIds: [t], excludeDeals: [{ pipelineId: pl.id, stageIds: [s1] }] }), [0, []], 'etiqueta menos quem está na etapa');
+    assert.deepEqual(await names({ tagIds: [t, u], deals: [{ pipelineId: pl.id }] }), [2, ['Beta', 'Delta']], 'alguma das etiquetas');
+    assert.deepEqual(await names({ tagIds: [t, u], tagMode: 'all', deals: [{ pipelineId: pl.id }] }), [1, ['Delta']], 'todas as etiquetas');
+    assert.deepEqual(await names({ deals: [{ pipelineId: pl.id, status: 'won' }] }), [0, []], 'só ganhos');
+    // Formato antigo (um funil e uma etapa) continua valendo.
+    assert.deepEqual(await names({ pipelineId: pl.id, stageId: s2 }), [1, ['Gama']]);
+  });
 });

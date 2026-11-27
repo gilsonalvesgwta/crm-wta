@@ -2,13 +2,17 @@
 import { Suspense, use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Copy, Mail, MessageCircle, Pause, Pencil, Play, Trash2, XCircle } from 'lucide-react';
+import { Copy, Gauge, Mail, MessageCircle, Pause, Pencil, Play, Trash2, XCircle } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { dateTime } from '@/lib/admin-types';
 import { phone, type Page } from '@/lib/crm';
 import { CAMPAIGN_STATUS, RECIPIENT_STATUS, type Campaign, type Recipient } from '@/lib/campaigns';
 import { useSession } from '@/components/shell/session';
 import { CampaignWizard } from '@/components/crm/campaign-wizard';
+import { PaceFields, paceToApi, type Pace } from '@/components/crm/campaign-audience';
+import { Dialog } from '@/components/ui/dialog';
+import { Field } from '@/components/ui/field';
+import { Select } from '@/components/ui/select';
 import { PageHeader, Pagination } from '@/components/ui/misc';
 import { Panel } from '@/components/ui/panel';
 import { Button } from '@/components/ui/button';
@@ -29,6 +33,7 @@ function CampaignView({ id }: { id: string }) {
   const [c, setC] = useState<Campaign | null>(null);
   const [err, setErr] = useState<ApiError | null>(null);
   const [editing, setEditing] = useState(false);
+  const [pacing, setPacing] = useState(false);
   const [msg, setMsg] = useState<string | null>(search.get('salva') ? 'Rascunho salvo.' : null);
   const [actErr, setActErr] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<'cancel' | 'delete' | null>(null);
@@ -102,16 +107,21 @@ function CampaignView({ id }: { id: string }) {
           {approve && c.status === 'scheduled' ? <Button variant="secondary" onClick={() => setEditing(true)}><Pencil size={16} aria-hidden />Editar</Button> : null}
           {approve && (c.status === 'sending' || c.status === 'scheduled') ? <Button variant="secondary" loading={busy === 'pause'} onClick={() => void act('pause')}><Pause size={16} aria-hidden />Pausar</Button> : null}
           {approve && c.status === 'paused' ? <Button loading={busy === 'resume'} onClick={() => void act('resume')}><Play size={16} aria-hidden />Retomar</Button> : null}
+          {approve && ['scheduled', 'sending', 'paused'].includes(c.status) ? <Button variant="secondary" onClick={() => setPacing(true)}><Gauge size={16} aria-hidden />Ritmo e limites</Button> : null}
           {can('campaigns:edit') ? <Button variant="secondary" loading={busy === 'duplicate'} onClick={() => void act('duplicate')}><Copy size={16} aria-hidden />Duplicar</Button> : null}
           {approve && ['scheduled', 'sending', 'paused'].includes(c.status) ? <Button variant="danger" onClick={() => setConfirm('cancel')}><XCircle size={16} aria-hidden />Cancelar</Button> : null}
           {can('campaigns:edit') && (c.status === 'done' || c.status === 'canceled') ? <Button variant="ghost" aria-label="Excluir campanha" onClick={() => setConfirm('delete')}><Trash2 size={16} aria-hidden /></Button> : null}
         </div>} />
       {msg ? <Alert tone="success">{msg}</Alert> : null}
       {actErr ? <Alert tone="error">{actErr}</Alert> : null}
-      {c.status === 'paused' && c.lastError ? <Alert tone="error">Pausada sozinha: {c.lastError} Resolva e clique em Retomar.</Alert> : null}
+      {c.status === 'paused' && c.lastError === 'Pausa programada' ? <Alert tone="info">Pausa programada. Clique em Retomar para continuar de onde parou.</Alert>
+        : c.status === 'paused' && c.lastError ? <Alert tone="error">Pausada sozinha: {c.lastError} Resolva e clique em Retomar.</Alert> : null}
+      {c.status === 'sending' && c.lastError?.startsWith('Limite de') ? <Alert tone="info">{c.lastError}</Alert> : null}
+      {c.pauseAt && ['scheduled', 'sending'].includes(c.status) ? <Alert tone="info">Pausa automática marcada para {dateTime.format(new Date(c.pauseAt))}.</Alert> : null}
+      {pacing ? <PaceDialog open campaign={c} onClose={() => setPacing(false)} onSaved={(n) => { setPacing(false); setC(n); setMsg('Ritmo e limites atualizados. O envio segue de onde parou.'); }} /> : null}
       {c.status === 'scheduled' && c.scheduledAt ? <Alert tone="info">Envio marcado para {dateTime.format(new Date(c.scheduledAt))}.</Alert> : null}
 
-      <Panel title="Andamento" description={c.startedAt ? `Começou ${dateTime.format(new Date(c.startedAt))}${c.finishedAt ? `, terminou ${dateTime.format(new Date(c.finishedAt))}` : ''}. Ritmo: ${c.perMinute} por minuto${c.windowStart ? `, das ${c.windowStart} às ${c.windowEnd}` : ''}.` : undefined}>
+      <Panel title="Andamento" description={c.startedAt ? `Começou ${dateTime.format(new Date(c.startedAt))}${c.finishedAt ? `, terminou ${dateTime.format(new Date(c.finishedAt))}` : ''}. Ritmo: ${c.perMinute} por minuto${c.windowStart ? `, das ${c.windowStart} às ${c.windowEnd}` : ''}${c.windowDays?.length ? `, ${c.windowDays.map((d) => DAY[d]).join(', ')}` : ''}${c.maxPerHour ? `, até ${c.maxPerHour}/hora` : ''}${c.maxPerDay ? `, até ${c.maxPerDay}/dia` : ''}.` : undefined}>
         <div className="flex flex-col gap-4">
           <div>
             <div className="mb-1 flex justify-between text-[13px]"><span>{processed} de {s.total} processadas</span><span className="font-semibold">{pct}%</span></div>
@@ -188,5 +198,60 @@ function Recipients({ id, version }: { id: string; version: number }) {
         )}
       </div>
     </Panel>
+  );
+}
+
+const DAY: Record<number, string> = { 1: 'seg', 2: 'ter', 3: 'qua', 4: 'qui', 5: 'sex', 6: 'sáb', 7: 'dom' };
+
+function localInput(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** Muda ritmo, horário, dias, limites e pausa programada, também durante o envio. */
+function PaceDialog({ open, campaign: c, onClose, onSaved }: { open: boolean; campaign: Campaign; onClose: () => void; onSaved: (c: Campaign) => void }) {
+  const [perMinute, setPerMinute] = useState(c.perMinute);
+  const [useWindow, setUseWindow] = useState(!!c.windowStart);
+  const [ws, setWs] = useState(c.windowStart ?? '08:00');
+  const [we, setWe] = useState(c.windowEnd ?? '20:00');
+  const [pace, setPace] = useState<Pace>({ windowDays: c.windowDays ?? [], maxPerHour: c.maxPerHour ? String(c.maxPerHour) : '', maxPerDay: c.maxPerDay ? String(c.maxPerDay) : '', pauseAt: localInput(c.pauseAt) });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  async function save() {
+    setBusy(true);
+    setErr(null);
+    try {
+      const n = await api<Campaign>('PATCH', `/api/v1/campaigns/${c.id}/pace`, {
+        perMinute, windowStart: useWindow ? ws : null, windowEnd: useWindow ? we : null, ...paceToApi(pace),
+      });
+      onSaved(n);
+    } catch (e) {
+      setErr(e instanceof ApiError ? [e.title, e.errors[0]?.message].filter(Boolean).join(' ') : 'Não foi possível salvar.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Dialog open={open} onClose={onClose} title="Ritmo e limites" description="Vale na hora, também com a campanha em andamento. O envio continua de onde parou."
+      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><Button loading={busy} onClick={save}>Salvar</Button></>}>
+      <div className="flex flex-col gap-4">
+        {err ? <Alert tone="error">{err}</Alert> : null}
+        <Select label="Ritmo de envio" value={String(perMinute)} onChange={(e) => setPerMinute(Number(e.target.value))} className="max-w-xs">
+          {[1, 2, 5, 10, 20, 30, 60, 120].map((n) => <option key={n} value={n}>{n} por minuto</option>)}
+        </Select>
+        <label className="flex min-h-10 items-center gap-2 text-sm">
+          <input type="checkbox" checked={useWindow} onChange={(e) => setUseWindow(e.target.checked)} className="size-[18px] accent-[var(--primary)]" />Enviar só dentro de um horário
+        </label>
+        {useWindow ? (
+          <div className="grid max-w-sm grid-cols-2 gap-2">
+            <Field label="Das" type="time" value={ws} onChange={(e) => setWs(e.target.value)} />
+            <Field label="Às" type="time" value={we} onChange={(e) => setWe(e.target.value)} />
+          </div>
+        ) : null}
+        <PaceFields value={pace} onChange={(p) => setPace((cur) => ({ ...cur, ...p }))} />
+      </div>
+    </Dialog>
   );
 }
