@@ -135,7 +135,7 @@ export class AftersaleService {
       const first = p.add(s.first_days);
       if (f.tab === 'due') where.push('a.done_at is null', `d.closed_at <= now() - make_interval(days => ${first})`);
       else if (f.tab === 'upcoming') where.push('a.done_at is null', `d.closed_at > now() - make_interval(days => ${first})`, `d.closed_at <= now() - make_interval(days => ${first}) + interval '30 days'`);
-      else where.push('a.done_at is not null');
+      else where.push('a.done_at is not null', `${first}::int > 0`);
       if (f.q) where.push(`(d.title ilike ${p.add(`%${likeEscape(f.q)}%`)} or c.name ilike ${p.add(`%${likeEscape(f.q)}%`)})`);
       const { limit, offset } = pageOf(f.page, f.pageSize);
       const order = f.tab === 'done' ? 'a.done_at desc' : 'd.closed_at asc';
