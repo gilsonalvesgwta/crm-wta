@@ -3,7 +3,7 @@ import type { FastifyReply } from 'fastify';
 import { z } from 'zod';
 import type { Actor } from '../access/actor.js';
 import { CurrentActor, ExternalWebhook, Public, Require } from '../access/decorators.js';
-import { audience, campaignBody, startBody } from '../domain/campaigns.js';
+import { audience, campaignBody, paceBody, startBody } from '../domain/campaigns.js';
 import { parse } from '../http/validate.js';
 import { CampaignsService } from './campaigns.service.js';
 import { MessagesService } from './messages.service.js';
@@ -81,6 +81,13 @@ export class CampaignsController {
   @HttpCode(200)
   start(@CurrentActor() a: Actor, @Param('id') i: string, @Body() b: unknown) {
     return this.svc.start(a, id(i), parse(startBody, b ?? {}).scheduledAt);
+  }
+
+  /** Ritmo e limites a qualquer momento (também durante o envio). */
+  @Require('campaigns:approve', 'tenant')
+  @Patch(':id/pace')
+  pace(@CurrentActor() a: Actor, @Param('id') i: string, @Body() b: unknown) {
+    return this.svc.setPace(a, id(i), parse(paceBody, b));
   }
 
   @Require('campaigns:approve', 'tenant')

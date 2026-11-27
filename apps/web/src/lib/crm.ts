@@ -22,7 +22,7 @@ export type Contact = ContactItem & {
   consents: { channel: string; purpose: string; status: 'granted' | 'revoked'; source: string; recordedAt: string }[];
   counts: { deals: number; openDeals: number; leads: number; openActivities: number; files: number };
 };
-export type Duplicate = { id: string; name: string; matchedBy: ('email' | 'phone')[]; visible: boolean };
+export type Duplicate = { id: string; name: string; matchedBy: ('email' | 'phone' | 'name')[]; visible: boolean };
 
 export type Organization = {
   id: string; name: string; legalName: string | null; taxId: string | null; domain: string | null; website: string | null;

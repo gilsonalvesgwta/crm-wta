@@ -110,10 +110,38 @@ describe('campanha de WhatsApp', () => {
     const r = await marketing.post('/api/v1/campaigns/preview', { channel: 'whatsapp', audience: { tagIds: [vip], excludeTagIds: [cold] } });
     assert.equal(r.status, 200, JSON.stringify(r.body));
     // VIP sem "Frio": Ana, Bia, Caio, Eva. Caio sem telefone; Bia pediu para sair; Eva revogou.
-    assert.deepEqual(r.body, { total: 4, eligible: 1, noAddress: 1, revoked: 1, noConsent: 0, suppressed: 1, sample: ['Ana'] });
+    const { missing, ...rest } = r.body;
+    assert.deepEqual(rest, { total: 4, eligible: 1, noAddress: 1, revoked: 1, noConsent: 0, suppressed: 1, sample: ['Ana'], fromOrganization: 0, duplicates: 0 });
+    assert.deepEqual(missing.map((m: { name: string; twin: string | null }) => [m.name, m.twin]), [['Caio', null]], 'mostra quem está sem telefone');
     const e = await marketing.post('/api/v1/campaigns/preview', { channel: 'email', audience: { tagIds: [vip] } });
     assert.equal(e.body.eligible, 4, 'por e-mail: Ana, Bia, Caio e Eva');
     assert.equal((await sales.post('/api/v1/campaigns/preview', { channel: 'whatsapp', audience: {} })).status, 403);
+  });
+
+  test('qualquer telefone vale (fixo também); sem telefone, usa o da organização e aponta o provável duplicado', async () => {
+    const t = (await admin.post('/api/v1/tags', { name: 'Base importada' })).body.id;
+    const org = await admin.post('/api/v1/organizations', { name: 'Clínica Sol', phone: '(11) 3333-4444' });
+    assert.equal(org.status, 201, JSON.stringify(org.body));
+    const fixo = await contact({ firstName: 'Fixo', phones: [{ number: '(11) 3222-1111', label: 'home' }] });
+    const semTel = await contact({ firstName: 'Gil Org', organizationId: org.body.id });
+    const dup = await contact({ firstName: 'Hugo Prado' });
+    const twin = await contact({ firstName: 'Hugo Prado', phones: [{ number: '+55 11 95555-0009' }], allowDuplicate: true });
+    for (const id of [fixo, semTel, dup]) await f.admin.query('insert into contact_tags (tenant_id, contact_id, tag_id) values ($1, $2, $3)', [f.tenantA, id, t]);
+    const r = await marketing.post('/api/v1/campaigns/preview', { channel: 'whatsapp', audience: { tagIds: [t] } });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal(r.body.eligible, 2, 'o fixo e o da organização');
+    assert.equal(r.body.fromOrganization, 1);
+    assert.equal(r.body.noAddress, 1);
+    assert.equal(r.body.duplicates, 1);
+    assert.deepEqual(r.body.missing, [{ id: dup, name: 'Hugo Prado', twin }]);
+    // A página do contato também avisa o duplicado pelo nome.
+    const d = await admin.get(`/api/v1/contacts/${dup}/duplicates`);
+    assert.deepEqual(d.body.map((x: { id: string; matchedBy: string[] }) => [x.id, x.matchedBy]), [[twin, ['name']]]);
+    // Contatos: filtro "sem telefone".
+    const sem = await admin.get('/api/v1/contacts?phone=none&pageSize=100');
+    assert.equal(sem.status, 200);
+    const ids = sem.body.items.map((x: { id: string }) => x.id);
+    assert.ok(ids.includes(dup) && ids.includes(semTel) && !ids.includes(fixo));
   });
 
   test('o marketing cria o rascunho; só quem aprova inicia o envio', async () => {
@@ -245,5 +273,67 @@ describe('campanha de e-mail, pausa e conta desconectada', () => {
     assert.equal(await drain(c.body.id), 'done');
     g = await admin.get(`/api/v1/campaigns/${c.body.id}`);
     assert.equal(g.body.stats.sent, 3);
+  });
+
+  test('limite por hora: envia até o limite, espera e continua de onde parou; pausa programada', async () => {
+    const extra = [];
+    for (let i = 0; i < 3; i++) extra.push(await contact({ firstName: `Limite ${i}`, phones: [{ number: `+55 21 93333-000${i}` }] }));
+    const c = await admin.post('/api/v1/campaigns', { name: 'Limite', channel: 'whatsapp', accountId: wa, body: 'Oi', audience: { contactIds: extra }, perMinute: 120, maxPerHour: 1, windowDays: [1, 2, 3, 4, 5, 6, 7] });
+    assert.equal(c.status, 201, JSON.stringify(c.body));
+    assert.equal(c.body.maxPerHour, 1);
+    assert.deepEqual(c.body.windowDays, [1, 2, 3, 4, 5, 6, 7]);
+    assert.equal((await admin.post(`/api/v1/campaigns/${c.body.id}/start`, {})).status, 200);
+    for (let i = 0; i < 3; i++) { await f.admin.query('update campaigns set next_at = now() where id = $1', [c.body.id]); await run(); }
+    let g = await admin.get(`/api/v1/campaigns/${c.body.id}`);
+    assert.equal(g.body.stats.sent, 1, 'para no limite da hora');
+    assert.equal(g.body.status, 'sending');
+    assert.match(g.body.lastError, /^Limite de 1 por hora/);
+    // Muda o limite com a campanha andando e marca uma pausa para já.
+    const p = await admin.patch(`/api/v1/campaigns/${c.body.id}/pace`, { perMinute: 120, maxPerHour: null, pauseAt: new Date(Date.now() - 1000).toISOString() });
+    assert.equal(p.status, 200, JSON.stringify(p.body));
+    assert.equal((await marketing.patch(`/api/v1/campaigns/${c.body.id}/pace`, { perMinute: 10 })).status, 403, 'só quem aprova muda o ritmo');
+    await run();
+    g = await admin.get(`/api/v1/campaigns/${c.body.id}`);
+    assert.equal(g.body.status, 'paused');
+    assert.equal(g.body.lastError, 'Pausa programada');
+    assert.equal(g.body.stats.pending, 2, 'ninguém é perdido');
+    assert.equal((await admin.post(`/api/v1/campaigns/${c.body.id}/resume`)).body.status, 'sending');
+    assert.equal(await drain(c.body.id), 'done');
+    g = await admin.get(`/api/v1/campaigns/${c.body.id}`);
+    assert.equal(g.body.stats.sent, 3);
+  });
+
+  test('público por funil e várias etapas, com exclusão por etapa e por etiqueta, e etiquetas "todas"', async () => {
+    const pl = (await admin.post('/api/v1/pipelines', { name: 'Funil campanha' })).body as { id: string; stages: { id: string; kind: string }[] };
+    const open = pl.stages.filter((s) => s.kind === 'open');
+    assert.ok(open.length >= 3);
+    const [s0, s1, s2] = open.map((s) => s.id) as [string, string, string];
+    const t = (await admin.post('/api/v1/tags', { name: 'Já comprou' })).body.id;
+    const u = (await admin.post('/api/v1/tags', { name: 'Indicação' })).body.id;
+    const mk = async (name: string, phone: string, stageId: string, tags: string[]) => {
+      const id = await contact({ firstName: name, phones: [{ number: phone }] });
+      const d = await admin.post('/api/v1/deals', { pipelineId: pl.id, stageId, title: `Negócio ${name}`, contactId: id, valueCents: 100000 });
+      assert.equal(d.status, 201, JSON.stringify(d.body));
+      for (const x of tags) await f.admin.query('insert into contact_tags (tenant_id, contact_id, tag_id) values ($1, $2, $3)', [f.tenantA, id, x]);
+      return id;
+    };
+    await mk('Alfa', '+55 21 94444-0001', s0, []);
+    await mk('Beta', '+55 21 94444-0002', s1, [t]);
+    await mk('Gama', '+55 21 94444-0003', s2, []);
+    await mk('Delta', '+55 21 94444-0004', s1, [t, u]);
+    const names = async (a: Record<string, unknown>) => {
+      const r = await marketing.post('/api/v1/campaigns/preview', { channel: 'whatsapp', audience: a });
+      assert.equal(r.status, 200, JSON.stringify(r.body));
+      return [r.body.eligible, r.body.sample] as [number, string[]];
+    };
+    assert.deepEqual(await names({ deals: [{ pipelineId: pl.id, stageIds: [s0, s1] }] }), [3, ['Alfa', 'Beta', 'Delta']], 'etapas a e b');
+    assert.deepEqual(await names({ deals: [{ pipelineId: pl.id, stageIds: [s0, s1] }], excludeTagIds: [t] }), [1, ['Alfa']], 'menos quem tem a etiqueta');
+    assert.deepEqual(await names({ deals: [{ pipelineId: pl.id }], excludeDeals: [{ pipelineId: pl.id, stageIds: [s2] }] }), [3, ['Alfa', 'Beta', 'Delta']], 'o funil todo menos uma etapa');
+    assert.deepEqual(await names({ tagIds: [t], excludeDeals: [{ pipelineId: pl.id, stageIds: [s1] }] }), [0, []], 'etiqueta menos quem está na etapa');
+    assert.deepEqual(await names({ tagIds: [t, u], deals: [{ pipelineId: pl.id }] }), [2, ['Beta', 'Delta']], 'alguma das etiquetas');
+    assert.deepEqual(await names({ tagIds: [t, u], tagMode: 'all', deals: [{ pipelineId: pl.id }] }), [1, ['Delta']], 'todas as etiquetas');
+    assert.deepEqual(await names({ deals: [{ pipelineId: pl.id, status: 'won' }] }), [0, []], 'só ganhos');
+    // Formato antigo (um funil e uma etapa) continua valendo.
+    assert.deepEqual(await names({ pipelineId: pl.id, stageId: s2 }), [1, ['Gama']]);
   });
 });

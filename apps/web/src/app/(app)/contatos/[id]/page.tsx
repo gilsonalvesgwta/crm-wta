@@ -190,7 +190,7 @@ function DuplicatesBanner({ contact, dups, onMerged }: { contact: Contact; dups:
         {dups.map((d) => (
           <div key={d.id} className="flex flex-wrap items-center gap-2">
             <Link href={`/contatos/${d.id}`} className="font-medium underline">{d.name}</Link>
-            <span>tem o mesmo {d.matchedBy.map((m) => (m === 'email' ? 'e-mail' : 'telefone')).join(' e ')}.</span>
+            <span>tem o mesmo {d.matchedBy.map((m) => (m === 'email' ? 'e-mail' : m === 'phone' ? 'telefone' : 'nome')).join(' e ')}.</span>
             <button type="button" onClick={() => setMerge(d)} className="inline-flex items-center gap-1 font-semibold underline"><Merge size={14} aria-hidden />Mesclar aqui</button>
           </div>
         ))}

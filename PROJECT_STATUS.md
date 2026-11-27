@@ -10,6 +10,18 @@ Atualizado em 9 de novembro de 2026.
 
 ## Concluído, com teste
 
+### Campanhas: filtros com inclusão e exclusão, limites e pausa programada (27 nov 2026)
+
+- Público: "Incluir quem tem negócio em" e "Excluir quem tem negócio em", com vários funis, várias etapas por funil (nenhuma marcada = o funil todo) e a situação do negócio (em andamento, ganho, perdido ou qualquer); etiquetas com "alguma delas" ou "todas elas", além de "sem estas etiquetas". O formato antigo (um funil e uma etapa) continua valendo.
+- Envio: dias da semana, máximo por hora e por dia (ao chegar no limite, espera e continua de onde parou) e pausa automática numa data e hora. "Ritmo e limites" muda tudo isso com a campanha em andamento; "Pausar" e "Retomar" continuam de onde parou.
+- Migração 0028: `campaigns.window_days/max_per_hour/max_per_day/pause_at` e `app.campaign_claim` respeitando os dias.
+
+### Telefones no público das campanhas (27 nov 2026)
+
+- Campanha de WhatsApp usa qualquer telefone do contato (celular, WhatsApp, trabalho, casa ou fixo; o tipo nunca foi filtro). Contato sem telefone usa o da organização dele.
+- A prévia do público mostra "Ver quem está sem telefone" (até 50, com link) e aponta o provável duplicado: outro contato com o mesmo nome que tem telefone (comum depois de importar pessoas e negócios separados).
+- A página do contato avisa duplicado também pelo mesmo nome (quando falta e-mail ou telefone), com "Mesclar aqui".
+- Contatos: filtro "Com telefone / Sem telefone".
 ### Fluxos no WhatsApp por QR code (27 nov 2026)
 
 - O construtor de fluxos (arrastar e soltar) agora funciona com o número conectado por QR code (Evolution), além do oficial e do Instagram.

@@ -56,6 +56,13 @@ Todo evento sai do outbox transacional. O envelope é o mesmo para webhooks, aut
 
 Toda rota exige sessão, salvo as marcadas como pública. Mutações exigem o cabeçalho `x-crm-request: 1`.
 
+### Campanhas: público e limites (27 nov 2026)
+
+- `audience.deals` e `audience.excludeDeals`: `[{ pipelineId, stageIds: [], status: "open"|"won"|"lost"|"any" }]`; `audience.tagMode`: `any` ou `all`. `pipelineId`/`stageId` antigos continuam aceitos.
+- Campanha: `windowDays` (1 = segunda … 7 = domingo), `maxPerHour`, `maxPerDay`, `pauseAt`.
+- `PATCH /api/v1/campaigns/:id/pace { perMinute, windowStart, windowEnd, windowDays, maxPerHour, maxPerDay, pauseAt }` (aprovar campanhas): vale também durante o envio.
+- A prévia do público traz `fromOrganization`, `duplicates` e `missing`. `GET /api/v1/contacts?phone=none|any`.
+
 ### Saúde
 
 | Método e caminho | Acesso | Função |
