@@ -10,6 +10,11 @@ Atualizado em 9 de novembro de 2026.
 
 ## Concluído, com teste
 
+### Excluir campanhas e rascunhos (27 nov 2026)
+
+- Lista de campanhas: lixeira em cada linha, seleção com "Selecionar rascunhos" e "Excluir N selecionadas". Rascunho e agendada também se excluem pela própria página. Em andamento ou pausada: cancele antes. Fica na auditoria (`campaign.delete`).
+- `POST /api/v1/campaigns/bulk-delete { ids }` devolve `{ deleted, kept }`.
+
 ### Campanha: etiqueta de quem recebeu com sucesso (27 nov 2026)
 
 - Em Configurações da campanha (e depois, na página da campanha): "Ao enviar com sucesso, marcar com a etiqueta". Cada envio com sucesso coloca a etiqueta no contato; escolher depois marca também quem já recebeu. Serve para filtrar em Contatos ou no público da próxima campanha.

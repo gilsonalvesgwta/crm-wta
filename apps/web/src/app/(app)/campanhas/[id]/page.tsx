@@ -58,7 +58,13 @@ function CampaignView({ id }: { id: string }) {
   if (c.status === 'draft' || editing) {
     return (
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
-        <PageHeader title={c.status === 'draft' ? 'Campanha (rascunho)' : 'Editar campanha'} subtitle={c.name} back={{ href: '/campanhas', label: 'Campanhas' }} />
+        <PageHeader title={c.status === 'draft' ? 'Campanha (rascunho)' : 'Editar campanha'} subtitle={c.name} back={{ href: '/campanhas', label: 'Campanhas' }}
+          actions={can('campaigns:edit') ? <Button variant="ghost" onClick={() => setConfirm('delete')}><Trash2 size={16} aria-hidden />Excluir {c.status === 'draft' ? 'rascunho' : 'campanha'}</Button> : undefined} />
+        <Confirm open={confirm === 'delete'} title={c.status === 'draft' ? 'Excluir este rascunho?' : 'Excluir a campanha?'} confirmLabel="Excluir"
+          onConfirm={() => { setConfirm(null); void act('delete'); }} onCancel={() => setConfirm(null)}>
+          A campanha some da lista. Nada foi enviado ainda.
+        </Confirm>
+        {actErr ? <Alert tone="error">{actErr}</Alert> : null}
         {msg ? <Alert tone="success">{msg}</Alert> : null}
         {can('campaigns:edit') ? <CampaignWizard initial={c} /> : <Alert tone="info">Você pode ver, mas não editar campanhas.</Alert>}
       </div>
@@ -111,7 +117,7 @@ function CampaignView({ id }: { id: string }) {
           {approve && ['scheduled', 'sending', 'paused'].includes(c.status) ? <Button variant="secondary" onClick={() => setPacing(true)}><Gauge size={16} aria-hidden />Ritmo e limites</Button> : null}
           {can('campaigns:edit') ? <Button variant="secondary" loading={busy === 'duplicate'} onClick={() => void act('duplicate')}><Copy size={16} aria-hidden />Duplicar</Button> : null}
           {approve && ['scheduled', 'sending', 'paused'].includes(c.status) ? <Button variant="danger" onClick={() => setConfirm('cancel')}><XCircle size={16} aria-hidden />Cancelar</Button> : null}
-          {can('campaigns:edit') && (c.status === 'done' || c.status === 'canceled') ? <Button variant="ghost" aria-label="Excluir campanha" onClick={() => setConfirm('delete')}><Trash2 size={16} aria-hidden /></Button> : null}
+          {can('campaigns:edit') && (c.status === 'done' || c.status === 'canceled' || c.status === 'scheduled') ? <Button variant="ghost" aria-label="Excluir campanha" onClick={() => setConfirm('delete')}><Trash2 size={16} aria-hidden /></Button> : null}
         </div>} />
       {msg ? <Alert tone="success">{msg}</Alert> : null}
       {actErr ? <Alert tone="error">{actErr}</Alert> : null}

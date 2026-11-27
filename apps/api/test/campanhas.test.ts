@@ -360,4 +360,22 @@ describe('campanha de e-mail, pausa e conta desconectada', () => {
     const pv = await marketing.post('/api/v1/campaigns/preview', { channel: 'whatsapp', audience: { tagIds: [later] } });
     assert.equal(pv.body.eligible, 2);
   });
+
+  test('excluir campanhas: uma ou várias (rascunhos de teste); em andamento fica', async () => {
+    const mk = async (name: string) => (await admin.post('/api/v1/campaigns', { name, channel: 'whatsapp', accountId: wa, body: 'Oi', audience: { contactIds: [] } })).body.id as string;
+    const t1 = await mk('Teste 1');
+    const t2 = await mk('Teste 2');
+    const agendada = await mk('Agendada');
+    await f.admin.query("update campaigns set status = 'scheduled', scheduled_at = now() + interval '1 day' where id = $1", [agendada]);
+    const andando = await mk('Andando');
+    await f.admin.query("update campaigns set status = 'sending' where id = $1", [andando]);
+    assert.equal((await sales.post('/api/v1/campaigns/bulk-delete', { ids: [t1] })).status, 403);
+    const r = await marketing.post('/api/v1/campaigns/bulk-delete', { ids: [t1, t2, agendada, andando] });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.deepEqual(r.body, { deleted: 3, kept: [andando] });
+    assert.equal((await admin.del(`/api/v1/campaigns/${andando}`)).status, 409, 'em andamento: cancele antes');
+    assert.equal((await adminB.post('/api/v1/campaigns/bulk-delete', { ids: [andando] })).body.deleted, 0, 'outra empresa não apaga');
+    const a = await f.admin.query("select count(*)::int as n from audit_log where action = 'campaign.delete' and tenant_id = $1", [f.tenantA]);
+    assert.ok(a.rows[0].n >= 3);
+  });
 });

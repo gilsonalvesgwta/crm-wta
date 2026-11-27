@@ -70,6 +70,13 @@ export class CampaignsController {
   }
 
   @Require('campaigns:edit')
+  @Post('bulk-delete')
+  @HttpCode(200)
+  removeMany(@CurrentActor() a: Actor, @Body() b: unknown) {
+    return this.svc.removeMany(a, parse(z.object({ ids: z.array(uuid).min(1).max(500) }), b).ids);
+  }
+
+  @Require('campaigns:edit')
   @Delete(':id')
   @HttpCode(204)
   async remove(@CurrentActor() a: Actor, @Param('id') i: string) {
