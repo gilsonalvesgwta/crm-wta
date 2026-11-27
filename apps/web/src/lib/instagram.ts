@@ -3,9 +3,11 @@
 
 export type FlowChannel = 'instagram' | 'whatsapp';
 export type TriggerType = 'comment' | 'live_comment' | 'dm_keyword' | 'story_reply' | 'story_mention' | 'reaction' | 'wa_broadcast' | 'wa_keyword';
-export type NodeType = 'trigger' | 'comment_reply' | 'private_reply' | 'text' | 'template' | 'media' | 'wait' | 'question' | 'condition' | 'action';
+export type NodeType = 'trigger' | 'comment_reply' | 'private_reply' | 'text' | 'template' | 'media' | 'wait' | 'question' | 'condition' | 'random' | 'action';
+/** Onde o fluxo roda: Instagram, WhatsApp oficial ou WhatsApp por QR code. */
+export type FlowMode = 'instagram' | 'cloud' | 'qr';
 
-export type FlowButton = { id: string; title: string; url?: string | null };
+export type FlowButton = { id: string; title: string; url?: string | null; keywords?: string[] };
 export type TriggerData = {
   type: TriggerType; posts: 'any' | 'chosen'; postIds: string[]; match: 'any' | 'contains' | 'exact'; keywords: string[];
   frequency: 'every' | 'once_per_contact' | 'once_per_post';
@@ -21,13 +23,15 @@ export type FlowOp =
   | { kind: 'create_lead'; title: string }
   | { kind: 'create_deal'; pipelineId: string; title: string }
   | { kind: 'notify'; membershipId: string | null; text: string }
-  | { kind: 'assign'; membershipId: string };
+  | { kind: 'assign'; membershipId: string }
+  | { kind: 'move_deal'; pipelineId: string; stageId: string; title: string }
+  | { kind: 'opt_out' };
 
 export type NodeData = {
   trigger: TriggerData;
   comment_reply: { variants: string[] };
   private_reply: { text: string; buttons: FlowButton[] };
-  text: { text: string; buttons: FlowButton[] };
+  text: { text: string; buttons: FlowButton[]; retryText?: string; timeoutHours?: number | null };
   /** WhatsApp: modelo aprovado; os botões são as respostas rápidas do modelo (id "q" + posição). */
   template: { templateId: string | null; name: string | null; params: string[]; buttons: FlowButton[] };
   media: { fileId: string | null; name: string | null; kind: 'image' | 'video' | 'audio' | 'file' | null };
@@ -37,6 +41,7 @@ export type NodeData = {
     retryText: string; timeoutHours: number | null;
   };
   condition: { match: 'all' | 'any'; rules: FlowRule[] };
+  random: { weights: number[] };
   action: { ops: FlowOp[] };
 };
 export type FlowNode = { [K in NodeType]: { id: string; type: K; position: { x: number; y: number }; data: NodeData[K] } }[NodeType];
@@ -48,10 +53,11 @@ export type FlowStatus = 'draft' | 'active' | 'paused';
 export type FlowItem = {
   id: string; name: string; triggerType: TriggerType; status: FlowStatus; version: number; publishedAt: string | null; updatedAt: string;
   createdAt: string; accountId: string; accountName: string; unpublishedChanges: boolean; triggered7d: number; triggeredTotal: number; waiting: number;
+  mode?: FlowMode;
 };
 export type Flow = Omit<FlowItem, 'triggered7d' | 'triggeredTotal' | 'waiting'> & { draft: FlowGraph; published: FlowGraph | null; issues: FlowIssue[] };
 export type IgAccount = { id: string; name: string; status: string; igUserId: string; username: string | null };
-export type WaAccount = { id: string; name: string; status: string; address: string | null; phoneNumberId: string };
+export type WaAccount = { id: string; name: string; status: string; address: string | null; phoneNumberId: string | null; mode?: 'cloud' | 'qr' };
 export type IgPost = { id: string; caption: string; type: 'reels' | 'post' | 'story'; thumbnail: string | null; permalink: string | null; at: string | null };
 export type MediaItem = { id: string; name: string; contentType: string; size: number; createdAt: string; uploadedBy?: string | null };
 
@@ -64,7 +70,7 @@ export const TRIGGERS: { type: TriggerType; title: string; desc: string }[] = [
   { type: 'reaction', title: 'Reação a mensagem', desc: 'Alguém reage com um emoji a uma mensagem sua.' },
 ];
 export const WA_TRIGGERS: { type: TriggerType; title: string; desc: string }[] = [
-  { type: 'wa_broadcast', title: 'Quando você envia uma transmissão', desc: 'A campanha manda um modelo aprovado com botões; o clique continua a conversa.' },
+  { type: 'wa_broadcast', title: 'Quando você envia uma campanha', desc: 'A campanha manda a primeira mensagem para a sua base; a resposta de cada pessoa continua a conversa.' },
   { type: 'wa_keyword', title: 'Palavra na mensagem', desc: 'Alguém manda uma palavra-chave para o seu WhatsApp.' },
 ];
 export const TRIGGER_TITLE = Object.fromEntries([...TRIGGERS, ...WA_TRIGGERS].map((t) => [t.type, t.title])) as Record<TriggerType, string>;
@@ -95,6 +101,7 @@ export const NODE_TITLE: Record<NodeType, string> = {
   wait: 'Esperar',
   question: 'Pergunta',
   condition: 'Condição',
+  random: 'Sorteio (teste A/B)',
   action: 'Ações no CRM',
 };
 
@@ -115,6 +122,7 @@ export const WA_VARIABLES: { key: string; label: string }[] = [
   { key: 'nome_completo', label: 'Nome completo' },
   { key: 'telefone', label: 'Telefone da pessoa' },
   { key: 'mensagem', label: 'Mensagem que disparou' },
+  { key: 'resposta', label: 'Última resposta da pessoa' },
 ];
 
 const rid = () => Math.random().toString(36).slice(2, 8);
@@ -126,7 +134,8 @@ export function newNode(type: Exclude<NodeType, 'trigger'>, position: { x: numbe
   switch (type) {
     case 'comment_reply': return { id, type, position, data: { variants: [''] } };
     case 'private_reply': return { id, type, position, data: { text: '', buttons: [{ id: newId('b'), title: 'Quero', url: null }] } };
-    case 'text': return { id, type, position, data: { text: '', buttons: [] } };
+    case 'text': return { id, type, position, data: { text: '', buttons: [], retryText: 'Não entendi 😅 Responda com o número de uma das opções:', timeoutHours: null } };
+    case 'random': return { id, type, position, data: { weights: [50, 50] } };
     case 'template': return { id, type, position, data: { templateId: null, name: null, params: [], buttons: [] } };
     case 'media': return { id, type, position, data: { fileId: null, name: null, kind: null } };
     case 'wait': return { id, type, position, data: { amount: 5, unit: 'minutes' } };
@@ -137,15 +146,21 @@ export function newNode(type: Exclude<NodeType, 'trigger'>, position: { x: numbe
 }
 
 /** Saídas de um bloco (cada uma pode ter uma seta). */
-export function outputsOf(n: FlowNode): { handle: string; label: string | null; tone?: 'ok' | 'bad' | 'muted' }[] {
+export function outputsOf(n: FlowNode, qr = false): { handle: string; label: string | null; tone?: 'ok' | 'bad' | 'muted' }[] {
   switch (n.type) {
     case 'private_reply':
     case 'text': {
-      const btns = n.data.buttons.filter((b) => !b.url).map((b) => ({ handle: `btn:${b.id}`, label: b.title || 'Botão' }));
+      const btns = n.data.buttons.filter((b) => !b.url).map((b, i) => ({ handle: `btn:${b.id}`, label: qr ? `${i + 1}. ${b.title || 'Opção'}` : b.title || 'Botão' }));
       // Com botão, o fluxo segue pelo clique; texto sem botão segue direto.
       if (n.type === 'private_reply') return btns;
-      return btns.length ? btns : [{ handle: 'next', label: null }];
+      if (!btns.length) return [{ handle: 'next', label: null }];
+      return [
+        ...btns,
+        ...(qr ? [{ handle: 'other', label: 'Outra resposta', tone: 'muted' as const }] : []),
+        { handle: 'timeout', label: 'Não respondeu', tone: 'muted' as const },
+      ];
     }
+    case 'random': return n.data.weights.map((w, i) => ({ handle: `r:${i}`, label: `Caminho ${'ABCDE'[i]} · ${w}%` }));
     case 'template': {
       const btns = n.data.buttons.map((b) => ({ handle: `btn:${b.id}`, label: b.title || 'Botão' }));
       return btns.length ? btns : [{ handle: 'next', label: null }];
@@ -198,4 +213,32 @@ export function mediaKind(contentType: string): NodeData['media']['kind'] {
   if (contentType.startsWith('video/')) return 'video';
   if (contentType.startsWith('audio/')) return 'audio';
   return 'file';
+}
+
+const KEYCAPS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+
+/** WhatsApp por QR code: como a mensagem chega (opções numeradas e links no fim). Igual à API. */
+export function qrMessage(text: string, buttons: FlowButton[]): string {
+  const opts = buttons.filter((b) => !b.url && b.title.trim()).slice(0, 10);
+  const links = buttons.filter((b) => b.url && b.title.trim());
+  const parts = [text.trim()];
+  if (opts.length) parts.push(opts.map((b, i) => `${KEYCAPS[i]} ${b.title.trim()}`).join('\n'));
+  if (links.length) parts.push(links.map((l) => `🔗 ${l.title.trim()}: ${l.url}`).join('\n'));
+  return parts.filter(Boolean).join('\n\n');
+}
+
+/** Qual opção a resposta escolhe (número, nome ou palavra da opção). Igual à API, para a prévia. */
+export function pickOption(buttons: FlowButton[], raw: string): FlowButton | null {
+  const opts = buttons.filter((b) => !b.url && b.title.trim()).slice(0, 10);
+  if (!opts.length || !raw) return null;
+  const keycap = KEYCAPS.findIndex((k) => raw.includes(k));
+  if (keycap >= 0 && keycap < opts.length) return opts[keycap]!;
+  const s = normalize(raw).replace(/[!?.,;:*_~()"'“”]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!s) return null;
+  const num = /^(?:opcao|op|n|numero|#)?\s*([0-9]{1,2})(?:\s.*)?$/.exec(s);
+  if (num) { const i = Number(num[1]) - 1; if (i >= 0 && i < opts.length) return opts[i]!; }
+  for (const b of opts) if ([b.title, ...(b.keywords ?? [])].map(normalize).filter(Boolean).includes(s)) return b;
+  const hits = opts.filter((b) => [b.title, ...(b.keywords ?? [])].map(normalize).filter((w) => w.length >= 2)
+    .some((w) => new RegExp(`^${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^a-z0-9])`).test(s)));
+  return hits.length === 1 ? hits[0]! : null;
 }

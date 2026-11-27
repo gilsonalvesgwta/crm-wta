@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { enrichContact } from './contact-enrich.js';
 import {
-  checkAnswer, COMMENT_TRIGGERS, graphSchema, keywordScore, nextNode, normalize, parsePayload, payloadFor, postbackButtons, renderText,
+  checkAnswer, COMMENT_TRIGGERS, graphSchema, keywordScore, nextNode, normalize, parsePayload, payloadFor, pickOption, pickWeighted, postbackButtons, qrMessage, renderText,
   TEMPLATE_BUTTON_RE, triggerOf, waitMinutes, type FlowButton, type FlowGraph, type FlowNode, type FlowOp, type FlowRule, type TriggerType,
 } from '../domain/flows.js';
 import { readInstagramActivity, readInstagramWebhook } from '../domain/meta.js';
@@ -13,7 +13,14 @@ import { FilesService } from './files.service.js';
 import { MessagesService, type FlowSendExtras, type SendInput } from './messages.service.js';
 
 /** Conta do Instagram (ou do WhatsApp oficial) como o motor precisa (vinda do aviso). */
-export type IgAccount = { id: string; external_id: string; secret: Buffer; config: { host?: string } & Record<string, unknown> };
+export type IgAccount = {
+  id: string; external_id: string; secret: Buffer | null; config: { host?: string } & Record<string, unknown>;
+  /** whatsapp_evolution: WhatsApp por QR code (opções numeradas em vez de botões, sem janela de 24 h). */
+  kind?: string;
+};
+
+/** WhatsApp por QR code (Evolution)? */
+const isQr = (acc: IgAccount) => acc.kind === 'whatsapp_evolution';
 
 type RunRow = {
   id: string; flow_id: string; flow_version: number; channel_account_id: string; contact_id: string | null; ig_user_id: string;
@@ -128,7 +135,9 @@ export class IgFlowEngine {
     const ids = phoneVariants(`+${wa}`).map((v) => v.replace(/\D/g, ''));
     try {
       let outcome: string;
+      let qrOutcome: string | null = null;
       if (ev.payload && parsePayload(ev.payload)) outcome = await this.click(tenantId, acc, wa, ev.payload);
+      else if (isQr(acc) && (qrOutcome = await this.choose(tenantId, acc, ids, ev.text ?? '')) !== null) outcome = qrOutcome as string;
       else if (ev.text && await this.clickByText(tenantId, acc, ids, ev.text)) outcome = 'clique no botão (texto)';
       else if (await this.answer(tenantId, acc, wa, ev.text ?? '', ids)) outcome = 'resposta da pergunta';
       else if (ev.text) outcome = await this.triggerWa(tenantId, acc, wa, ev.text);
@@ -140,6 +149,67 @@ export class IgFlowEngine {
       await this.logOutcome(ctx, acc.id, key, 'erro ao processar');
       return 'erro ao processar';
     }
+  }
+
+  /**
+   * WhatsApp por QR code: a resposta a uma mensagem com opções numeradas. O
+   * número, o nome ou uma palavra da opção seguem por ela; outra coisa segue
+   * pela seta "Outra resposta" ou pede de novo (até 2 vezes). Nulo se não havia
+   * mensagem com opções esperando.
+   */
+  async choose(tenantId: string, acc: IgAccount, ids: string[], text: string): Promise<string | null> {
+    const ctx = { tenantId, userId: null };
+    const r = await this.db.app(ctx, async (q) => {
+      const run = (await q.query<RunRow & { published: unknown }>(
+        `select r.*, f.published, f.channel from ig_flow_runs r join ig_flows f on f.id = r.flow_id
+          where r.channel_account_id = $1 and r.ig_user_id = any($2::text[]) and r.status = 'waiting' and r.wait_kind = 'click'
+          order by r.updated_at desc limit 1 for update of r`, [acc.id, ids])).rows[0];
+      if (!run) return null;
+      const g = graphSchema.safeParse(run.published);
+      const node = g.success ? g.data.nodes.find((n) => n.id === run.node_id) : null;
+      if (!node || node.type !== 'text') return null;
+      const context = { ...run.context, lastInboundAt: new Date().toISOString(), text: text.slice(0, 1000) };
+      const vars = { ...run.vars, resposta: text.slice(0, 500) };
+      const btn = pickOption(node.data.buttons, text);
+      const other = !btn && g.success && g.data.edges.some((e) => e.source === node.id && e.sourceHandle === 'other');
+      if (!btn && !other && run.attempts < 2) {
+        await q.query('update ig_flow_runs set attempts = attempts + 1, context = $2 where id = $1', [run.id, JSON.stringify(context)]);
+        return { run: { ...run, context, vars }, node, retry: true as const };
+      }
+      if (!btn && !other) {
+        // Errou de novo: segue esperando, sem insistir (a equipe vê a conversa).
+        await q.query('update ig_flow_runs set context = $2 where id = $1', [run.id, JSON.stringify(context)]);
+        await this.event(q, run.flow_id, run.id, node.id, 'skipped', { reason: 'resposta fora das opções', text: text.slice(0, 200) });
+        return { run, node, ignore: true as const };
+      }
+      await q.query(
+        `update ig_flow_runs set status = 'running', wait_kind = null, wake_at = null, attempts = 0, vars = $2, context = $3 where id = $1`,
+        [run.id, JSON.stringify(vars), JSON.stringify(context)]);
+      await this.event(q, run.flow_id, run.id, node.id, btn ? 'clicked' : 'answered', btn ? { button: btn.title } : { value: text.slice(0, 200) });
+      return { run, node, handle: btn ? `btn:${btn.id}` : 'other', label: btn ? `opção "${btn.title}"` : 'outra resposta' };
+    });
+    if (!r) return null;
+    if ('ignore' in r) return 'resposta fora das opções (já pedimos de novo 2 vezes)';
+    if ('retry' in r) {
+      const intro = await this.render(tenantId, r.run, r.node.data.retryText || 'Não entendi 😅 Responda com o número de uma das opções:');
+      await this.waSend(tenantId, r.run, { text: qrMessage(intro, postbackButtons(r.node.data.buttons)) }, { typing: true })
+        .catch((err) => this.log.warn(`opções: não reenviadas (${String(err)})`));
+      return 'resposta fora das opções: pedimos de novo';
+    }
+    await this.advance(tenantId, acc, r.run.id, r.handle);
+    return r.label;
+  }
+
+  /**
+   * WhatsApp por QR code: alguém da equipe respondeu pelo celular. Os fluxos
+   * esperando essa pessoa param, para não atropelar o atendimento. (O eco das
+   * mensagens do próprio CRM não chega aqui: é reconhecido pelo identificador.)
+   */
+  async humanReplied(tenantId: string, acc: IgAccount, e164: string): Promise<number> {
+    const ids = phoneVariants(e164).map((v) => v.replace(/\D/g, ''));
+    return this.db.app({ tenantId, userId: null }, async (q) => (await q.query(
+      `update ig_flow_runs set status = 'canceled', finished_at = now(), wait_kind = null, wake_at = null, last_error = 'A equipe assumiu a conversa'
+        where channel_account_id = $1 and ig_user_id = any($2::text[]) and status = 'waiting'`, [acc.id, ids])).rowCount ?? 0);
   }
 
   /** A pessoa escreveu exatamente o nome de um botão que está esperando o clique: vale como clique. */
@@ -215,9 +285,9 @@ export class IgFlowEngine {
     const start = await this.db.app(ctx, async (q) => {
       const f = (await q.query<{ published: unknown; version: number; status: string; channel: string; channel_account_id: string }>(
         'select published, version, status, channel, channel_account_id from ig_flows where id = $1', [b.flowId])).rows[0];
-      if (!f || f.channel !== 'whatsapp' || f.status !== 'active') throw new Problem(409, 'O fluxo da transmissão não está ativo.', 'flow-inactive');
+      if (!f || f.channel !== 'whatsapp' || f.status !== 'active') throw new Problem(409, 'O fluxo da campanha não está ativo.', 'flow-inactive');
       const acc = (await q.query<IgAccount & { status: string; name: string }>(
-        'select id, external_id, secret, config, status, name from channel_accounts where id = $1', [f.channel_account_id])).rows[0];
+        'select id, external_id, secret, config, kind, status, name from channel_accounts where id = $1', [f.channel_account_id])).rows[0];
       if (!acc || acc.status !== 'connected') throw Problem.conflict(`O WhatsApp "${acc?.name ?? ''}" não está conectado.`);
       const graph = graphSchema.safeParse(f.published);
       if (!graph.success) throw new Problem(409, 'O fluxo da transmissão está inválido.', 'flow-invalid');
@@ -453,7 +523,7 @@ export class IgFlowEngine {
     const r = await this.db.app(ctx, async (q) => {
       const run = (await q.query<RunRow>('select * from ig_flow_runs where id = $1 for update', [runId])).rows[0];
       if (!run || run.status !== 'waiting') return null;
-      const acc = (await q.query<IgAccount>('select id, external_id, secret, config from channel_accounts where id = $1', [run.channel_account_id])).rows[0];
+      const acc = (await q.query<IgAccount>('select id, external_id, secret, config, kind from channel_accounts where id = $1', [run.channel_account_id])).rows[0];
       await q.query(`update ig_flow_runs set status = 'running', wait_kind = null, wake_at = null, locked_until = null where id = $1`, [runId]);
       return acc ? { acc, handle: run.wait_kind === 'delay' ? 'next' : 'timeout' } : null;
     });
@@ -523,7 +593,7 @@ export class IgFlowEngine {
       case 'trigger':
         return { go: 'next' };
       case 'template': {
-        if (run.channel !== 'whatsapp') throw new StepError('Modelo aprovado só existe no WhatsApp oficial.');
+        if (run.channel !== 'whatsapp' || isQr(acc)) throw new StepError('Modelo aprovado só existe no WhatsApp oficial.');
         if (!node.data.templateId) throw new StepError('Escolha o modelo aprovado.');
         const params: string[] = [];
         for (const v of node.data.params) params.push((await this.render(tenantId, run, v)) || '-');
@@ -571,12 +641,12 @@ export class IgFlowEngine {
         const text = await this.render(tenantId, run, node.data.text);
         await this.sendDm(tenantId, acc, run, node.id, text, node.data.buttons);
         await sent({ text: text.slice(0, 200) });
-        return postbackButtons(node.data.buttons).length ? { wait: 'click', wakeAt: hoursFromNow(DEFAULT_WAIT_H) } : { go: 'next' };
+        return postbackButtons(node.data.buttons).length ? { wait: 'click', wakeAt: hoursFromNow(node.data.timeoutHours ?? DEFAULT_WAIT_H) } : { go: 'next' };
       }
       case 'media': {
         if (run.channel === 'whatsapp') {
           if (!node.data.fileId) throw new StepError('Escolha o arquivo do bloco de mídia.');
-          await this.waSend(tenantId, run, {}, { mediaFileId: node.data.fileId });
+          await this.waSend(tenantId, run, {}, { mediaFileId: node.data.fileId, typing: isQr(acc) });
           await sent({ file: node.data.name });
           return { go: 'next' };
         }
@@ -604,6 +674,11 @@ export class IgFlowEngine {
       }
       case 'condition':
         return { go: (await this.check(tenantId, acc, run, node.data.match, node.data.rules)) ? 'yes' : 'no' };
+      case 'random': {
+        const i = pickWeighted(node.data.weights, Math.random());
+        await sent({ path: i + 1 });
+        return { go: `r:${i}` };
+      }
       case 'action': {
         const done: string[] = [];
         for (const op of node.data.ops) done.push(await this.perform(tenantId, run, op, g));
@@ -631,6 +706,11 @@ export class IgFlowEngine {
 
   /** Manda no direct (para a pessoa). No WhatsApp, mensagem com botões de resposta. */
   private async sendDm(tenantId: string, acc: IgAccount, run: RunRow, nodeId: string, text: string, buttons: FlowButton[]) {
+    if (run.channel === 'whatsapp' && isQr(acc)) {
+      // QR code: o WhatsApp não mostra botões fora da API oficial; vão como opções numeradas.
+      await this.waSend(tenantId, run, { text: qrMessage(text, buttons) }, { typing: true });
+      return { messageId: run.context.lastMessageId ?? '', recipientId: null };
+    }
     if (run.channel === 'whatsapp') {
       const pb = postbackButtons(buttons);
       const links = buttons.filter((b) => b.url && b.title.trim());
@@ -813,6 +893,37 @@ export class IgFlowEngine {
             `insert into notifications (tenant_id, membership_id, kind, title, body, link) values (app.tenant_id(), $1, ${wa ? `'whatsapp.flow'` : `'instagram.flow'`}, $2, $3, $4)`,
             [to, `Fluxo "${flow.name}"`.slice(0, 200), text.slice(0, 1000), `/contatos/${contactId}`]);
           return 'aviso para a equipe';
+        }
+        case 'move_deal': {
+          const stage = (await q.query<{ id: string; name: string; kind: string }>(
+            `select s.id, s.name, s.kind from pipeline_stages s where s.id::text = $1 and s.pipeline_id::text = $2`, [op.stageId, op.pipelineId])).rows[0];
+          if (!stage) throw new StepError('A etapa do funil não existe mais.');
+          const deal = (await q.query<{ id: string; stage_id: string; name: string | null }>(
+            `select d.id, d.stage_id, (select name from pipeline_stages where id = d.stage_id) as name from deals d
+              where d.contact_id = $1 and d.pipeline_id::text = $2 and d.status = 'open' order by d.updated_at desc limit 1`,
+            [contactId, op.pipelineId])).rows[0];
+          if (!deal) {
+            const title = (await this.render(tenantId, run, op.title || `${label}: {{nome_completo}}`)).slice(0, 200) || `Negócio do ${label}`;
+            const id = (await q.query<{ id: string }>(
+              `insert into deals (tenant_id, pipeline_id, stage_id, title, contact_id, owner_membership_id) values (app.tenant_id(), $1, $2, $3, $4, $5) returning id`,
+              [op.pipelineId, stage.id, title, contactId, flow.created_by])).rows[0]!.id;
+            await q.query(`insert into timeline_entries (tenant_id, kind, contact_id, deal_id, data) values (app.tenant_id(), 'deal.created', $1, $2, $3)`,
+              [contactId, id, JSON.stringify({ title, via, flow: flow.name })]);
+            return `negócio "${title}" em ${stage.name}`;
+          }
+          if (deal.stage_id === stage.id) return `negócio já em ${stage.name}`;
+          await q.query('update deals set stage_id = $2 where id = $1', [deal.id, stage.id]);
+          const kind = stage.kind === 'won' ? 'deal.won' : stage.kind === 'lost' ? 'deal.lost' : 'deal.stage_changed';
+          await q.query(`insert into timeline_entries (tenant_id, kind, contact_id, deal_id, data) values (app.tenant_id(), $1, $2, $3, $4)`,
+            [kind, contactId, deal.id, JSON.stringify({ fromStage: deal.name, toStage: stage.name, toStageId: stage.id, via, flow: flow.name })]);
+          return `negócio para ${stage.name}`;
+        }
+        case 'opt_out': {
+          const r = await q.query(
+            `insert into suppression_list (tenant_id, channel, value, reason)
+             select app.tenant_id(), 'whatsapp', p.e164, 'opt_out' from contact_phones p where p.contact_id = $1
+             on conflict (tenant_id, channel, value) do nothing`, [contactId]);
+          return `fora das campanhas (${r.rowCount ?? 0} número(s))`;
         }
         case 'assign': {
           await q.query(

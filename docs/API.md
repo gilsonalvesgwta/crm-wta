@@ -208,6 +208,13 @@ Ver: `campaigns:view`. Criar, mudar, publicar e subir mídia: `campaigns:edit`. 
 
 Desenho (`draft`): `{nodes: [{id, type, position, data}], edges: [{id, source, sourceHandle: next|yes|no|timeout|btn:<id>, target}]}`. Tipos: `trigger` (comment, live_comment, dm_keyword, story_reply, story_mention, reaction; publicações, palavras-chave, frequência), `comment_reply` (sorteia até 3), `private_reply` (uma por comentário, até 3 botões), `text`, `media`, `wait`, `question` (guarda em variável, campo, e-mail ou telefone), `condition` (etiqueta, segue a conta, variável), `action` (etiqueta, campo, lead, negócio, aviso, passar a conversa).
 
+### Fluxos no WhatsApp por QR code (27 nov 2026)
+
+- `GET /api/v1/whatsapp/accounts` lista também os números de QR code, com `mode` (`qr` ou `cloud`). Os fluxos trazem `mode`.
+- Bloco `text`: até 10 `buttons` (no QR code viram opções numeradas; fora dele, até 3), cada um com `keywords`; `retryText` e `timeoutHours`. Saídas `btn:<id>`, `other` (QR code) e `timeout`.
+- Bloco `random` (`weights`, 2 a 5 caminhos; saídas `r:<n>`). Ações `move_deal` (`pipelineId`, `stageId`, `title`) e `opt_out`.
+- Campanha do WhatsApp por QR code aceita `flowId` (fluxo "campanha" do mesmo número, publicado); sai no máximo 15 por minuto.
+
 ### Transcrição das notas de áudio (25 nov 2026)
 
 - As notas trazem `transcript`, `transcriptStatus` (`pending`, `done`, `failed` ou nulo), `transcriptAt` e `transcriptBy` (`local` ou `openai`). Nota de áudio nova já nasce `pending`.

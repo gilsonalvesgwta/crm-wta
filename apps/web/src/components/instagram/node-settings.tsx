@@ -14,7 +14,7 @@ import { Field } from '@/components/ui/field';
 import { Select } from '@/components/ui/select';
 import { Alert } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
-import { NodeIcon } from './flow-canvas';
+import { NodeIcon, QrCtx } from './flow-canvas';
 import { TriggerIcon } from './trigger-icon';
 
 type Upd<T> = (patch: Partial<T>, mergeKey?: string) => void;
@@ -54,6 +54,7 @@ export function NodeSettings({ node, issues, accountId, readOnly, channel = 'ins
         {node.type === 'wait' ? <WaitSettings d={node.data} upd={upd as Upd<NodeData['wait']>} /> : null}
         {node.type === 'question' ? <QuestionSettings d={node.data} upd={upd as Upd<NodeData['question']>} /> : null}
         {node.type === 'condition' ? <ConditionSettings d={node.data} upd={upd as Upd<NodeData['condition']>} /> : null}
+        {node.type === 'random' ? <RandomSettings d={node.data} upd={upd as Upd<NodeData['random']>} /> : null}
         {node.type === 'action' ? <ActionSettings d={node.data} upd={upd as Upd<NodeData['action']>} /> : null}
       </fieldset>
       {node.type !== 'trigger' && !readOnly ? (
@@ -284,6 +285,8 @@ function CommentReplySettings({ d, upd }: { d: NodeData['comment_reply']; upd: U
 
 function MessageSettings({ type, d, upd }: { type: 'private_reply' | 'text'; d: NodeData['text']; upd: Upd<NodeData['text']> }) {
   const wa = useContext(ChannelCtx) === 'whatsapp';
+  const qr = useContext(QrCtx);
+  if (qr && type === 'text') return <QrMessageSettings d={d} upd={upd} />;
   const setBtn = (id: string, patch: Partial<FlowButton>) => upd({ buttons: d.buttons.map((b) => (b.id === id ? { ...b, ...patch } : b)) }, `btn:${id}`);
   return (
     <>
@@ -319,6 +322,116 @@ function MessageSettings({ type, d, upd }: { type: 'private_reply' | 'text'; d: 
           </Button>
         ) : null}
       </section>
+    </>
+  );
+}
+
+/**
+ * WhatsApp por QR code: mensagem com até 10 opções numeradas. A pessoa
+ * responde com o número, o nome ou uma palavra da opção; cada opção é uma saída.
+ */
+function QrMessageSettings({ d, upd }: { d: NodeData['text']; upd: Upd<NodeData['text']> }) {
+  const opts = d.buttons.filter((b) => b.url == null);
+  const links = d.buttons.filter((b) => b.url != null);
+  const setBtn = (id: string, patch: Partial<FlowButton>) => upd({ buttons: d.buttons.map((b) => (b.id === id ? { ...b, ...patch } : b)) }, `btn:${id}`);
+  const move = (id: string, dir: -1 | 1) => {
+    const i = opts.findIndex((b) => b.id === id);
+    const j = i + dir;
+    if (j < 0 || j >= opts.length) return;
+    const next = [...opts];
+    [next[i], next[j]] = [next[j]!, next[i]!];
+    upd({ buttons: [...next, ...links] });
+  };
+  const [kw, setKw] = useState<Record<string, string>>({});
+  const addKw = (b: FlowButton) => {
+    const v = (kw[b.id] ?? '').trim();
+    if (!v) return;
+    setBtn(b.id, { keywords: [...new Set([...(b.keywords ?? []), v])].slice(0, 10) });
+    setKw({ ...kw, [b.id]: '' });
+  };
+  return (
+    <>
+      <p className="text-[13px] text-muted">No WhatsApp por QR code, as opções chegam numeradas (1️⃣, 2️⃣…) e a pessoa responde com o número ou o nome. Botões clicáveis só existem no WhatsApp oficial.</p>
+      <TextVars label="Mensagem" value={d.text} max={1000} rows={5} onChange={(text) => upd({ text }, 'text')} placeholder="Oi, {{primeiro_nome}}! Quer saber mais sobre a promoção?"
+        hint="*negrito*, _itálico_ e emojis funcionam no WhatsApp." />
+      <section className="flex flex-col gap-2">
+        <h3 className="text-sm font-semibold">Opções de resposta <span className="font-normal text-muted">(até 10)</span></h3>
+        {opts.map((b, i) => (
+          <div key={b.id} className="flex flex-col gap-2 rounded-[8px] border border-line p-2.5">
+            <div className="flex items-end gap-1.5">
+              <span aria-hidden className="mb-2 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold">{i + 1}</span>
+              <Field className="min-w-0 flex-1" label={`Opção ${i + 1}`} value={b.title} maxLength={20} onChange={(e) => setBtn(b.id, { title: e.target.value })} />
+              <button type="button" aria-label={`Subir opção ${i + 1}`} disabled={i === 0} onClick={() => move(b.id, -1)}
+                className="mb-1.5 flex size-8 items-center justify-center rounded-[6px] text-muted hover:bg-surface-2 disabled:opacity-30">↑</button>
+              <button type="button" aria-label={`Remover opção ${i + 1}`} onClick={() => upd({ buttons: d.buttons.filter((x) => x.id !== b.id) })}
+                className="mb-1.5 flex size-8 items-center justify-center rounded-[6px] text-muted hover:bg-surface-2 hover:text-bad"><Trash2 size={15} aria-hidden /></button>
+            </div>
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="text-xs text-muted">Também vale:</span>
+              {(b.keywords ?? []).map((k) => (
+                <span key={k} className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs">
+                  {k}<button type="button" aria-label={`Tirar ${k}`} onClick={() => setBtn(b.id, { keywords: (b.keywords ?? []).filter((x) => x !== k) })} className="text-muted hover:text-bad"><X size={11} aria-hidden /></button>
+                </span>
+              ))}
+              <input aria-label={`Outra palavra para a opção ${i + 1}`} value={kw[b.id] ?? ''} maxLength={40} placeholder="ex.: sim, quero"
+                onChange={(e) => setKw({ ...kw, [b.id]: e.target.value })}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addKw(b); } }} onBlur={() => addKw(b)}
+                className="h-7 min-w-[110px] flex-1 rounded-[6px] border border-line bg-surface px-2 text-xs" />
+            </div>
+          </div>
+        ))}
+        {opts.length < 10 ? (
+          <Button variant="secondary" onClick={() => upd({ buttons: [...opts, { id: newId('b'), title: opts.length ? `Opção ${opts.length + 1}` : 'Sim', url: null, keywords: [] }, ...links] })}>
+            <Plus size={15} aria-hidden />Adicionar opção
+          </Button>
+        ) : null}
+        {opts.length ? <p className="text-xs text-muted">Ligue cada bolinha (1, 2, 3…) ao próximo passo. “Outra resposta” recebe o que não for nenhuma opção.</p> : null}
+      </section>
+      <section className="flex flex-col gap-2">
+        <h3 className="text-sm font-semibold">Links <span className="font-normal text-muted">(vão no fim da mensagem)</span></h3>
+        {links.map((b, i) => (
+          <div key={b.id} className="flex flex-col gap-2 rounded-[8px] border border-line p-2.5">
+            <div className="flex items-end gap-2">
+              <Field className="min-w-0 flex-1" label={`Nome do link ${i + 1}`} value={b.title} maxLength={20} onChange={(e) => setBtn(b.id, { title: e.target.value })} />
+              <button type="button" aria-label={`Remover link ${i + 1}`} onClick={() => upd({ buttons: d.buttons.filter((x) => x.id !== b.id) })}
+                className="mb-1.5 flex size-8 items-center justify-center rounded-[6px] text-muted hover:bg-surface-2 hover:text-bad"><Trash2 size={15} aria-hidden /></button>
+            </div>
+            <Field label="Endereço" type="url" value={b.url ?? ''} maxLength={2000} onChange={(e) => setBtn(b.id, { url: e.target.value })} />
+          </div>
+        ))}
+        {links.length < 3 ? <Button variant="secondary" onClick={() => upd({ buttons: [...d.buttons, { id: newId('b'), title: 'Ver oferta', url: 'https://', keywords: [] }] })}><Link2 size={15} aria-hidden />Adicionar link</Button> : null}
+      </section>
+      {opts.length ? (
+        <>
+          <Field label="Se a resposta não for nenhuma opção, dizer" value={d.retryText ?? ''} maxLength={300} onChange={(e) => upd({ retryText: e.target.value }, 'retry')}
+            hint="Manda de novo com as opções (até 2 vezes). Se ligar a saída “Outra resposta”, segue por ela em vez disso." />
+          <Field label="Esperar a resposta por (horas)" type="number" min={1} max={168} value={d.timeoutHours ?? ''} placeholder="168 (7 dias)"
+            onChange={(e) => upd({ timeoutHours: e.target.value ? Math.max(1, Math.min(168, Math.round(Number(e.target.value)))) : null }, 'timeout')}
+            hint="Depois disso, segue pela saída “Não respondeu” (se estiver ligada) ou encerra." />
+        </>
+      ) : null}
+    </>
+  );
+}
+
+/** Sorteio: divide as pessoas entre caminhos (teste A/B de mensagens). */
+function RandomSettings({ d, upd }: { d: NodeData['random']; upd: Upd<NodeData['random']> }) {
+  const total = d.weights.reduce((a, w) => a + w, 0);
+  return (
+    <>
+      <p className="text-[13px] text-muted">Cada pessoa vai por um caminho, sorteado pelo peso. Use para testar duas mensagens e ver qual responde mais em Resultados.</p>
+      {d.weights.map((w, i) => (
+        <div key={i} className="flex items-end gap-2">
+          <Field className="min-w-0 flex-1" label={`Caminho ${'ABCDE'[i]} (%)`} type="number" min={0} max={100} value={w}
+            onChange={(e) => upd({ weights: d.weights.map((x, k) => (k === i ? Math.max(0, Math.min(100, Math.round(Number(e.target.value) || 0))) : x)) }, `w${i}`)} />
+          {d.weights.length > 2 ? (
+            <button type="button" aria-label={`Remover caminho ${'ABCDE'[i]}`} onClick={() => upd({ weights: d.weights.filter((_, k) => k !== i) })}
+              className="mb-1.5 flex size-8 items-center justify-center rounded-[6px] text-muted hover:bg-surface-2 hover:text-bad"><Trash2 size={15} aria-hidden /></button>
+          ) : null}
+        </div>
+      ))}
+      {total !== 100 ? <p className="text-xs text-warn">Os pesos somam {total}%: o sorteio usa a proporção entre eles.</p> : null}
+      {d.weights.length < 5 ? <Button variant="secondary" onClick={() => upd({ weights: [...d.weights, 0] })}><Plus size={15} aria-hidden />Adicionar caminho</Button> : null}
     </>
   );
 }
@@ -533,7 +646,8 @@ function ConditionSettings({ d, upd }: { d: NodeData['condition']; upd: Upd<Node
 
 const OP_LABEL: Record<FlowOp['kind'], string> = {
   add_tag: 'Adicionar etiqueta', remove_tag: 'Remover etiqueta', set_field: 'Preencher campo do contato', create_lead: 'Criar lead',
-  create_deal: 'Criar negócio', notify: 'Avisar alguém da equipe', assign: 'Passar a conversa para alguém',
+  create_deal: 'Criar negócio', move_deal: 'Mover negócio para uma etapa', notify: 'Avisar alguém da equipe', assign: 'Passar a conversa para alguém',
+  opt_out: 'Tirar das campanhas (não quer receber)',
 };
 
 function ActionSettings({ d, upd }: { d: NodeData['action']; upd: Upd<NodeData['action']> }) {
@@ -551,6 +665,8 @@ function ActionSettings({ d, upd }: { d: NodeData['action']; upd: Upd<NodeData['
       case 'create_deal': return { kind, pipelineId: pipelines[0]?.id ?? '', title: `${wa ? 'WhatsApp' : 'Instagram'}: ${who}` };
       case 'notify': return { kind, membershipId: null, text: `${who} passou pelo fluxo.` };
       case 'assign': return { kind, membershipId: '' };
+      case 'move_deal': return { kind, pipelineId: pipelines[0]?.id ?? '', stageId: pipelines[0]?.stages[0]?.id ?? '', title: `${wa ? 'WhatsApp' : 'Instagram'}: ${who}` };
+      case 'opt_out': return { kind };
     }
   };
   return (
@@ -594,6 +710,21 @@ function ActionSettings({ d, upd }: { d: NodeData['action']; upd: Upd<NodeData['
               <Field label="Aviso" value={o.text} maxLength={300} onChange={(e) => set(i, { ...o, text: e.target.value })} />
             </>
           ) : null}
+          {o.kind === 'move_deal' ? (
+            <>
+              <Select label="Funil" value={o.pipelineId} onChange={(e) => set(i, { ...o, pipelineId: e.target.value, stageId: pipelines.find((p) => p.id === e.target.value)?.stages[0]?.id ?? '' })}>
+                <option value="">Escolha…</option>
+                {pipelines.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </Select>
+              <Select label="Etapa" value={o.stageId} onChange={(e) => set(i, { ...o, stageId: e.target.value })}>
+                <option value="">Escolha…</option>
+                {(pipelines.find((p) => p.id === o.pipelineId)?.stages ?? []).map((st) => <option key={st.id} value={st.id}>{st.name}</option>)}
+              </Select>
+              <p className="text-xs text-muted">Move o negócio aberto do contato neste funil. Se não houver, cria um com o título abaixo.</p>
+              <Field label="Título (se criar)" value={o.title} maxLength={200} onChange={(e) => set(i, { ...o, title: e.target.value })} />
+            </>
+          ) : null}
+          {o.kind === 'opt_out' ? <p className="text-xs text-muted">O contato sai das campanhas e das mensagens automáticas do WhatsApp. Coloque a mensagem de confirmação antes desta ação.</p> : null}
           {o.kind === 'assign' ? (
             <Select label="Para" value={o.membershipId} onChange={(e) => set(i, { ...o, membershipId: e.target.value })}>
               <option value="">Escolha…</option>
@@ -608,19 +739,21 @@ function ActionSettings({ d, upd }: { d: NodeData['action']; upd: Upd<NodeData['
 }
 
 /** Paleta de passos para adicionar. */
-export const PALETTE: { type: Exclude<NodeType, 'trigger'>; title: string; desc: string; commentOnly?: boolean; only?: FlowChannel }[] = [
+export const PALETTE: { type: Exclude<NodeType, 'trigger'>; title: string; desc: string; commentOnly?: boolean; only?: FlowChannel; notQr?: boolean }[] = [
   { type: 'comment_reply', title: 'Responder no comentário', desc: 'Resposta pública, sorteia até 3', commentOnly: true, only: 'instagram' },
   { type: 'private_reply', title: 'Responder no privado', desc: 'Abre o direct de quem comentou', commentOnly: true, only: 'instagram' },
-  { type: 'template', title: 'Modelo aprovado', desc: 'Chega mesmo fora das 24 h, com botões', only: 'whatsapp' },
+  { type: 'template', title: 'Modelo aprovado', desc: 'Chega mesmo fora das 24 h, com botões', only: 'whatsapp', notQr: true },
   { type: 'text', title: 'Texto', desc: 'Mensagem com até 3 botões' },
   { type: 'media', title: 'Imagem, vídeo, áudio ou PDF', desc: 'Da biblioteca de mídia' },
   { type: 'wait', title: 'Esperar', desc: 'Minutos, horas ou dias' },
   { type: 'question', title: 'Pergunta', desc: 'Guarda a resposta (e-mail, telefone…)' },
   { type: 'condition', title: 'Condição', desc: 'Sim ou não: etiqueta, seguidor…' },
+  { type: 'random', title: 'Sorteio (teste A/B)', desc: 'Divide as pessoas entre caminhos' },
   { type: 'action', title: 'Ações no CRM', desc: 'Etiqueta, lead, negócio, aviso' },
 ];
 
 export function Palette({ commentFlow, onAdd, from, channel = 'instagram' }: { commentFlow: boolean; onAdd: (t: Exclude<NodeType, 'trigger'>) => void; from: string | null; channel?: FlowChannel }) {
+  const qr = useContext(QrCtx);
   return (
     <section className="flex flex-col gap-2">
       <div>
@@ -628,13 +761,13 @@ export function Palette({ commentFlow, onAdd, from, channel = 'instagram' }: { c
         <p className="text-xs text-muted">{from ? 'Entra ligado ao bloco escolhido.' : 'Escolha um bloco na tela para já ligar o passo novo a ele.'}</p>
       </div>
       <ul className="grid grid-cols-1 gap-1.5">
-        {PALETTE.filter((p) => (commentFlow || !p.commentOnly) && (!p.only || p.only === channel)).map((p) => (
+        {PALETTE.filter((p) => (commentFlow || !p.commentOnly) && (!p.only || p.only === channel) && !(qr && p.notQr)).map((p) => (
           <li key={p.type}>
             <button type="button" onClick={() => onAdd(p.type)} className="flex w-full items-center gap-2.5 rounded-[8px] border border-line bg-surface px-2.5 py-2 text-left hover:border-primary hover:bg-accent-soft">
               <NodeIcon type={p.type} size={28} />
               <span className="min-w-0">
                 <span className="block text-[13px] font-medium">{p.title}</span>
-                <span className="block truncate text-xs text-muted">{p.desc}</span>
+                <span className="block truncate text-xs text-muted">{qr && p.type === 'text' ? 'Mensagem com até 10 opções e links' : p.type === 'action' ? 'Etiqueta, negócio, aviso, tirar das campanhas' : p.desc}</span>
               </span>
               <Plus size={15} aria-hidden className="ml-auto shrink-0 text-muted" />
             </button>

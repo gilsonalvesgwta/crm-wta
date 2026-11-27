@@ -25,7 +25,8 @@ const MEDIA_LIMITS: { re: RegExp; label: string; maxMb: number }[] = [
 const FLOW_COLUMNS = `f.id, f.name, f.trigger_type as "triggerType", f.status, f.version, f.published_at as "publishedAt",
   f.updated_at as "updatedAt", f.created_at as "createdAt", f.channel_account_id as "accountId",
   (select a.name from channel_accounts a where a.id = f.channel_account_id) as "accountName",
-  (f.published is not null and f.published is distinct from f.draft) as "unpublishedChanges"`;
+  (f.published is not null and f.published is distinct from f.draft) as "unpublishedChanges",
+  case (select a.kind from channel_accounts a where a.id = f.channel_account_id) when 'whatsapp_evolution' then 'qr' when 'whatsapp_cloud' then 'cloud' else 'instagram' end as mode`;
 
 type FlowRow = {
   id: string; name: string; triggerType: TriggerType; status: string; version: number; publishedAt: string | null; accountId: string;
@@ -52,7 +53,9 @@ export class IgFlowsService {
   async accounts(actor: Actor, channel: FlowChannel = 'instagram') {
     if (channel === 'whatsapp') {
       return this.db.app(tenantCtx(actor), async (q) => (await q.query(
-        `select a.id, a.name, a.status, a.address, a.external_id as "phoneNumberId" from channel_accounts a where a.kind = 'whatsapp_cloud' order by a.created_at`)).rows);
+        `select a.id, a.name, a.status, a.address, case when a.kind = 'whatsapp_cloud' then a.external_id end as "phoneNumberId",
+                case when a.kind = 'whatsapp_evolution' then 'qr' else 'cloud' end as mode
+           from channel_accounts a where a.kind in ('whatsapp_cloud', 'whatsapp_evolution') order by a.kind, a.created_at`)).rows);
     }
     return this.db.app(tenantCtx(actor), async (q) => (await q.query(
       `select a.id, a.name, a.status, a.external_id as "igUserId", a.config->>'username' as username
@@ -63,7 +66,9 @@ export class IgFlowsService {
     const a = (await q.query<{ id: string; name: string; external_id: string; secret: Buffer | null; config: Record<string, unknown>; kind: string }>(
       'select id, name, external_id, secret, config, kind from channel_accounts where id = $1', [id])).rows[0];
     if (channel === 'whatsapp') {
-      if (!a || a.kind !== 'whatsapp_cloud') throw Problem.badRequest('WhatsApp oficial não encontrado.', [{ field: 'accountId', message: 'Escolha um WhatsApp oficial (Configurações › Canais).' }]);
+      if (!a || (a.kind !== 'whatsapp_cloud' && a.kind !== 'whatsapp_evolution')) {
+        throw Problem.badRequest('WhatsApp não encontrado.', [{ field: 'accountId', message: 'Escolha um número de WhatsApp (Configurações › Canais).' }]);
+      }
       return a;
     }
     if (!a || a.kind !== 'instagram') throw Problem.badRequest('Conta do Instagram não encontrada.', [{ field: 'accountId', message: 'Escolha uma conta do Instagram (Configurações › Canais).' }]);
@@ -96,21 +101,22 @@ export class IgFlowsService {
   }
 
   private async one(q: Q, id: string, channel: FlowChannel = 'instagram') {
-    const f = (await q.query<FlowRow & { draft: unknown; published: unknown }>(
+    const f = (await q.query<FlowRow & { draft: unknown; published: unknown; mode: 'instagram' | 'cloud' | 'qr' }>(
       `select ${FLOW_COLUMNS}, f.draft, f.published from ig_flows f where f.id = $1 and f.channel = $2`, [id, channel])).rows[0];
     if (!f) throw Problem.notFound('Fluxo não encontrado.');
     const parsed = graphSchema.safeParse(f.draft);
-    return { ...f, issues: parsed.success ? flowIssues(parsed.data) : [{ nodeId: null, level: 'error', message: 'O desenho está inválido.' }] };
+    return { ...f, issues: parsed.success ? flowIssues(parsed.data, { qr: f.mode === 'qr' }) : [{ nodeId: null, level: 'error', message: 'O desenho está inválido.' }] };
   }
 
   async create(actor: Actor, b: { accountId: string; name: string; triggerType: TriggerType }, channel: FlowChannel = 'instagram') {
     if (channelOfTrigger(b.triggerType) !== channel) throw Problem.badRequest('Gatilho de outro canal.', [{ field: 'triggerType', message: 'Escolha o que dispara o fluxo.' }]);
     return this.db.app(tenantCtx(actor), async (q) => {
-      await this.account(q, b.accountId, channel);
+      const acc = await this.account(q, b.accountId, channel);
+      const qr = acc.kind === 'whatsapp_evolution';
       const id = (await q.query<{ id: string }>(
         `insert into ig_flows (tenant_id, channel_account_id, name, trigger_type, draft, created_by, updated_by, channel)
          values (app.tenant_id(), $1, $2, $3, $4, $5, $5, $6) returning id`,
-        [b.accountId, b.name.trim() || TRIGGER_NAME[b.triggerType], b.triggerType, JSON.stringify(starterGraph(b.triggerType)), actor.membershipId, channel])).rows[0]!.id;
+        [b.accountId, b.name.trim() || TRIGGER_NAME[b.triggerType], b.triggerType, JSON.stringify(starterGraph(b.triggerType, { qr })), actor.membershipId, channel])).rows[0]!.id;
       await audit(q, actor, channel === 'whatsapp' ? 'wa_flow.create' : 'ig_flow.create', 'ig_flow', id, { name: b.name, trigger: b.triggerType });
       return this.one(q, id, channel);
     });
@@ -139,11 +145,13 @@ export class IgFlowsService {
   /** Publica o rascunho: passa a rodar. Erros (não avisos) impedem. */
   async publish(actor: Actor, id: string, channel: FlowChannel = 'instagram') {
     return this.db.app(tenantCtx(actor), async (q) => {
-      const f = (await q.query<{ draft: unknown; name: string }>('select draft, name from ig_flows where id = $1 and channel = $2 for update', [id, channel])).rows[0];
+      const f = (await q.query<{ draft: unknown; name: string; kind: string | null }>(
+        `select f.draft, f.name, (select kind from channel_accounts where id = f.channel_account_id) as kind
+           from ig_flows f where f.id = $1 and f.channel = $2 for update of f`, [id, channel])).rows[0];
       if (!f) throw Problem.notFound('Fluxo não encontrado.');
       const p = graphSchema.safeParse(f.draft);
       if (!p.success) throw Problem.badRequest('Desenho inválido.', [{ field: 'draft', message: 'Confira os blocos.' }]);
-      const errors = flowIssues(p.data).filter((i) => i.level === 'error');
+      const errors = flowIssues(p.data, { qr: f.kind === 'whatsapp_evolution' }).filter((i) => i.level === 'error');
       if (errors.length) {
         throw new Problem(422, 'Corrija os erros antes de publicar.', 'flow-errors', undefined, errors.map((e) => ({ field: e.nodeId ?? 'flow', message: e.message })));
       }

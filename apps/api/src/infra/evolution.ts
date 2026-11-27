@@ -121,14 +121,15 @@ export class Evolution {
     await this.call('DELETE', `/instance/delete/${name}`);
   }
 
-  async sendText(name: string, number: string, text: string): Promise<string | null> {
-    const r = await this.call<Json>('POST', `/message/sendText/${name}`, { number, text }, 30_000);
+  /** delay: milissegundos com "digitando…" antes de mandar (a Evolution segura o envio). */
+  async sendText(name: string, number: string, text: string, delay?: number): Promise<string | null> {
+    const r = await this.call<Json>('POST', `/message/sendText/${name}`, { number, text, ...(delay ? { delay } : {}) }, 30_000);
     return idOf(r);
   }
 
-  async sendMedia(name: string, number: string, m: { mediatype: 'image' | 'video' | 'audio' | 'document'; mimetype: string; base64: string; fileName: string; caption?: string }): Promise<string | null> {
+  async sendMedia(name: string, number: string, m: { mediatype: 'image' | 'video' | 'audio' | 'document'; mimetype: string; base64: string; fileName: string; caption?: string }, delay?: number): Promise<string | null> {
     const r = await this.call<Json>('POST', `/message/sendMedia/${name}`, {
-      number, mediatype: m.mediatype, mimetype: m.mimetype, media: m.base64, fileName: m.fileName, caption: m.caption ?? '',
+      number, mediatype: m.mediatype, mimetype: m.mimetype, media: m.base64, fileName: m.fileName, caption: m.caption ?? '', ...(delay ? { delay } : {}),
     }, 60_000);
     return idOf(r);
   }
