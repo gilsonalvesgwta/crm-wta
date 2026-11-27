@@ -312,7 +312,7 @@ describe('campanha de e-mail, pausa e conta desconectada', () => {
     const u = (await admin.post('/api/v1/tags', { name: 'Indicação' })).body.id;
     const mk = async (name: string, phone: string, stageId: string, tags: string[]) => {
       const id = await contact({ firstName: name, phones: [{ number: phone }] });
-      const d = await admin.post('/api/v1/deals', { pipelineId: pl.id, stageId, title: `Negócio ${name}`, contactId: id });
+      const d = await admin.post('/api/v1/deals', { pipelineId: pl.id, stageId, title: `Negócio ${name}`, contactId: id, valueCents: 100000 });
       assert.equal(d.status, 201, JSON.stringify(d.body));
       for (const x of tags) await f.admin.query('insert into contact_tags (tenant_id, contact_id, tag_id) values ($1, $2, $3)', [f.tenantA, id, x]);
       return id;

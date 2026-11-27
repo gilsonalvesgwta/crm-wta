@@ -55,7 +55,7 @@ export function DealGroupsEditor({ label, hint, value, pipelines, onChange, tone
       })}
       {value.length < 10 && active.length ? (
         <button type="button" onClick={() => onChange([...value, { pipelineId: active[0]!.id, stageIds: [], status: 'open' }])}
-          className="inline-flex h-9 items-center gap-1.5 self-start rounded-[6px] px-2 text-[13px] font-medium text-primary hover:bg-accent-soft">
+          className="inline-flex h-9 items-center gap-1.5 self-start rounded-[6px] border border-line bg-surface px-3 text-[13px] font-medium text-ink hover:bg-surface-2">
           <Plus size={15} aria-hidden />{value.length ? 'Outro funil' : tone === 'exclude' ? 'Excluir quem está num funil/etapa' : 'Escolher funil e etapas'}
         </button>
       ) : null}
