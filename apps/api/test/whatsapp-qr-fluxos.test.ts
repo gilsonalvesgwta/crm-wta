@@ -171,7 +171,6 @@ describe('Fluxos no WhatsApp por QR code', () => {
     assert.equal(texts('5521977778888').at(-1), 'Vou chamar alguém da equipe para te ajudar.');
 
     await inbound('5521999990000', 'promo', false, 'Edu');
-    await f.admin.query("update ig_flow_runs set updated_at = now() - interval '1 minute' where ig_user_id like '%999990000' and status = 'waiting'");
     await inbound('5521999990000', 'Oi Edu, aqui é o Rhus!', true);
     const run = await f.admin.query("select status, last_error from ig_flow_runs where ig_user_id like '%999990000' order by updated_at desc limit 1");
     assert.equal(run.rows[0].status, 'canceled');

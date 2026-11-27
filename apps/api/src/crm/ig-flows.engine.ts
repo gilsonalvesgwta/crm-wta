@@ -202,14 +202,14 @@ export class IgFlowEngine {
 
   /**
    * WhatsApp por QR code: alguém da equipe respondeu pelo celular. Os fluxos
-   * esperando essa pessoa param, para não atropelar o atendimento.
+   * esperando essa pessoa param, para não atropelar o atendimento. (O eco das
+   * mensagens do próprio CRM não chega aqui: é reconhecido pelo identificador.)
    */
   async humanReplied(tenantId: string, acc: IgAccount, e164: string): Promise<number> {
     const ids = phoneVariants(e164).map((v) => v.replace(/\D/g, ''));
     return this.db.app({ tenantId, userId: null }, async (q) => (await q.query(
       `update ig_flow_runs set status = 'canceled', finished_at = now(), wait_kind = null, wake_at = null, last_error = 'A equipe assumiu a conversa'
-        where channel_account_id = $1 and ig_user_id = any($2::text[]) and status = 'waiting'
-          and updated_at < now() - interval '20 seconds'`, [acc.id, ids])).rowCount ?? 0);
+        where channel_account_id = $1 and ig_user_id = any($2::text[]) and status = 'waiting'`, [acc.id, ids])).rowCount ?? 0);
   }
 
   /** A pessoa escreveu exatamente o nome de um botão que está esperando o clique: vale como clique. */
