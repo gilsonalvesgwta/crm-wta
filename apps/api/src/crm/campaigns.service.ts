@@ -13,6 +13,7 @@ import { MessagesService } from './messages.service.js';
 import { IgFlowEngine } from './ig-flows.engine.js';
 import { graphSchema, nextNode, triggerOf } from '../domain/flows.js';
 import { Params } from './sql.js';
+import { cleanFirstName, cleanName, nameProblem } from '../domain/names.js';
 import { VoiceService } from './voice.service.js';
 import { PROVIDER_FIELDS, VoiceError, type VoiceProviderKind } from '../infra/voice.js';
 
@@ -114,6 +115,11 @@ function eligibleSql(p: Params, consentOnly: boolean, channel: Channel): string 
     and not exists (select 1 from suppression_list s where s.channel = ${p.add(consentChannel(channel))} and s.value = a.address)`;
 }
 
+/** Contatos cujo nome não parece um nome, com o motivo e como a mensagem vai chamar. */
+function oddNames(rows: { id: string; name: string }[]) {
+  return rows.map((r) => ({ id: r.id, name: r.name, problem: nameProblem(r.name) })).filter((r): r is { id: string; name: string; problem: string } => !!r.problem);
+}
+
 @Injectable()
 export class CampaignsService {
   private readonly log = new Logger('campanhas');
@@ -187,7 +193,12 @@ export class CampaignsService {
                             and exists (select 1 from ${channel !== 'email' ? 'contact_phones' : 'contact_emails'} x where x.contact_id = t.id) limit 1) end as twin
                    from a) a`, p.values);
       const x = r.rows[0]!;
+      const p2 = new Params();
+      const names = await q.query<{ id: string; name: string }>(
+        `with a as (${audienceSql(p2, a, channel)}) select a.id, a.name from a where ${eligibleSql(p2, a.consentOnly, channel)} order by a.name limit 5000`, p2.values);
+      const odd = oddNames(names.rows);
       return {
+        oddNames: odd.slice(0, 50), oddCount: odd.length,
         total: x.total, eligible: x.eligible, noAddress: x.no_address, revoked: x.revoked, noConsent: x.no_consent, suppressed: x.suppressed, sample: x.sample ?? [],
         fromOrganization: x.from_org, duplicates: x.duplicates, missing: x.missing ?? [],
       };
@@ -356,6 +367,67 @@ export class CampaignsService {
       for (const x of r.rows) await audit(q, actor, 'campaign.delete', 'campaign', x.id, { name: x.name, status: x.status });
       const kept = (await q.query<{ id: string }>('select id from campaigns where id = any($1::uuid[])', [ids])).rows.map((x) => x.id);
       return { deleted: r.rowCount ?? 0, kept };
+    });
+  }
+
+  /**
+   * Corrige o texto com a campanha pausada, agendada ou em rascunho: quem ainda
+   * está na fila recebe o texto novo (quem já recebeu não muda).
+   */
+  async setContent(actor: Actor, id: string, b: { body?: string | null; subject?: string | null; templateParams?: string[]; whatsappText?: string | null; smsText?: string | null }) {
+    return this.db.app(tenantCtx(actor), async (q) => {
+      const k = (await q.query<{ status: string; channel: Channel; template_id: string | null; flow_id: string | null; voice: VoiceSettings }>(
+        'select status, channel, template_id, flow_id, voice from campaigns where id = $1 for update', [id])).rows[0];
+      if (!k) throw Problem.notFound('Campanha não encontrada.');
+      if (k.status === 'sending') throw Problem.conflict('Pause a campanha antes de editar a mensagem.');
+      if (k.status === 'done' || k.status === 'canceled') throw Problem.conflict('A campanha já terminou.');
+      if (k.flow_id) throw Problem.conflict('As mensagens desta campanha vêm do fluxo: edite e publique o fluxo.');
+      const errors: { field: string; message: string }[] = [];
+      if (k.channel === 'voice') {
+        const v = { ...k.voice };
+        if (v.whatsapp && b.whatsappText !== undefined) {
+          if (!b.whatsappText?.trim()) errors.push({ field: 'whatsappText', message: 'Escreva a mensagem do WhatsApp.' });
+          else v.whatsapp = { ...v.whatsapp, text: b.whatsappText };
+        }
+        if (v.sms && b.smsText !== undefined) {
+          if (!b.smsText?.trim()) errors.push({ field: 'smsText', message: 'Escreva o SMS.' });
+          else v.sms = { ...v.sms, text: b.smsText };
+        }
+        if (errors.length) throw Problem.badRequest('Falta completar a mensagem.', errors);
+        await q.query('update campaigns set voice = $2 where id = $1', [id, JSON.stringify(v)]);
+      } else if (k.template_id) {
+        await q.query('update campaigns set template_params = $2 where id = $1', [id, JSON.stringify(b.templateParams ?? [])]);
+      } else {
+        if (!b.body?.trim()) errors.push({ field: 'body', message: 'Escreva a mensagem.' });
+        if (k.channel === 'email' && !b.subject?.trim()) errors.push({ field: 'subject', message: 'Escreva o assunto do e-mail.' });
+        if (errors.length) throw Problem.badRequest('Falta completar a mensagem.', errors);
+        await q.query('update campaigns set body = $2, subject = case when channel = $4 then $3 else subject end where id = $1', [id, b.body, b.subject ?? null, 'email']);
+      }
+      await audit(q, actor, 'campaign.content', 'campaign', id, { status: k.status });
+      return this.row(q, id);
+    });
+  }
+
+  /** Quem ainda vai receber e tem um nome que não parece nome (para corrigir antes de retomar). */
+  async oddNames(actor: Actor, id: string) {
+    return this.db.app(tenantCtx(actor), async (q) => {
+      const k = (await q.query<{ channel: Channel; audience: Audience; prepared_at: Date | null }>('select channel, audience, prepared_at from campaigns where id = $1', [id])).rows[0];
+      if (!k) throw Problem.notFound('Campanha não encontrada.');
+      let rows: { id: string; name: string }[];
+      if (k.prepared_at) {
+        rows = (await q.query<{ id: string; name: string }>(
+          `select c.id, c.name from campaign_recipients r join contacts c on c.id = r.contact_id
+            where r.campaign_id = $1 and r.status in ('pending', 'sending') order by c.name limit 5000`, [id])).rows;
+      } else {
+        // Público ainda não montado (rascunho, agendada ou pausada antes de começar): olha o público de agora.
+        const p = new Params();
+        const a = { ...k.audience, tagIds: k.audience.tagIds ?? [], excludeTagIds: k.audience.excludeTagIds ?? [], ownerIds: k.audience.ownerIds ?? [],
+          teamIds: k.audience.teamIds ?? [], sources: k.audience.sources ?? [], contactIds: k.audience.contactIds ?? [], consentOnly: !!k.audience.consentOnly };
+        rows = (await q.query<{ id: string; name: string }>(
+          `with a as (${audienceSql(p, a, k.channel)}) select a.id, a.name from a where ${eligibleSql(p, a.consentOnly, k.channel)} order by a.name limit 5000`, p.values)).rows;
+      }
+      const odd = oddNames(rows);
+      return { items: odd.slice(0, 200), total: odd.length };
     });
   }
 
@@ -574,7 +646,8 @@ export class CampaignsService {
         }
         continue;
       }
-      const vars = { nome: r.name, primeiro_nome: r.first_name, empresa: k.tenant_name, responsavel: r.owner_name };
+      // Nome que não parece nome ("sem nome", números, frase) fica vazio: a mensagem usa a alternativa de {{primeiro_nome|cliente}}.
+      const vars = { nome: cleanName(r.name), primeiro_nome: cleanFirstName(r.first_name, r.name), empresa: k.tenant_name, responsavel: r.owner_name };
       const text = k.template_id ? null : render(k.body ?? '', vars) + (k.channel === 'whatsapp' && k.opt_out_hint ? OPT_OUT_HINT : '');
       try {
         const m = k.flow_id

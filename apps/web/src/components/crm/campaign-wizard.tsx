@@ -15,6 +15,7 @@ import { useDirectory, usePipelines } from './data';
 import { TagPicker } from './pickers';
 import { DealGroupsEditor, PaceFields, paceToApi, type Pace } from './campaign-audience';
 import { VoiceContent } from './campaign-voice';
+import { OddNames } from './odd-names';
 import { Field } from '@/components/ui/field';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -386,6 +387,7 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
                       {preview.noAddress > preview.missing.length ? <p className="mt-1 text-muted">Mostrando {preview.missing.length} de {preview.noAddress}. Em Contatos, filtre por “Sem telefone” para ver todos.</p> : null}
                     </details>
                   ) : null}
+                  <OddNames items={preview.oddNames ?? []} total={preview.oddCount ?? 0} />
                   {fieldErr('audience') ? <p className="font-medium text-bad">{fieldErr('audience')}</p> : null}
                 </div>
               )}
@@ -484,6 +486,7 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
                 <button key={v.key} type="button" onClick={() => set({ body: `${d.body}{{${v.key}}}` })} title={v.label}
                   className="rounded-full border border-line px-2 py-0.5 font-mono hover:bg-surface-2">{`{{${v.key}}}`}</button>
               ))}
+              <span className="basis-full">Nome vazio ou estranho no cadastro (“sem nome”, números, frase) fica em branco; para outra palavra use {'{{primeiro_nome|cliente}}'}.</span>
             </div>
             {chosen ? (
               <div className="rounded-[10px] bg-bg p-3">

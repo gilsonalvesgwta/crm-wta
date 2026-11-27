@@ -10,6 +10,12 @@ Atualizado em 9 de novembro de 2026.
 
 ## Concluído, com teste
 
+### Campanha: editar a mensagem com a campanha pausada e nome estranho no cadastro (27 nov 2026)
+
+- Pausada ou agendada (sem fluxo): botão "Editar mensagem" (texto, assunto do e-mail, variáveis do modelo oficial, ou o WhatsApp/SMS da campanha de voz). Quem ainda está na fila recebe o texto novo ao retomar; quem já recebeu não muda. `PATCH /api/v1/campaigns/:id/content`.
+- Nome que não parece nome ("sem nome", números, emoji, frase ou empresa, outro alfabeto) fica em branco na mensagem, sem deixar "Olá , tudo bem"; `{{primeiro_nome|cliente}}` usa a alternativa. `{{Nome}}` em maiúscula também vale. Nomes todo em maiúsculas saem como "Reinaldo".
+- A prévia do público e a campanha pausada mostram quem tem nome estranho, com link para corrigir o cadastro. `GET /api/v1/campaigns/:id/odd-names`.
+
 ### Campanhas de voz: torpedo de voz com a operadora escolhida em cada campanha (27 nov 2026)
 
 - Novo tipo de campanha "Ligação (torpedo de voz)": liga para o público, toca um áudio (da biblioteca, gravado na hora pelo microfone ou enviado em MP3/WAV/M4A/OGG; tudo vira MP3) e, se quiser, espera uma tecla. Cada tecla pode marcar etiqueta, mandar o WhatsApp, mandar o SMS, avisar o responsável e descadastrar ("não ligar mais").

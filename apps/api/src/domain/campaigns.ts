@@ -121,3 +121,12 @@ export const paceBody = z.object({
 
 /** Etiqueta de quem recebeu com sucesso (vale também para quem já recebeu). */
 export const successTagBody = z.object({ tagId: uuid.nullable() });
+
+/** Corrigir o texto com a campanha pausada ou agendada. */
+export const contentBody = z.object({
+  body: z.string().max(20000, { message: 'Texto longo demais.' }).nullable().optional(),
+  subject: z.string().trim().max(998).nullable().optional(),
+  templateParams: z.array(z.string().trim().max(1000)).max(20).optional(),
+  whatsappText: z.string().trim().max(4000).nullable().optional(),
+  smsText: z.string().trim().max(612, { message: 'SMS de até 612 caracteres.' }).nullable().optional(),
+});

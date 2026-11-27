@@ -8,6 +8,7 @@ import { CONFIG, type Config } from '../config.js';
 import { render } from '../domain/automations.js';
 import type { ExtraWhen, KeyAction, VoiceSettings } from '../domain/campaigns.js';
 import { normalizePhone } from '../domain/contact-data.js';
+import { cleanFirstName, cleanName } from '../domain/names.js';
 import { SecretBox } from '../domain/secrets.js';
 import type { VoiceProviderInput } from '../domain/voice.js';
 import { Problem } from '../http/problem.js';
@@ -313,7 +314,7 @@ export class VoiceService {
   /** Manda o WhatsApp e o SMS cuja condição bate (cada um uma vez por destinatário). */
   private async extras(tenantId: string, rec: Recipient, acc: VoiceAccount, match: (w: ExtraWhen) => boolean, key?: KeyAction) {
     const v = rec.voice ?? ({} as VoiceSettings);
-    const vars = { nome: rec.name, primeiro_nome: rec.first_name ?? rec.name, empresa: rec.tenant_name, responsavel: rec.owner_name };
+    const vars = { nome: cleanName(rec.name), primeiro_nome: cleanFirstName(rec.first_name, rec.name), empresa: rec.tenant_name, responsavel: rec.owner_name };
     const done: Record<string, string> = {};
     const fresh = (await this.db.app({ tenantId, userId: null }, (q) => q.query<{ call_extras: Record<string, string> }>(
       'select call_extras from campaign_recipients where id = $1', [rec.id]))).rows[0]?.call_extras ?? {};

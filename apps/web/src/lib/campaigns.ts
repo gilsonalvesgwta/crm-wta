@@ -77,7 +77,11 @@ export type AudiencePreview = {
   duplicates?: number;
   /** Os que ficam de fora por falta de endereço (até 50), com o possível duplicado. */
   missing?: { id: string; name: string; twin: string | null }[];
+  /** Contatos cujo nome no cadastro não parece nome ("sem nome", números, frase). */
+  oddNames?: OddName[]; oddCount?: number;
 };
+
+export type OddName = { id: string; name: string; problem: string };
 
 export type Recipient = {
   id: string; status: 'pending' | 'sending' | 'sent' | 'failed' | 'skipped'; reason: string | null; address: string;
