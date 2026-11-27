@@ -44,7 +44,7 @@ async function inbound(from: string, text: string, fromMe = false, name = 'Clien
 const sentTo = (number: string) => evo.sent.filter((s) => s.instance === instance && String(s.body.number).replace(/\D/g, '') === number);
 const texts = (number: string) => sentTo(number).map((s) => String(s.body.text ?? s.body.caption ?? ''));
 
-const btn = (id: string, title: string, keywords: string[] = []) => ({ id, title, url: null, keywords });
+const btn = (id: string, title: string, keywords: string[] = [], url: string | null = null) => ({ id, title, url, keywords });
 const text = (id: string, x: number, body: string, buttons: ReturnType<typeof btn>[] = [], extra: Record<string, unknown> = {}) =>
   ({ id, type: 'text', position: { x, y: 0 }, data: { text: body, buttons, retryText: 'Não entendi 😅 Responda com o número:', timeoutHours: null, ...extra } });
 
@@ -53,7 +53,7 @@ function graph(trigger: 'wa_keyword' | 'wa_broadcast', withOther = false) {
   return {
     nodes: [
       { id: 'trigger', type: 'trigger', position: { x: 0, y: 0 }, data: { type: trigger, posts: 'any', postIds: [], match: trigger === 'wa_keyword' ? 'contains' : 'any', keywords: ['promo'], frequency: 'every' } },
-      text('n1', 300, 'Oi, {{primeiro_nome}}! Quer saber da Black Friday?', [btn('b1', 'Quero saber', ['sim', 'quero']), btn('b2', 'Agora não', ['nao']), { id: 'l1', title: 'Ver oferta', url: 'https://exemplo.com/bf', keywords: [] }]),
+      text('n1', 300, 'Oi, {{primeiro_nome}}! Quer saber da Black Friday?', [btn('b1', 'Quero saber', ['sim', 'quero']), btn('b2', 'Agora não', ['nao']), btn('l1', 'Ver oferta', [], 'https://exemplo.com/bf')]),
       { id: 'a1', type: 'action', position: { x: 600, y: 0 }, data: { ops: [{ kind: 'add_tag', tagId: tag }] } },
       text('n2', 900, 'Ótimo! Já te passo os detalhes.'),
       text('n3', 600, 'Tudo bem! Se mudar de ideia, responda QUERO.'),
