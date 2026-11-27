@@ -60,7 +60,7 @@ export function nationalOf(e164: string): string {
   const d = digitsOf(e164);
   return d.startsWith('55') && d.length >= 12 ? d.slice(2) : d;
 }
-const plusOf = (n: string) => (n.startsWith('+') ? n : `+${digitsOf(n)}`);
+const plusOf = (n: string) => `+${digitsOf(n)}`;
 
 // ---- HTTP ----------------------------------------------------------------------------------
 
