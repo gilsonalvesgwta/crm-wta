@@ -298,13 +298,24 @@ export class CampaignsService {
     });
   }
 
+  /** Exclui rascunho, agendada (ainda não começou), concluída ou cancelada. Em andamento ou pausada: cancele antes. */
   async remove(actor: Actor, id: string) {
     await this.db.app(tenantCtx(actor), async (q) => {
       const cur = await this.row(q, id);
-      if (cur.status === 'sending' || cur.status === 'paused' || cur.status === 'scheduled') {
-        throw Problem.conflict('Cancele a campanha antes de excluir.');
-      }
+      if (cur.status === 'sending' || cur.status === 'paused') throw Problem.conflict('Cancele a campanha antes de excluir.');
       await q.query('delete from campaigns where id = $1', [id]);
+      await audit(q, actor, 'campaign.delete', 'campaign', id, { name: cur.name, status: cur.status });
+    });
+  }
+
+  /** Exclui várias de uma vez (limpar testes); as em andamento ou pausadas ficam e voltam na resposta. */
+  async removeMany(actor: Actor, ids: string[]) {
+    return this.db.app(tenantCtx(actor), async (q) => {
+      const r = await q.query<{ id: string; name: string; status: string }>(
+        `delete from campaigns where id = any($1::uuid[]) and status not in ('sending', 'paused') returning id, name, status`, [ids]);
+      for (const x of r.rows) await audit(q, actor, 'campaign.delete', 'campaign', x.id, { name: x.name, status: x.status });
+      const kept = (await q.query<{ id: string }>('select id from campaigns where id = any($1::uuid[])', [ids])).rows.map((x) => x.id);
+      return { deleted: r.rowCount ?? 0, kept };
     });
   }
 
