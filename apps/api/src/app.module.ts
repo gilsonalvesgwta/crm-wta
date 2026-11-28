@@ -46,6 +46,10 @@ import { KpisController } from './crm/kpis.controller.js';
 import { ScheduledController } from './crm/scheduled.controller.js';
 import { ScheduledService } from './crm/scheduled.service.js';
 import { CampaignsController, UnsubscribeController } from './crm/campaigns.controller.js';
+import { VoiceController, VoiceWebhookController } from './crm/voice.controller.js';
+import { VoiceService } from './crm/voice.service.js';
+import { AftersaleController } from './crm/aftersale.controller.js';
+import { AftersaleService } from './crm/aftersale.service.js';
 import { CampaignsService } from './crm/campaigns.service.js';
 import { QuickRepliesService } from './crm/quick-replies.service.js';
 import { Evolution } from './infra/evolution.js';
@@ -72,7 +76,7 @@ export class AppModule {
       controllers: [
         HealthController, AuthController, AdminController, PlatformController, WebhooksController, TenantFeaturesController, ContactsController, OrganizationsController,
         CatalogController, PipelinesController, DealsController, LeadsController, ActivitiesController, RecordsController,
-        ImportsController, PrivacyController, DashboardController, KpisController, IgFlowsController, WaFlowsController, ChannelsController, MessagesController, ConversationsController, QuickRepliesController, CampaignsController, UnsubscribeController, ScheduledController, EvolutionWebhookController, MetaController, MetaWebhookController, BackupsController, TenantBackupsController, AutomationsController, IntegrationsController,
+        ImportsController, PrivacyController, DashboardController, KpisController, IgFlowsController, WaFlowsController, ChannelsController, MessagesController, ConversationsController, QuickRepliesController, CampaignsController, UnsubscribeController, VoiceController, VoiceWebhookController, AftersaleController, ScheduledController, EvolutionWebhookController, MetaController, MetaWebhookController, BackupsController, TenantBackupsController, AutomationsController, IntegrationsController,
       ],
       providers: [
         { provide: CONFIG, useValue: cfg },
@@ -97,7 +101,7 @@ export class AppModule {
         DashboardService,
         DispatcherService,
         Evolution, Meta, MetaService,
-        MessagesService, OperationService, SalesService, AdsService, KpisService, IgFlowEngine, IgFlowsService, StaleDealsService, TranscriptionService, ScheduledService, ConversationsService, QuickRepliesService, CampaignsService,
+        MessagesService, OperationService, SalesService, AdsService, KpisService, IgFlowEngine, IgFlowsService, StaleDealsService, TranscriptionService, ScheduledService, ConversationsService, QuickRepliesService, CampaignsService, VoiceService, AftersaleService,
         ChannelsService,
         BackupsService,
         AutomationsService,

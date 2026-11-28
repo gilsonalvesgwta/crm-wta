@@ -10,6 +10,30 @@ Atualizado em 9 de novembro de 2026.
 
 ## Concluído, com teste
 
+### Data do fechamento e pós-venda (27 nov 2026)
+
+- Ao marcar ganho ou perdido, campo "Data do fechamento" (padrão hoje, sem datas futuras): negócio antigo ou importado fecha com a data real e conta no mês certo em relatórios, metas e KPIs (`closed_at` e a passagem no funil). "Alterar data" na página do negócio fechado (`PATCH /api/v1/deals/:id/closed-at`).
+- Lista de negócios: caixas de seleção e "Fechar como ganho/perdido" em lote, com data, motivo e observação; os que não dá para fechar (campo exigido pela etapa, regra do funil, sem permissão) voltam com o motivo; os que já estão fechados com o mesmo resultado só têm a data corrigida (`POST /api/v1/deals/bulk-close`).
+- Pós-venda (menu "Pós-venda"): X dias depois do ganho avisa a equipe — o responsável (só os dele), pessoas fixas e números avulsos — por WhatsApp e/ou no sininho, repetindo a cada Y dias até N avisos ou até marcarem "Feito". Horário mínimo do dia, funis, "só ganhos a partir de" (para não avisar a base antiga toda), aviso e mensagem ao cliente editáveis com variáveis e prévia; salvo como padrão da empresa.
+- Tela com "Para contatar", "Próximos 30 dias" e "Feitos": telefone, dias desde o fechamento, avisos enviados, mensagem pronta (editável) com "Abrir conversa com a mensagem", "Copiar" e "Abrir no WhatsApp do celular"; "Feito" com observação vai para o histórico do negócio; "Desfazer" volta a lembrar. Vendedor vê só os clientes dele.
+- Migração 0031: `aftersale_settings`, `deal_aftersale` e `app.claim_aftersale` (o banco marca o aviso, sem duplicar).
+
+### Campanha: editar a mensagem com a campanha pausada e nome estranho no cadastro (27 nov 2026)
+
+- Pausada ou agendada (sem fluxo): botão "Editar mensagem" (texto, assunto do e-mail, variáveis do modelo oficial, ou o WhatsApp/SMS da campanha de voz). Quem ainda está na fila recebe o texto novo ao retomar; quem já recebeu não muda. `PATCH /api/v1/campaigns/:id/content`.
+- Nome que não parece nome ("sem nome", números, emoji, frase ou empresa, outro alfabeto) fica em branco na mensagem, sem deixar "Olá , tudo bem"; `{{primeiro_nome|cliente}}` usa a alternativa. `{{Nome}}` em maiúscula também vale. Nomes todo em maiúsculas saem como "Reinaldo".
+- A prévia do público e a campanha pausada mostram quem tem nome estranho, com link para corrigir o cadastro. `GET /api/v1/campaigns/:id/odd-names`.
+
+### Campanhas de voz: torpedo de voz com a operadora escolhida em cada campanha (27 nov 2026)
+
+- Novo tipo de campanha "Ligação (torpedo de voz)": liga para o público, toca um áudio (da biblioteca, gravado na hora pelo microfone ou enviado em MP3/WAV/M4A/OGG; tudo vira MP3) e, se quiser, espera uma tecla. Cada tecla pode marcar etiqueta, mandar o WhatsApp, mandar o SMS, avisar o responsável e descadastrar ("não ligar mais").
+- WhatsApp (QR code ou oficial) e SMS junto, opcionais: junto com a ligação, só se atender, só se não atender ou só ao apertar uma tecla marcada. SMS sai pela mesma operadora.
+- Operadoras (Configurações › Canais › Ligações): Twilio, Plivo, Telnyx (TeXML), Zenvia Voz (TotalVoice), Infobip, central própria SIP/Asterisk (pela ARI, com o roteiro `crm-voz` na tela) e "Outra operadora (API)" para qualquer empresa com API (ligueLead, Orbsofty…). Várias por empresa; a campanha escolhe qual usar. Tokens cifrados; "Testar" confere as credenciais e faz uma ligação de verdade — a operadora só fica "Testada" quando a ligação é atendida.
+- Resultado por ligação (atendeu, não atendeu, ocupado, caixa postal, falha, tecla, duração, WhatsApp/SMS enviados) no relatório; a etiqueta de sucesso vai para quem atendeu. Público, filtros, ritmo, limites, pausa e "Ritmo e limites" iguais às outras campanhas; supressão e consentimento pelo canal "phone".
+- Avisos das operadoras em `/api/v1/public/voz/<operadora>.<assinatura>/<destinatário>/<evento>` (endereço assinado); áudio público assinado em `/api/v1/public/voz/audio/…` (MP3 ou WAV 8 kHz). Zenvia é consultada pelo despachante; sem aviso em 30 min a ligação fecha como falha (central própria: 5 min = não atendeu).
+- Migração 0030: `voice_providers`, `campaigns.voice_provider_id/voice`, resultado em `campaign_recipients.call_*`, `app.voice_provider_tenant` e `app.voice_pending_calls`.
+- Testado com operadoras de mentira (formato da Twilio, Zenvia, ARI do Asterisk e API própria). **Nenhuma operadora foi validada com conta real ainda**: cada uma fica validada no primeiro teste atendido com as credenciais da empresa. A central própria precisa de um Asterisk com tronco SIP; instalar um na VPS depende de autorização (contêiner novo e portas SIP/RTP).
+
 ### Excluir campanhas e rascunhos (27 nov 2026)
 
 - Lista de campanhas: lixeira em cada linha, seleção com "Selecionar rascunhos" e "Excluir N selecionadas". Rascunho e agendada também se excluem pela própria página. Em andamento ou pausada: cancele antes. Fica na auditoria (`campaign.delete`).

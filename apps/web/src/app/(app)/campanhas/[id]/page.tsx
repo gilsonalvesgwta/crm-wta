@@ -2,11 +2,14 @@
 import { Suspense, use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Copy, Gauge, Mail, MessageCircle, Pause, Pencil, Play, Trash2, XCircle } from 'lucide-react';
+import { Copy, Gauge, Mail, MessageCircle, Pause, Pencil, Phone, Play, SquarePen, Trash2, XCircle } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { dateTime } from '@/lib/admin-types';
 import { phone, type Page } from '@/lib/crm';
-import { CAMPAIGN_STATUS, RECIPIENT_STATUS, type Campaign, type Recipient } from '@/lib/campaigns';
+import { CALL_STATUS, CAMPAIGN_STATUS, CAMPAIGN_VARIABLES, EXTRA_WHEN, RECIPIENT_STATUS, type Campaign, type OddName, type Recipient } from '@/lib/campaigns';
+import { renderTemplate } from '@/lib/messages';
+import { OddNames } from '@/components/crm/odd-names';
+import { Textarea } from '@/components/ui/textarea';
 import { useSession } from '@/components/shell/session';
 import { CampaignWizard } from '@/components/crm/campaign-wizard';
 import { TagPicker } from '@/components/crm/pickers';
@@ -35,6 +38,8 @@ function CampaignView({ id }: { id: string }) {
   const [err, setErr] = useState<ApiError | null>(null);
   const [editing, setEditing] = useState(false);
   const [pacing, setPacing] = useState(false);
+  const [editingText, setEditingText] = useState(false);
+  const [odd, setOdd] = useState<{ items: OddName[]; total: number } | null>(null);
   const [msg, setMsg] = useState<string | null>(search.get('salva') ? 'Rascunho salvo.' : null);
   const [actErr, setActErr] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<'cancel' | 'delete' | null>(null);
@@ -44,6 +49,12 @@ function CampaignView({ id }: { id: string }) {
     try { setC(await api<Campaign>('GET', `/api/v1/campaigns/${id}`)); setErr(null); } catch (e) { setErr(e instanceof ApiError ? e : new ApiError(0, 'error', 'Não foi possível abrir.')); }
   }, [id]);
   useEffect(() => { void load(); }, [load]);
+  // Pausada ou agendada: quem ainda vai receber e tem nome estranho no cadastro.
+  const waiting = c?.status === 'paused' || c?.status === 'scheduled';
+  useEffect(() => {
+    if (!waiting) { setOdd(null); return; }
+    api<{ items: OddName[]; total: number }>('GET', `/api/v1/campaigns/${id}/odd-names`).then(setOdd).catch(() => setOdd(null));
+  }, [waiting, id, c?.updatedAt]);
   const live = c?.status === 'sending' || c?.status === 'scheduled';
   useEffect(() => {
     if (!live) return;
@@ -98,7 +109,12 @@ function CampaignView({ id }: { id: string }) {
   const processed = s.sent + s.failed + s.skipped;
   const pct = s.total ? Math.round((processed / s.total) * 100) : 0;
   const approve = can('campaigns:approve');
-  const cards: [string, number, string?][] = [
+  const voice = c.channel === 'voice';
+  const cards: [string, number, string?][] = voice ? [
+    ['Público', s.total], ['Ligações feitas', s.sent], ['Atenderam', s.answered ?? 0], ['Apertaram tecla', s.pressed ?? 0],
+    ['Não atenderam', s.noAnswer ?? 0, 'Não atendeu, ocupado ou falha na ligação'], ['Caixa postal', s.machine ?? 0],
+    ['Não ligadas', s.failed + s.skipped, 'Pediram para sair, cancelada, sem telefone ou a operadora recusou'],
+  ] : [
     ['Público', s.total], ['Enviadas', s.sent], ['Entregues', s.delivered], ['Lidas', s.read], ['Respostas', s.replied],
     ['Falharam', s.failed], ['Não enviadas', s.skipped, 'Pediram para sair, cancelada ou sem contato'],
     ...(c.flowId ? [['Tocaram num botão', c.flowStats?.clicked ?? 0, 'Pessoas que tocaram num botão do fluxo'] as [string, number, string]] : []),
@@ -108,12 +124,13 @@ function CampaignView({ id }: { id: string }) {
     <div className="mx-auto flex max-w-6xl flex-col gap-5">
       <PageHeader back={{ href: '/campanhas', label: 'Campanhas' }}
         title={<span className="flex flex-wrap items-center gap-3">{c.name}<Badge tone={CAMPAIGN_STATUS[c.status].tone}>{CAMPAIGN_STATUS[c.status].label}</Badge></span>}
-        subtitle={<span className="inline-flex items-center gap-1.5">{c.channel === 'email' ? <Mail size={14} aria-hidden /> : <MessageCircle size={14} aria-hidden />}
-          {c.channel === 'email' ? 'E-mail' : 'WhatsApp'}{c.account ? ` · ${c.account.name}` : ''}{c.description ? ` · ${c.description}` : ''}</span>}
+        subtitle={<span className="inline-flex items-center gap-1.5">{voice ? <Phone size={14} aria-hidden /> : c.channel === 'email' ? <Mail size={14} aria-hidden /> : <MessageCircle size={14} aria-hidden />}
+          {voice ? `Ligação${c.voiceProvider ? ` · ${c.voiceProvider.name}` : ''}` : c.channel === 'email' ? 'E-mail' : 'WhatsApp'}{c.account && !voice ? ` · ${c.account.name}` : ''}{c.description ? ` · ${c.description}` : ''}</span>}
         actions={<div className="flex flex-wrap gap-2">
           {approve && c.status === 'scheduled' ? <Button variant="secondary" onClick={() => setEditing(true)}><Pencil size={16} aria-hidden />Editar</Button> : null}
           {approve && (c.status === 'sending' || c.status === 'scheduled') ? <Button variant="secondary" loading={busy === 'pause'} onClick={() => void act('pause')}><Pause size={16} aria-hidden />Pausar</Button> : null}
           {approve && c.status === 'paused' ? <Button loading={busy === 'resume'} onClick={() => void act('resume')}><Play size={16} aria-hidden />Retomar</Button> : null}
+          {can('campaigns:edit') && (c.status === 'paused' || c.status === 'scheduled') && !c.flowId ? <Button variant="secondary" onClick={() => setEditingText(true)}><SquarePen size={16} aria-hidden />Editar mensagem</Button> : null}
           {approve && ['scheduled', 'sending', 'paused'].includes(c.status) ? <Button variant="secondary" onClick={() => setPacing(true)}><Gauge size={16} aria-hidden />Ritmo e limites</Button> : null}
           {can('campaigns:edit') ? <Button variant="secondary" loading={busy === 'duplicate'} onClick={() => void act('duplicate')}><Copy size={16} aria-hidden />Duplicar</Button> : null}
           {approve && ['scheduled', 'sending', 'paused'].includes(c.status) ? <Button variant="danger" onClick={() => setConfirm('cancel')}><XCircle size={16} aria-hidden />Cancelar</Button> : null}
@@ -123,6 +140,10 @@ function CampaignView({ id }: { id: string }) {
       {actErr ? <Alert tone="error">{actErr}</Alert> : null}
       {c.status === 'paused' && c.lastError === 'Pausa programada' ? <Alert tone="info">Pausa programada. Clique em Retomar para continuar de onde parou.</Alert>
         : c.status === 'paused' && c.lastError ? <Alert tone="error">Pausada sozinha: {c.lastError} Resolva e clique em Retomar.</Alert> : null}
+      {c.status === 'sending' && can('campaigns:edit') && !c.flowId ? <p className="text-[13px] text-muted">Para corrigir a mensagem, clique em Pausar: aparece “Editar mensagem”. Quem já recebeu não muda; a fila recebe o texto novo ao retomar.</p> : null}
+      {odd?.total ? <OddNames items={odd.items} total={odd.total} /> : null}
+      {editingText ? <ContentDialog campaign={c} odd={odd?.items ?? []} onClose={() => setEditingText(false)}
+        onSaved={(n) => { setEditingText(false); setC(n); setMsg(n.status === 'paused' ? 'Mensagem atualizada. Clique em Retomar para continuar com o texto novo.' : 'Mensagem atualizada.'); }} /> : null}
       {c.status === 'sending' && c.lastError?.startsWith('Limite de') ? <Alert tone="info">{c.lastError}</Alert> : null}
       {c.pauseAt && ['scheduled', 'sending'].includes(c.status) ? <Alert tone="info">Pausa automática marcada para {dateTime.format(new Date(c.pauseAt))}.</Alert> : null}
       {can('campaigns:edit') ? <SuccessTag campaign={c} onSaved={(n, tagged) => { setC(n); setMsg(n.successTagId ? `Etiqueta salva: ${tagged} contato(s) que já receberam foram marcados; os próximos envios com sucesso também serão.` : 'Etiqueta removida da campanha (quem já foi marcado continua com ela).'); }} /> : null}
@@ -148,9 +169,21 @@ function CampaignView({ id }: { id: string }) {
         </div>
       </Panel>
 
-      <Recipients id={id} version={processed} />
+      <Recipients id={id} version={processed + (s.answered ?? 0) + (s.noAnswer ?? 0)} voice={voice} />
 
-      <Panel title="Mensagem">
+      {voice ? (
+        <Panel title="Ligação">
+          <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[160px_1fr]">
+            <dt className="text-muted">Áudio</dt><dd>{c.audio?.name ?? '—'}</dd>
+            <dt className="text-muted">Teclas</dt>
+            <dd>{c.voice?.digits && Object.keys(c.voice.keys ?? {}).length ? Object.entries(c.voice.keys ?? {}).sort().map(([k, v]) => `${k}: ${v.label || 'sem descrição'}`).join(' · ') : 'Só toca o áudio'}</dd>
+            <dt className="text-muted">WhatsApp junto</dt><dd>{c.voice?.whatsapp ? `${EXTRA_WHEN[c.voice.whatsapp.when]}: ${c.voice.whatsapp.text}` : 'Não'}</dd>
+            <dt className="text-muted">SMS junto</dt><dd>{c.voice?.sms ? `${EXTRA_WHEN[c.voice.sms.when]}: ${c.voice.sms.text}` : 'Não'}</dd>
+          </dl>
+        </Panel>
+      ) : null}
+
+      <Panel title="Mensagem" className={voice ? 'hidden' : undefined}>
         {c.subject ? <p className="mb-1 font-semibold">{c.subject}</p> : null}
         {c.flow ? <p className="mb-1 text-[13px] text-muted">Transmissão com o fluxo <Link href={`/whatsapp/fluxos/${c.flow.id}`} className="font-medium text-ink underline">{c.flow.name}</Link>: o modelo e os botões vêm do fluxo; os resultados de cada botão ficam em WhatsApp › Resultados.</p> : null}
         {c.template ? <p className="mb-1 text-[13px] text-muted">Modelo do WhatsApp oficial: <span className="font-mono">{c.template.name}</span> · valores: {c.templateParams.join(', ') || '—'}</p> : null}
@@ -169,7 +202,7 @@ function CampaignView({ id }: { id: string }) {
   );
 }
 
-function Recipients({ id, version }: { id: string; version: number }) {
+function Recipients({ id, version, voice }: { id: string; version: number; voice: boolean }) {
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
   const [data, setData] = useState<Page<Recipient> | null>(null);
@@ -194,8 +227,13 @@ function Recipients({ id, version }: { id: string; version: number }) {
                 <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-2 text-sm first:border-t-0">
                   <span className="min-w-0"><Link href={`/contatos/${r.contactId}`} className="font-medium hover:underline">{r.name}</Link>
                     <span className="ml-2 text-[13px] text-muted">{r.address.startsWith('+') ? phone(r.address) : r.address}</span></span>
-                  <span className="text-[13px] text-muted">
-                    {RECIPIENT_STATUS[r.status]}{r.messageStatus === 'read' ? ' · lida' : r.messageStatus === 'delivered' ? ' · entregue' : ''}
+                  <span className="flex flex-wrap items-center gap-1.5 text-[13px] text-muted">
+                    {voice && r.callStatus ? <Badge tone={CALL_STATUS[r.callStatus].tone}>{CALL_STATUS[r.callStatus].label}</Badge> : null}
+                    {voice && r.callDigits ? <span className="font-medium text-ink">apertou {r.callDigits}</span> : null}
+                    {voice && r.callSeconds ? <span>{r.callSeconds}s</span> : null}
+                    {voice && r.callExtras?.whatsapp ? <span>WhatsApp {r.callExtras.whatsapp === 'sent' ? 'enviado' : 'falhou'}</span> : null}
+                    {voice && r.callExtras?.sms ? <span>SMS {r.callExtras.sms === 'sent' ? 'enviado' : 'falhou'}</span> : null}
+                    {voice && r.status === 'sent' ? '' : RECIPIENT_STATUS[r.status]}{r.messageStatus === 'read' ? ' · lida' : r.messageStatus === 'delivered' ? ' · entregue' : ''}
                     {r.sentAt ? ` · ${dateTime.format(new Date(r.sentAt))}` : ''}{r.reason ? ` · ${r.reason}` : ''}
                   </span>
                 </li>
@@ -292,5 +330,77 @@ function SuccessTag({ campaign: c, onSaved }: { campaign: Campaign; onSaved: (c:
       {err ? <Alert tone="error">{err}</Alert> : null}
       <Button variant="secondary" loading={busy} disabled={!changed} onClick={save}>Salvar etiqueta</Button>
     </section>
+  );
+}
+
+/** Corrige o texto com a campanha pausada ou agendada; a fila recebe o texto novo. */
+function ContentDialog({ campaign: c, odd, onClose, onSaved }: { campaign: Campaign; odd: OddName[]; onClose: () => void; onSaved: (c: Campaign) => void }) {
+  const voice = c.channel === 'voice';
+  const [body, setBody] = useState(c.body ?? '');
+  const [subject, setSubject] = useState(c.subject ?? '');
+  const [params, setParams] = useState<string[]>(c.templateParams ?? []);
+  const [wa, setWa] = useState(c.voice?.whatsapp?.text ?? '');
+  const [sms, setSms] = useState(c.voice?.sms?.text ?? '');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<ApiError | null>(null);
+  const sample = odd[0];
+  async function save() {
+    setBusy(true);
+    setErr(null);
+    try {
+      const payload = voice ? { ...(c.voice?.whatsapp ? { whatsappText: wa } : {}), ...(c.voice?.sms ? { smsText: sms } : {}) }
+        : c.templateId ? { templateParams: params } : { body, subject: c.channel === 'email' ? subject : null };
+      onSaved(await api<Campaign>('PATCH', `/api/v1/campaigns/${c.id}/content`, payload));
+    } catch (e) {
+      setErr(e instanceof ApiError ? e : new ApiError(0, 'error', 'Não foi possível salvar.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+  const vars = (text: string, set: (v: string) => void) => (
+    <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-muted">
+      <span>Inserir:</span>
+      {[...CAMPAIGN_VARIABLES.map((v) => `{{${v.key}}}`), '{{primeiro_nome|cliente}}'].map((v) => (
+        <button key={v} type="button" onClick={() => set(`${text}${v}`)} className="rounded-full border border-line px-2 py-0.5 font-mono hover:bg-surface-2">{v}</button>
+      ))}
+    </div>
+  );
+  const preview = (text: string) => (
+    <div className="rounded-[10px] bg-bg p-3 text-sm">
+      <p className="mb-1 text-[12px] text-muted">Exemplos de como chega</p>
+      <p className="whitespace-pre-wrap">• Maria Souza: {renderTemplate(text, { nome: 'Maria Souza', primeiro_nome: 'Maria', empresa: 'sua empresa' })}</p>
+      {sample ? <p className="whitespace-pre-wrap">• “{sample.name}” ({sample.problem}): {renderTemplate(text, { nome: '', primeiro_nome: '', empresa: 'sua empresa' })}</p> : null}
+    </div>
+  );
+  return (
+    <Dialog open onClose={onClose} title="Editar mensagem" width={680}
+      description="Vale para quem ainda está na fila. Quem já recebeu não muda."
+      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button><Button loading={busy} onClick={save}>Salvar mensagem</Button></>}>
+      <div className="flex flex-col gap-4">
+        {err ? <Alert tone="error">{err.errors[0]?.message ?? err.title}</Alert> : null}
+        {voice ? (
+          <>
+            {c.voice?.whatsapp ? <><Textarea label="Mensagem do WhatsApp" rows={5} value={wa} onChange={(e) => setWa(e.target.value)} error={err?.fieldError('whatsappText')} />{vars(wa, setWa)}{preview(wa)}</> : null}
+            {c.voice?.sms ? <><Textarea label="Texto do SMS" rows={3} maxLength={612} value={sms} onChange={(e) => setSms(e.target.value)} error={err?.fieldError('smsText')} />{vars(sms, setSms)}{preview(sms)}</> : null}
+            {!c.voice?.whatsapp && !c.voice?.sms ? <p className="text-[13px] text-muted">Esta campanha de voz só toca o áudio: não há texto para editar.</p> : null}
+          </>
+        ) : c.templateId ? (
+          <>
+            <p className="text-[13px] text-muted">No WhatsApp oficial, o texto do modelo é aprovado pela Meta; aqui você muda o valor de cada variável.</p>
+            {params.map((v, i) => (
+              <Field key={i} label={`{{${i + 1}}}`} value={v} onChange={(e) => setParams(params.map((x, k) => (k === i ? e.target.value : x)))} />
+            ))}
+            <p className="text-[12px] text-muted">Use {'{{primeiro_nome|cliente}}'} para não sair nome estranho.</p>
+          </>
+        ) : (
+          <>
+            {c.channel === 'email' ? <Field label="Assunto" value={subject} onChange={(e) => setSubject(e.target.value)} error={err?.fieldError('subject')} /> : null}
+            <Textarea label="Mensagem" rows={8} value={body} onChange={(e) => setBody(e.target.value)} error={err?.fieldError('body')} />
+            {vars(body, setBody)}
+            {preview(body)}
+          </>
+        )}
+      </div>
+    </Dialog>
   );
 }

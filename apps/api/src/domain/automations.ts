@@ -82,7 +82,17 @@ export const VARIABLES: { key: string; label: string }[] = [
 
 /** Troca {{variavel}} pelo valor; variável desconhecida ou vazia some. */
 export function render(template: string, vars: Record<string, string | null | undefined>): string {
-  return template.replace(/\{\{\s*([a-z_]+)\s*\}\}/g, (_m, k: string) => vars[k] ?? '').replace(/[ \t]+\n/g, '\n');
+  // {{nome}} ou {{Nome}}; {{primeiro_nome|cliente}} usa "cliente" quando o valor está vazio.
+  let emptied = false;
+  const out = template.replace(/\{\{\s*([a-zA-Z_]+)\s*(?:\|([^{}]*))?\}\}/g, (_m, k: string, alt: string | undefined) => {
+    const v = (vars[k.toLowerCase()] ?? '').trim();
+    if (v) return v;
+    const fallback = (alt ?? '').trim();
+    if (!fallback) emptied = true;
+    return fallback;
+  });
+  // Variável que ficou vazia não deixa "Olá , tudo bem?".
+  return (emptied ? out.replace(/[ \t]{2,}/g, ' ').replace(/[ \t]+([,.!?;:])/g, '$1') : out).replace(/[ \t]+\n/g, '\n');
 }
 
 /** Telefone do aviso no formato +DDI (números do Brasil sem o 55 ganham o 55). */

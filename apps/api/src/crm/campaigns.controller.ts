@@ -3,7 +3,7 @@ import type { FastifyReply } from 'fastify';
 import { z } from 'zod';
 import type { Actor } from '../access/actor.js';
 import { CurrentActor, ExternalWebhook, Public, Require } from '../access/decorators.js';
-import { audience, campaignBody, paceBody, startBody, successTagBody } from '../domain/campaigns.js';
+import { audience, campaignBody, contentBody, paceBody, startBody, successTagBody } from '../domain/campaigns.js';
 import { parse } from '../http/validate.js';
 import { CampaignsService } from './campaigns.service.js';
 import { MessagesService } from './messages.service.js';
@@ -30,7 +30,7 @@ export class CampaignsController {
   @Post('preview')
   @HttpCode(200)
   preview(@CurrentActor() a: Actor, @Body() b: unknown) {
-    const v = parse(z.object({ channel: z.enum(['whatsapp', 'email']), audience }), b);
+    const v = parse(z.object({ channel: z.enum(['whatsapp', 'email', 'voice']), audience }), b);
     return this.svc.preview(a, v.channel, v.audience);
   }
 
@@ -88,6 +88,20 @@ export class CampaignsController {
   @HttpCode(200)
   start(@CurrentActor() a: Actor, @Param('id') i: string, @Body() b: unknown) {
     return this.svc.start(a, id(i), parse(startBody, b ?? {}).scheduledAt);
+  }
+
+  /** Corrige a mensagem com a campanha pausada ou agendada (quem está na fila recebe o texto novo). */
+  @Require('campaigns:edit')
+  @Patch(':id/content')
+  content(@CurrentActor() a: Actor, @Param('id') i: string, @Body() b: unknown) {
+    return this.svc.setContent(a, id(i), parse(contentBody, b));
+  }
+
+  /** Quem ainda vai receber e tem nome estranho no cadastro. */
+  @Require('campaigns:view')
+  @Get(':id/odd-names')
+  oddNames(@CurrentActor() a: Actor, @Param('id') i: string) {
+    return this.svc.oddNames(a, id(i));
   }
 
   /** Etiqueta de quem recebeu com sucesso; já marca quem recebeu até agora. */

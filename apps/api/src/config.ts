@@ -36,6 +36,8 @@ const schema = z.object({
   WHISPER_THREADS: z.coerce.number().int().min(0).max(32).default(0),
   /** Transcrição pela OpenAI (opcional, com a chave de cada empresa). */
   OPENAI_BASE_URL: z.string().url().default('https://api.openai.com/v1'),
+  /** Só nos testes: troca o endereço das operadoras de voz (Twilio, Plivo…) por um servidor de mentira. */
+  VOICE_PROVIDER_BASE_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)),
   /** Limite de tamanho de um arquivo enviado, em MB. */
   UPLOAD_MAX_MB: z.coerce.number().int().min(1).max(200).default(25),
   /** Despachante de lembretes, importações e séries: intervalo em segundos; 0 desliga. */

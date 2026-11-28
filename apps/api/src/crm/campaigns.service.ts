@@ -3,7 +3,7 @@ import type { Actor } from '../access/actor.js';
 import { tenantCtx } from '../access/decorators.js';
 import { audit } from '../admin/audit.js';
 import { CONFIG, type Config } from '../config.js';
-import { OPT_OUT_HINT, type Audience, type CampaignInput, type DealGroup } from '../domain/campaigns.js';
+import { OPT_OUT_HINT, type Audience, type CampaignInput, type DealGroup, type VoiceSettings } from '../domain/campaigns.js';
 import { render } from '../domain/automations.js';
 import { templateVariables } from '../domain/meta.js';
 import { Problem } from '../http/problem.js';
@@ -13,8 +13,13 @@ import { MessagesService } from './messages.service.js';
 import { IgFlowEngine } from './ig-flows.engine.js';
 import { graphSchema, nextNode, triggerOf } from '../domain/flows.js';
 import { Params } from './sql.js';
+import { cleanFirstName, cleanName, nameProblem } from '../domain/names.js';
+import { VoiceService } from './voice.service.js';
+import { PROVIDER_FIELDS, VoiceError, type VoiceProviderKind } from '../infra/voice.js';
 
-type Channel = 'whatsapp' | 'email';
+type Channel = 'whatsapp' | 'email' | 'voice';
+/** Consentimento e lista de supressão: ligação vale como "phone". */
+const consentChannel = (c: Channel) => (c === 'voice' ? 'phone' : c);
 
 /** Campanha com fluxo pelo WhatsApp por QR code: envios por minuto, no máximo. */
 export const QR_FLOW_MAX_PER_MINUTE = 15;
@@ -28,6 +33,10 @@ const STATS = (alias: string) => `(
     'skipped', count(*) filter (where r.status = 'skipped'),
     'delivered', count(*) filter (where m.status in ('delivered', 'read')),
     'read', count(*) filter (where m.status = 'read'),
+    'answered', count(*) filter (where r.call_status = 'answered'),
+    'pressed', count(*) filter (where coalesce(r.call_digits, '') <> ''),
+    'noAnswer', count(*) filter (where r.call_status in ('no_answer', 'busy', 'failed', 'canceled')),
+    'machine', count(*) filter (where r.call_status = 'machine'),
     'replied', count(*) filter (where r.sent_at is not null and exists (
       select 1 from messages i where i.contact_id = r.contact_id and i.channel = ${alias}.channel and i.direction = 'in' and i.created_at > r.sent_at)))
   from campaign_recipients r left join messages m on m.id = r.message_id where r.campaign_id = ${alias}.id)`;
@@ -46,6 +55,9 @@ const COLUMNS = `
   k.template_id as "templateId", k.template_params as "templateParams",
   (select json_build_object('id', t.id, 'name', t.name, 'language', t.language, 'body', t.body, 'header', t.header, 'headerFormat', t.header_format, 'status', t.status)
      from whatsapp_templates t where t.id = k.template_id) as template,
+  k.voice_provider_id as "voiceProviderId", k.voice, k.file_id as "audioFileId",
+  (select json_build_object('id', v.id, 'name', v.name, 'provider', v.provider, 'status', v.status) from voice_providers v where v.id = k.voice_provider_id) as "voiceProvider",
+  (select json_build_object('id', f.id, 'name', f.original_name, 'contentType', f.content_type) from files f where f.id = k.file_id and f.deleted_at is null) as audio,
   k.flow_id as "flowId",
   (select json_build_object('id', f.id, 'name', f.name, 'status', f.status) from ig_flows f where f.id = k.flow_id) as flow,
   (select json_build_object('clicked', count(distinct e.run_id) filter (where e.kind = 'clicked'), 'completed', count(distinct e.run_id) filter (where e.kind = 'completed'),
@@ -81,13 +93,13 @@ function audienceSql(p: Params, a: Audience, channel: Channel): string {
   if (a.contactIds.length) conds.push(`c.id = any(${p.add(a.contactIds)}::uuid[])`);
   if (a.createdFrom) conds.push(`c.created_at >= (${p.add(a.createdFrom)}::date at time zone (select timezone from tenants where id = app.tenant_id()))`);
   if (a.createdTo) conds.push(`c.created_at < ((${p.add(a.createdTo)}::date + 1) at time zone (select timezone from tenants where id = app.tenant_id()))`);
-  const ch = p.add(channel);
-  // WhatsApp: qualquer telefone do contato (celular, WhatsApp, trabalho, casa ou fixo; o tipo não importa),
+  const ch = p.add(consentChannel(channel));
+  // WhatsApp e voz: qualquer telefone do contato (celular, WhatsApp, trabalho, casa ou fixo; o tipo não importa),
   // o principal primeiro; sem telefone no contato, o da organização dele.
-  const own = channel === 'whatsapp'
+  const own = channel !== 'email'
     ? '(select x.e164 from contact_phones x where x.contact_id = c.id order by x.is_primary desc, x.created_at limit 1)'
     : '(select x.email from contact_emails x where x.contact_id = c.id order by x.is_primary desc, x.created_at limit 1)';
-  const org = channel === 'whatsapp'
+  const org = channel !== 'email'
     ? '(select o.phone from organizations o where o.id = c.organization_id)'
     : '(select o.email from organizations o where o.id = c.organization_id)';
   return `select c.id, c.name, coalesce(${own}, ${org}) as address, (${own} is null and ${org} is not null) as from_org,
@@ -100,7 +112,12 @@ function audienceSql(p: Params, a: Audience, channel: Channel): string {
 function eligibleSql(p: Params, consentOnly: boolean, channel: Channel): string {
   return `a.address is not null and coalesce(a.consent, '') <> 'revoked'
     ${consentOnly ? `and a.consent = 'granted'` : ''}
-    and not exists (select 1 from suppression_list s where s.channel = ${p.add(channel)} and s.value = a.address)`;
+    and not exists (select 1 from suppression_list s where s.channel = ${p.add(consentChannel(channel))} and s.value = a.address)`;
+}
+
+/** Contatos cujo nome não parece um nome, com o motivo e como a mensagem vai chamar. */
+function oddNames(rows: { id: string; name: string }[]) {
+  return rows.map((r) => ({ id: r.id, name: r.name, problem: nameProblem(r.name) })).filter((r): r is { id: string; name: string; problem: string } => !!r.problem);
 }
 
 @Injectable()
@@ -112,6 +129,7 @@ export class CampaignsService {
     @Inject(CONFIG) private readonly cfg: Config,
     @Inject(MessagesService) private readonly messages: MessagesService,
     @Inject(IgFlowEngine) private readonly flows: IgFlowEngine,
+    @Inject(VoiceService) private readonly voice: VoiceService,
   ) {}
 
   private async row(q: Q, id: string) {
@@ -139,6 +157,7 @@ export class CampaignsService {
       await this.row(q, id);
       const r = await q.query(
         `select r.id, r.status, r.reason, r.address, r.sent_at as "sentAt", c.id as "contactId", c.name,
+                r.call_status as "callStatus", r.call_seconds as "callSeconds", r.call_digits as "callDigits", r.call_extras as "callExtras",
                 m.status as "messageStatus", count(*) over ()::int as total
            from campaign_recipients r join contacts c on c.id = r.contact_id left join messages m on m.id = r.message_id
           where r.campaign_id = $1 and ($2::text is null or r.status = $2)
@@ -162,7 +181,7 @@ export class CampaignsService {
                 count(*) filter (where a.address is null)::int as no_address,
                 count(*) filter (where a.address is not null and a.consent = 'revoked')::int as revoked,
                 count(*) filter (where a.address is not null and coalesce(a.consent, '') <> 'revoked' and ${a.consentOnly ? `a.consent is distinct from 'granted'` : 'false'})::int as no_consent,
-                count(*) filter (where a.address is not null and exists (select 1 from suppression_list s where s.channel = ${p.add(channel)} and s.value = a.address))::int as suppressed,
+                count(*) filter (where a.address is not null and exists (select 1 from suppression_list s where s.channel = ${p.add(consentChannel(channel))} and s.value = a.address))::int as suppressed,
                 (array_agg(a.name order by a.name) filter (where ${ok}))[1:5] as sample,
                 count(*) filter (where ${ok} and a.from_org)::int as from_org,
                 count(*) filter (where a.address is null and a.twin is not null)::int as duplicates,
@@ -171,10 +190,15 @@ export class CampaignsService {
                         -- Sem telefone, mas há outro contato com o mesmo nome que tem: provável cadastro duplicado (ex.: importação).
                         case when a.address is null then (select t.id from contacts t where t.id <> a.id and t.anonymized_at is null
                             and app.norm(t.name) = app.norm(a.name)
-                            and exists (select 1 from ${channel === 'whatsapp' ? 'contact_phones' : 'contact_emails'} x where x.contact_id = t.id) limit 1) end as twin
+                            and exists (select 1 from ${channel !== 'email' ? 'contact_phones' : 'contact_emails'} x where x.contact_id = t.id) limit 1) end as twin
                    from a) a`, p.values);
       const x = r.rows[0]!;
+      const p2 = new Params();
+      const names = await q.query<{ id: string; name: string }>(
+        `with a as (${audienceSql(p2, a, channel)}) select a.id, a.name from a where ${eligibleSql(p2, a.consentOnly, channel)} order by a.name limit 5000`, p2.values);
+      const odd = oddNames(names.rows);
       return {
+        oddNames: odd.slice(0, 50), oddCount: odd.length,
         total: x.total, eligible: x.eligible, noAddress: x.no_address, revoked: x.revoked, noConsent: x.no_consent, suppressed: x.suppressed, sample: x.sample ?? [],
         fromOrganization: x.from_org, duplicates: x.duplicates, missing: x.missing ?? [],
       };
@@ -182,7 +206,7 @@ export class CampaignsService {
   }
 
   private async checkAccount(q: Q, channel: Channel, accountId: string | null | undefined) {
-    if (!accountId) return;
+    if (!accountId || channel === 'voice') return;
     const a = await q.query<{ kind: string }>('select kind from channel_accounts where id = $1', [accountId]);
     if (!a.rows[0]) throw Problem.badRequest('Conta inválida.', [{ field: 'accountId', message: 'Escolha uma conta da empresa.' }]);
     if ((a.rows[0].kind === 'email_smtp') !== (channel === 'email')) {
@@ -192,9 +216,11 @@ export class CampaignsService {
 
   private values(b: CampaignInput) {
     const flow = b.channel === 'whatsapp' ? b.flowId ?? null : null;
+    const voice = b.channel === 'voice';
     return [b.name, b.description, b.channel, JSON.stringify(b.audience), b.accountId ?? null, b.channel === 'email' ? b.subject : null,
       b.body, b.perMinute, b.windowStart ?? null, b.windowEnd ?? null, b.optOutHint, flow ? null : b.templateId ?? null, JSON.stringify(flow ? [] : b.templateParams), flow,
-      [...new Set(b.windowDays ?? [])].sort(), b.maxPerHour ?? null, b.maxPerDay ?? null, b.pauseAt ?? null, b.successTagId ?? null];
+      [...new Set(b.windowDays ?? [])].sort(), b.maxPerHour ?? null, b.maxPerDay ?? null, b.pauseAt ?? null, b.successTagId ?? null,
+      voice ? b.voiceProviderId ?? null : null, voice ? b.audioFileId ?? null : null, JSON.stringify(voice ? b.voice : {})];
   }
 
   /** Fluxo de campanha: do mesmo número de WhatsApp e com gatilho "campanha" (transmissão). */
@@ -208,9 +234,30 @@ export class CampaignsService {
     if (b.accountId && f.channel_account_id !== b.accountId) throw Problem.badRequest('Fluxo de outro número.', [{ field: 'flowId', message: 'O fluxo é de outro número de WhatsApp.' }]);
   }
 
+  /** Voz: operadora, áudio, etiquetas das teclas e o WhatsApp do envio junto precisam ser da empresa. */
+  private async checkVoice(q: Q, b: CampaignInput) {
+    if (b.channel !== 'voice') return;
+    if (b.accountId) throw Problem.badRequest('Conta de outro canal.', [{ field: 'accountId', message: 'Na campanha de voz, escolha a operadora.' }]);
+    if (b.voiceProviderId && !(await q.query('select 1 from voice_providers where id = $1', [b.voiceProviderId])).rowCount) {
+      throw Problem.badRequest('Operadora inválida.', [{ field: 'voiceProviderId', message: 'Escolha uma operadora da empresa.' }]);
+    }
+    if (b.audioFileId && !(await q.query(`select 1 from files where id = $1 and deleted_at is null and content_type like 'audio/%'`, [b.audioFileId])).rowCount) {
+      throw Problem.badRequest('Áudio inválido.', [{ field: 'audioFileId', message: 'Escolha um áudio da biblioteca.' }]);
+    }
+    const tags = Object.values(b.voice.keys).map((k) => k.tagId).filter((x): x is string => !!x);
+    if (tags.length && (await q.query<{ n: number }>('select count(*)::int as n from tags where id = any($1::uuid[])', [[...new Set(tags)]])).rows[0]!.n !== new Set(tags).size) {
+      throw Problem.badRequest('Etiqueta inválida.', [{ field: 'voice.keys', message: 'Escolha etiquetas da empresa.' }]);
+    }
+    if (b.voice.whatsapp) {
+      const a = (await q.query<{ kind: string }>('select kind from channel_accounts where id = $1', [b.voice.whatsapp.accountId])).rows[0];
+      if (!a || !a.kind.startsWith('whatsapp')) throw Problem.badRequest('WhatsApp inválido.', [{ field: 'voice.whatsapp.accountId', message: 'Escolha um WhatsApp da empresa.' }]);
+    }
+  }
+
   async create(actor: Actor, b: CampaignInput) {
     return this.db.app(tenantCtx(actor), async (q) => {
       await this.checkAccount(q, b.channel, b.accountId);
+      await this.checkVoice(q, b);
       await this.checkFlow(q, b);
       if (b.successTagId && !(await q.query('select 1 from tags where id = $1', [b.successTagId])).rowCount) {
         throw Problem.badRequest('Etiqueta inválida.', [{ field: 'successTagId', message: 'Escolha uma etiqueta da empresa.' }]);
@@ -218,8 +265,8 @@ export class CampaignsService {
       const r = await q.query<{ id: string }>(
         `insert into campaigns (tenant_id, name, description, channel, audience, channel_account_id, subject, body, per_minute,
                                 window_start, window_end, opt_out_hint, template_id, template_params, flow_id,
-                                window_days, max_per_hour, max_per_day, pause_at, success_tag_id, created_by)
-         values (app.tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) returning id`,
+                                window_days, max_per_hour, max_per_day, pause_at, success_tag_id, voice_provider_id, file_id, voice, created_by)
+         values (app.tenant_id(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23) returning id`,
         [...this.values(b), actor.membershipId]);
       return this.row(q, r.rows[0]!.id);
     });
@@ -230,6 +277,7 @@ export class CampaignsService {
       const cur = await this.row(q, id);
       if (cur.status !== 'draft' && cur.status !== 'scheduled') throw Problem.conflict('Só dá para editar a campanha antes de o envio começar.');
       await this.checkAccount(q, b.channel, b.accountId);
+      await this.checkVoice(q, b);
       await this.checkFlow(q, b);
       if (b.successTagId && !(await q.query('select 1 from tags where id = $1', [b.successTagId])).rowCount) {
         throw Problem.badRequest('Etiqueta inválida.', [{ field: 'successTagId', message: 'Escolha uma etiqueta da empresa.' }]);
@@ -237,7 +285,8 @@ export class CampaignsService {
       await q.query(
         `update campaigns set name = $2, description = $3, channel = $4, audience = $5, channel_account_id = $6, subject = $7, body = $8,
                 per_minute = $9, window_start = $10, window_end = $11, opt_out_hint = $12, template_id = $13, template_params = $14, flow_id = $15,
-                window_days = $16, max_per_hour = $17, max_per_day = $18, pause_at = $19, success_tag_id = $20 where id = $1`, [id, ...this.values(b)]);
+                window_days = $16, max_per_hour = $17, max_per_day = $18, pause_at = $19, success_tag_id = $20,
+                voice_provider_id = $21, file_id = $22, voice = $23 where id = $1`, [id, ...this.values(b)]);
       return this.row(q, id);
     });
   }
@@ -276,7 +325,8 @@ export class CampaignsService {
       if (tagId) {
         tagged = (await q.query(
           `insert into contact_tags (tenant_id, contact_id, tag_id)
-           select app.tenant_id(), r.contact_id, $2 from campaign_recipients r where r.campaign_id = $1 and r.status = 'sent'
+           select app.tenant_id(), r.contact_id, $2 from campaign_recipients r
+            where r.campaign_id = $1 and r.status = 'sent' and (r.call_status is null or r.call_status = 'answered')
            on conflict do nothing`, [id, tagId])).rowCount ?? 0;
       }
       await audit(q, actor, 'campaign.success_tag', 'campaign', id, { tagId, tagged });
@@ -292,7 +342,8 @@ export class CampaignsService {
                                 window_start, window_end, opt_out_hint, window_days, max_per_hour, max_per_day, success_tag_id, created_by)
          select tenant_id, left(name || ' (cópia)', 120), description, channel, audience, channel_account_id, subject, body, per_minute,
                 window_start, window_end, opt_out_hint, window_days, max_per_hour, max_per_day, success_tag_id, $2 from campaigns where id = $1 returning id`, [id, actor.membershipId]);
-      await q.query('update campaigns k set template_id = o.template_id, template_params = o.template_params, flow_id = o.flow_id from campaigns o where k.id = $1 and o.id = $2',
+      await q.query(`update campaigns k set template_id = o.template_id, template_params = o.template_params, flow_id = o.flow_id,
+                            voice_provider_id = o.voice_provider_id, file_id = o.file_id, voice = o.voice from campaigns o where k.id = $1 and o.id = $2`,
         [r.rows[0]!.id, id]);
       return this.row(q, r.rows[0]!.id);
     });
@@ -319,16 +370,79 @@ export class CampaignsService {
     });
   }
 
+  /**
+   * Corrige o texto com a campanha pausada, agendada ou em rascunho: quem ainda
+   * está na fila recebe o texto novo (quem já recebeu não muda).
+   */
+  async setContent(actor: Actor, id: string, b: { body?: string | null; subject?: string | null; templateParams?: string[]; whatsappText?: string | null; smsText?: string | null }) {
+    return this.db.app(tenantCtx(actor), async (q) => {
+      const k = (await q.query<{ status: string; channel: Channel; template_id: string | null; flow_id: string | null; voice: VoiceSettings }>(
+        'select status, channel, template_id, flow_id, voice from campaigns where id = $1 for update', [id])).rows[0];
+      if (!k) throw Problem.notFound('Campanha não encontrada.');
+      if (k.status === 'sending') throw Problem.conflict('Pause a campanha antes de editar a mensagem.');
+      if (k.status === 'done' || k.status === 'canceled') throw Problem.conflict('A campanha já terminou.');
+      if (k.flow_id) throw Problem.conflict('As mensagens desta campanha vêm do fluxo: edite e publique o fluxo.');
+      const errors: { field: string; message: string }[] = [];
+      if (k.channel === 'voice') {
+        const v = { ...k.voice };
+        if (v.whatsapp && b.whatsappText !== undefined) {
+          if (!b.whatsappText?.trim()) errors.push({ field: 'whatsappText', message: 'Escreva a mensagem do WhatsApp.' });
+          else v.whatsapp = { ...v.whatsapp, text: b.whatsappText };
+        }
+        if (v.sms && b.smsText !== undefined) {
+          if (!b.smsText?.trim()) errors.push({ field: 'smsText', message: 'Escreva o SMS.' });
+          else v.sms = { ...v.sms, text: b.smsText };
+        }
+        if (errors.length) throw Problem.badRequest('Falta completar a mensagem.', errors);
+        await q.query('update campaigns set voice = $2 where id = $1', [id, JSON.stringify(v)]);
+      } else if (k.template_id) {
+        await q.query('update campaigns set template_params = $2 where id = $1', [id, JSON.stringify(b.templateParams ?? [])]);
+      } else {
+        if (!b.body?.trim()) errors.push({ field: 'body', message: 'Escreva a mensagem.' });
+        if (k.channel === 'email' && !b.subject?.trim()) errors.push({ field: 'subject', message: 'Escreva o assunto do e-mail.' });
+        if (errors.length) throw Problem.badRequest('Falta completar a mensagem.', errors);
+        await q.query('update campaigns set body = $2, subject = case when channel = $4 then $3 else subject end where id = $1', [id, b.body, b.subject ?? null, 'email']);
+      }
+      await audit(q, actor, 'campaign.content', 'campaign', id, { status: k.status });
+      return this.row(q, id);
+    });
+  }
+
+  /** Quem ainda vai receber e tem um nome que não parece nome (para corrigir antes de retomar). */
+  async oddNames(actor: Actor, id: string) {
+    return this.db.app(tenantCtx(actor), async (q) => {
+      const k = (await q.query<{ channel: Channel; audience: Audience; prepared_at: Date | null }>('select channel, audience, prepared_at from campaigns where id = $1', [id])).rows[0];
+      if (!k) throw Problem.notFound('Campanha não encontrada.');
+      let rows: { id: string; name: string }[];
+      if (k.prepared_at) {
+        rows = (await q.query<{ id: string; name: string }>(
+          `select c.id, c.name from campaign_recipients r join contacts c on c.id = r.contact_id
+            where r.campaign_id = $1 and r.status in ('pending', 'sending') order by c.name limit 5000`, [id])).rows;
+      } else {
+        // Público ainda não montado (rascunho, agendada ou pausada antes de começar): olha o público de agora.
+        const p = new Params();
+        const a = { ...k.audience, tagIds: k.audience.tagIds ?? [], excludeTagIds: k.audience.excludeTagIds ?? [], ownerIds: k.audience.ownerIds ?? [],
+          teamIds: k.audience.teamIds ?? [], sources: k.audience.sources ?? [], contactIds: k.audience.contactIds ?? [], consentOnly: !!k.audience.consentOnly };
+        rows = (await q.query<{ id: string; name: string }>(
+          `with a as (${audienceSql(p, a, k.channel)}) select a.id, a.name from a where ${eligibleSql(p, a.consentOnly, k.channel)} order by a.name limit 5000`, p.values)).rows;
+      }
+      const odd = oddNames(rows);
+      return { items: odd.slice(0, 200), total: odd.length };
+    });
+  }
+
   /** Aprova o envio: agora ou na data marcada. Confere conta, conteúdo e público. */
   async start(actor: Actor, id: string, scheduledAt: string | null | undefined) {
     return this.db.app(tenantCtx(actor), async (q) => {
       const k = (await q.query<{ status: string; channel: Channel; audience: Audience; channel_account_id: string | null; subject: string | null; body: string | null;
-        template_id: string | null; template_params: string[]; flow_id: string | null }>(
-        'select status, channel, audience, channel_account_id, subject, body, template_id, template_params, flow_id from campaigns where id = $1 for update', [id])).rows[0];
+        template_id: string | null; template_params: string[]; flow_id: string | null; voice_provider_id: string | null; file_id: string | null; voice: VoiceSettings }>(
+        `select status, channel, audience, channel_account_id, subject, body, template_id, template_params, flow_id, voice_provider_id, file_id, voice
+           from campaigns where id = $1 for update`, [id])).rows[0];
       if (!k) throw Problem.notFound('Campanha não encontrada.');
       if (k.status !== 'draft' && k.status !== 'scheduled') throw Problem.conflict('Esta campanha já foi enviada ou cancelada.');
       const errors: { field: string; message: string }[] = [];
-      if (!k.channel_account_id) errors.push({ field: 'accountId', message: k.channel === 'email' ? 'Escolha a conta de e-mail que envia.' : 'Escolha o WhatsApp que envia.' });
+      if (k.channel === 'voice') await this.startVoice(q, k, errors);
+      else if (!k.channel_account_id) errors.push({ field: 'accountId', message: k.channel === 'email' ? 'Escolha a conta de e-mail que envia.' : 'Escolha o WhatsApp que envia.' });
       const kind = k.channel_account_id ? (await q.query<{ kind: string }>('select kind from channel_accounts where id = $1', [k.channel_account_id])).rows[0]?.kind : null;
       if (kind === 'whatsapp_evolution' && k.flow_id) {
         // WhatsApp por QR code com fluxo: o fluxo precisa estar ativo e ser deste número (começa por qualquer mensagem).
@@ -356,11 +470,13 @@ export class CampaignsService {
         else if ((k.template_params ?? []).filter((v) => v.trim()).length < templateVariables(t.body)) {
           errors.push({ field: 'templateParams', message: 'Preencha todas as variáveis do modelo.' });
         }
-      } else if (!k.body) errors.push({ field: 'body', message: 'Escreva a mensagem.' });
+      } else if (!k.body && k.channel !== 'voice') errors.push({ field: 'body', message: 'Escreva a mensagem.' });
       if (k.channel === 'email' && !k.subject) errors.push({ field: 'subject', message: 'Escreva o assunto do e-mail.' });
       if (errors.length) throw Problem.badRequest('Falta completar a campanha.', errors);
-      const acc = (await q.query<{ status: string; name: string }>('select status, name from channel_accounts where id = $1', [k.channel_account_id])).rows[0]!;
-      if (k.channel === 'whatsapp' && acc.status !== 'connected') throw Problem.conflict(`O WhatsApp "${acc.name}" não está conectado.`);
+      if (k.channel !== 'voice') {
+        const acc = (await q.query<{ status: string; name: string }>('select status, name from channel_accounts where id = $1', [k.channel_account_id])).rows[0]!;
+        if (k.channel === 'whatsapp' && acc.status !== 'connected') throw Problem.conflict(`O WhatsApp "${acc.name}" não está conectado.`);
+      }
       const p = new Params();
       const audience = { ...k.audience, tagIds: k.audience.tagIds ?? [], excludeTagIds: k.audience.excludeTagIds ?? [], ownerIds: k.audience.ownerIds ?? [],
         teamIds: k.audience.teamIds ?? [], sources: k.audience.sources ?? [], contactIds: k.audience.contactIds ?? [], consentOnly: !!k.audience.consentOnly };
@@ -377,6 +493,21 @@ export class CampaignsService {
       await audit(q, actor, 'campaign.approved', 'campaign', id, { scheduledAt: when.toISOString(), recipients: n.rows[0]!.n });
       return this.row(q, id);
     });
+  }
+
+  /** Voz: operadora, áudio e, se houver, o WhatsApp conectado e uma operadora que mande SMS. */
+  private async startVoice(q: Q, k: { voice_provider_id: string | null; file_id: string | null; voice: VoiceSettings }, errors: { field: string; message: string }[]) {
+    const v = (k.voice_provider_id ? (await q.query<{ provider: VoiceProviderKind; name: string }>('select provider, name from voice_providers where id = $1', [k.voice_provider_id])).rows[0] : null);
+    if (!v) errors.push({ field: 'voiceProviderId', message: 'Escolha a operadora que faz as ligações.' });
+    if (!k.file_id || !(await q.query(`select 1 from files where id = $1 and deleted_at is null and content_type like 'audio/%'`, [k.file_id])).rowCount) {
+      errors.push({ field: 'audioFileId', message: 'Escolha ou grave o áudio da ligação.' });
+    }
+    if (k.voice?.sms && v && !PROVIDER_FIELDS[v.provider].sms) errors.push({ field: 'voice.sms', message: `A operadora "${v.name}" não manda SMS.` });
+    if (k.voice?.whatsapp) {
+      const a = (await q.query<{ status: string; name: string }>('select status, name from channel_accounts where id = $1', [k.voice.whatsapp.accountId])).rows[0];
+      if (!a) errors.push({ field: 'voice.whatsapp.accountId', message: 'Escolha o WhatsApp que manda a mensagem.' });
+      else if (a.status !== 'connected') errors.push({ field: 'voice.whatsapp.accountId', message: `O WhatsApp "${a.name}" não está conectado.` });
+    }
   }
 
   async setStatus(actor: Actor, id: string, action: 'pause' | 'resume' | 'cancel') {
@@ -476,10 +607,13 @@ export class CampaignsService {
       size = Math.max(1, Math.min(size, leftHour, leftDay));
     }
     const picked = await this.db.app(ctx, async (q) => (await q.query<{ id: string; contact_id: string; address: string; name: string; first_name: string; owner_name: string | null }>(
-      `update campaign_recipients r set status = 'sending'
-        from contacts c
-       where r.id in (select id from campaign_recipients where campaign_id = $1 and status = 'pending' order by created_at, id limit $2 for update skip locked)
-         and c.id = r.contact_id
+      // CTE materializada: com "id in (select … limit n for update skip locked)" o Postgres pode
+      // refazer a subconsulta e pegar mais que n linhas, dependendo do plano.
+      `with pick as materialized (
+         select id from campaign_recipients where campaign_id = $1 and status = 'pending' order by created_at, id limit $2 for update skip locked)
+       update campaign_recipients r set status = 'sending'
+        from pick, contacts c
+       where r.id = pick.id and c.id = r.contact_id
        returning r.id, r.contact_id, r.address, c.name, c.first_name,
                  (select u.name from memberships m join users u on u.id = m.user_id where m.id = c.owner_membership_id) as owner_name`,
       [campaignId, size])).rows);
@@ -494,7 +628,29 @@ export class CampaignsService {
 
     let sent = 0;
     for (const r of picked) {
-      const vars = { nome: r.name, primeiro_nome: r.first_name, empresa: k.tenant_name, responsavel: r.owner_name };
+      if (k.channel === 'voice') {
+        // Ligação: o resultado (atendeu, tecla) chega depois pelos avisos da operadora.
+        try {
+          await this.voice.placeForCampaign(tenantId, r.id);
+          await this.db.app(ctx, (q) => q.query(`update campaign_recipients set status = 'sent', reason = null, sent_at = now() where id = $1`, [r.id]));
+          sent++;
+        } catch (err) {
+          const msg = err instanceof VoiceError ? err.message : 'Falha inesperada na ligação.';
+          // Credenciais recusadas ou operadora sumiu: pausa a campanha e devolve o contato para a fila.
+          if (/credenciais|Operadora não encontrada|sem operadora/.test(msg)) {
+            await this.db.app(ctx, async (q) => {
+              await q.query(`update campaign_recipients set status = 'pending', call_status = null, call_ref = null where campaign_id = $1 and status = 'sending'`, [campaignId]);
+              await q.query(`update campaigns set status = 'paused', last_error = $2 where id = $1`, [campaignId, msg.slice(0, 1000)]);
+            });
+            this.log.warn(`campanha ${campaignId} pausada: ${msg}`);
+            return sent;
+          }
+          await this.db.app(ctx, (q) => q.query(`update campaign_recipients set status = 'failed', reason = $2, call_status = coalesce(call_status, 'failed'), call_ended_at = coalesce(call_ended_at, now()) where id = $1`, [r.id, msg.slice(0, 500)]));
+        }
+        continue;
+      }
+      // Nome que não parece nome ("sem nome", números, frase) fica vazio: a mensagem usa a alternativa de {{primeiro_nome|cliente}}.
+      const vars = { nome: cleanName(r.name), primeiro_nome: cleanFirstName(r.first_name, r.name), empresa: k.tenant_name, responsavel: r.owner_name };
       const text = k.template_id ? null : render(k.body ?? '', vars) + (k.channel === 'whatsapp' && k.opt_out_hint ? OPT_OUT_HINT : '');
       try {
         const m = k.flow_id

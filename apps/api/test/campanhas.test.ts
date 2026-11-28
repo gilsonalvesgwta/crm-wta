@@ -110,7 +110,7 @@ describe('campanha de WhatsApp', () => {
     const r = await marketing.post('/api/v1/campaigns/preview', { channel: 'whatsapp', audience: { tagIds: [vip], excludeTagIds: [cold] } });
     assert.equal(r.status, 200, JSON.stringify(r.body));
     // VIP sem "Frio": Ana, Bia, Caio, Eva. Caio sem telefone; Bia pediu para sair; Eva revogou.
-    const { missing, ...rest } = r.body;
+    const { missing, oddNames: _o, oddCount: _c, ...rest } = r.body;
     assert.deepEqual(rest, { total: 4, eligible: 1, noAddress: 1, revoked: 1, noConsent: 0, suppressed: 1, sample: ['Ana'], fromOrganization: 0, duplicates: 0 });
     assert.deepEqual(missing.map((m: { name: string; twin: string | null }) => [m.name, m.twin]), [['Caio', null]], 'mostra quem está sem telefone');
     const e = await marketing.post('/api/v1/campaigns/preview', { channel: 'email', audience: { tagIds: [vip] } });
@@ -377,5 +377,56 @@ describe('campanha de e-mail, pausa e conta desconectada', () => {
     assert.equal((await adminB.post('/api/v1/campaigns/bulk-delete', { ids: [andando] })).body.deleted, 0, 'outra empresa não apaga');
     const a = await f.admin.query("select count(*)::int as n from audit_log where action = 'campaign.delete' and tenant_id = $1", [f.tenantA]);
     assert.ok(a.rows[0].n >= 3);
+  });
+});
+
+describe('corrigir a mensagem com a campanha pausada e nome estranho no cadastro', () => {
+  test('{{Nome}} em maiúscula, alternativa {{primeiro_nome|amigo}} e vírgula sem espaço sobrando', async () => {
+    const { render } = await import('../src/domain/automations.js');
+    assert.equal(render('Oi {{Nome}}!', { nome: 'Ana' }), 'Oi Ana!');
+    assert.equal(render('Olá {{primeiro_nome|amigo}}, tudo bem?', { primeiro_nome: '' }), 'Olá amigo, tudo bem?');
+    assert.equal(render('Olá {{primeiro_nome}}, tudo bem?', { primeiro_nome: '' }), 'Olá, tudo bem?');
+    const { cleanFirstName, nameProblem } = await import('../src/domain/names.js');
+    assert.equal(nameProblem('Sem nome - Deus é fiel'), 'sem nome');
+    assert.equal(nameProblem('Loja do Zé'), 'parece frase ou empresa');
+    assert.equal(nameProblem('Pedro 99'), 'tem números');
+    assert.equal(cleanFirstName('REINALDO', 'REINALDO LIMA'), 'Reinaldo');
+    assert.equal(cleanFirstName(null, 'maria da silva'), 'Maria');
+  });
+
+  test('pausada: mostra os nomes estranhos da fila, edita o texto e retoma com o texto novo', async () => {
+    const tag = (await admin.post('/api/v1/tags', { name: 'Correção' })).body.id;
+    const add = async (name: string, phone: string) => {
+      const id = await contact({ firstName: name, phones: [{ number: phone }] });
+      await f.admin.query('insert into contact_tags (tenant_id, contact_id, tag_id) values ($1, $2, $3)', [f.tenantA, id, tag]);
+      return id;
+    };
+    const odd = await add('Sem nome - Deus é fiel', '+55 11 92222-0001');
+    await add('REINALDO LIMA', '+55 11 92222-0002');
+    const c = await marketing.post('/api/v1/campaigns', { name: 'Correção', channel: 'whatsapp', accountId: wa, audience: { tagIds: [tag] }, body: 'Olá {{Nome}}, oferta!', perMinute: 120 });
+    assert.equal(c.status, 201, JSON.stringify(c.body));
+    const pv = await marketing.post('/api/v1/campaigns/preview', { channel: 'whatsapp', audience: { tagIds: [tag] } });
+    assert.equal(pv.body.oddCount, 1);
+    assert.deepEqual(pv.body.oddNames, [{ id: odd, name: 'Sem nome - Deus é fiel', problem: 'sem nome' }]);
+    assert.equal((await admin.post(`/api/v1/campaigns/${c.body.id}/start`, {})).status, 200);
+    assert.equal((await admin.post(`/api/v1/campaigns/${c.body.id}/pause`, {})).status, 200);
+    const n = await marketing.get(`/api/v1/campaigns/${c.body.id}/odd-names`);
+    assert.equal(n.status, 200);
+    assert.deepEqual(n.body.items.map((x: { name: string }) => x.name), ['Sem nome - Deus é fiel']);
+    assert.equal((await marketing.patch(`/api/v1/campaigns/${c.body.id}/content`, { body: '  ' })).status, 422);
+    assert.equal((await sales.patch(`/api/v1/campaigns/${c.body.id}/content`, { body: 'x' })).status, 403);
+    const e = await marketing.patch(`/api/v1/campaigns/${c.body.id}/content`, { body: 'Olá {{primeiro_nome|amigo}}, oferta!' });
+    assert.equal(e.status, 200, JSON.stringify(e.body));
+    assert.equal(e.body.body, 'Olá {{primeiro_nome|amigo}}, oferta!');
+    assert.equal(e.body.status, 'paused', 'continua pausada até retomar');
+    assert.equal((await admin.post(`/api/v1/campaigns/${c.body.id}/resume`, {})).status, 200);
+    assert.equal((await marketing.patch(`/api/v1/campaigns/${c.body.id}/content`, { body: 'x' })).status, 409, 'enviando: pause antes');
+    const before = evo.sent.length;
+    assert.equal(await drain(c.body.id), 'done');
+    // Só as mensagens desta campanha (outra campanha de teste pode estar terminando junto).
+    const texts = evo.sent.slice(before).filter((x) => ['5511922220001', '5511922220002'].includes(String(x.body.number)))
+      .map((x) => String(x.body.text).split('\n')[0]).sort();
+    assert.deepEqual(texts, ['Olá Reinaldo, oferta!', 'Olá amigo, oferta!']);
+    assert.equal((await marketing.patch(`/api/v1/campaigns/${c.body.id}/content`, { body: 'x' })).status, 409, 'terminada não muda');
   });
 });

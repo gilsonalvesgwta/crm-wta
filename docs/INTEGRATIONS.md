@@ -189,6 +189,25 @@ Cobrança das empresas que compram o CRM. Mesma regra da plataforma Português c
 
 **Teste real pendente:** uma compra de teste com o produto ligado a um plano, conferindo a empresa criada, o convite e a vigência.
 
+## Operadoras de voz (campanhas de ligação)
+
+Campanha "Ligação (torpedo de voz)": o CRM pede a ligação à operadora escolhida, a operadora busca o áudio num endereço público assinado e avisa o resultado num endereço assinado por operadora. Cadastro em Configurações › Canais › Ligações (só administrador). Nada fica validado sem uma ligação de teste atendida com a conta da empresa.
+
+| Operadora | Como liga | Tecla | Resultado | SMS |
+|---|---|---|---|---|
+| Twilio | `POST /2010-04-01/Accounts/{sid}/Calls.json` (Url = `…/atender`, StatusCallback = `…/status`) | TwiML `<Gather>` → `…/tecla` | `CallStatus`, `CallDuration`, `AnsweredBy` | `Messages.json` |
+| Telnyx | `POST /v2/texml/calls/{aplicativo TeXML}` (mesma resposta TwiML) | `<Gather>` | igual à Twilio | `POST /v2/messages` |
+| Plivo | `POST /v1/Account/{id}/Call/` (answer_url, hangup_url) | `<GetInput>` | `CallStatus`, `Duration` | `/Message/` |
+| Zenvia Voz (TotalVoice) | `POST {api2.totalvoice.com.br}/audio` (`url_audio`, `resposta_usuario`) | gravada pela Zenvia | o despachante consulta `GET /audio/{id}` | `POST /sms` |
+| Infobip | `POST {conta}/tts/3/advanced` (`audioFileUrl`, `notifyUrl`) | `dtmfTimeout` | aviso em `…/infobip` | `/sms/2/text/advanced` |
+| Central própria (Asterisk) | ARI `POST /ari/channels` → contexto `crm-voz` (roteiro na tela) | `Read()` + `CURL` em `…/sip?evento=tecla` | `…/sip?evento=fim&status=ANSWER&duracao=` | — |
+| Outra operadora (API) | `POST` no endereço informado com `to`, `audioUrl`, `callbackUrl`… | — | `POST callbackUrl { status, digits, duration }` | endereço opcional |
+
+- Endereços: `APP_URL/api/v1/public/voz/<id da operadora>.<assinatura>/<destinatário>/<evento>`; áudio em `/api/v1/public/voz/audio/<assinado>.mp3|.wav` (vale 2 dias). Sem login; endereço adulterado devolve 404.
+- Endereços informados pela empresa (ARI, API própria, Infobip) só podem ser públicos, salvo `CHANNEL_ALLOW_PRIVATE_HOSTS=true` (central na mesma rede).
+- Instalar um Asterisk na VPS é contêiner novo com portas SIP/RTP abertas: só com autorização explícita (mudança, motivo, impacto, backup e retorno).
+- Brasil/Anatel: ligações de oferta seguem o "Não Me Perturbe"; use a tecla de descadastro e o horário comercial.
+
 ## Credenciais necessárias
 
 | Fase | O que |

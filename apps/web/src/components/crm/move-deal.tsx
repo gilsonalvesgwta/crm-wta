@@ -5,6 +5,7 @@ import type { Deal, Pipeline, Stage } from '@/lib/crm';
 import { Dialog } from '@/components/ui/dialog';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Field } from '@/components/ui/field';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { useReasons } from './data';
@@ -19,7 +20,7 @@ export function useMoveDeal(): { move: (dealId: string, title: string, to: Stage
   const [pending, setPending] = useState<Pending | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function call(dealId: string, to: Stage, extra: { reasonId?: string | null; note?: string | null } = {}): Promise<Deal> {
+  async function call(dealId: string, to: Stage, extra: { reasonId?: string | null; note?: string | null; closedAt?: string | null } = {}): Promise<Deal> {
     return api<Deal>('POST', `/api/v1/deals/${dealId}/move`, { stageId: to.id, ...extra });
   }
 
@@ -56,12 +57,14 @@ export function useMoveDeal(): { move: (dealId: string, title: string, to: Stage
 }
 
 function OutcomeForm({ pending, submit, onDone, explain }: {
-  pending: Pending; submit: (x: { reasonId: string | null; note: string | null }) => Promise<Deal>; onDone: (d: Deal | null) => void; explain: (e: unknown) => string;
+  pending: Pending; submit: (x: { reasonId: string | null; note: string | null; closedAt: string | null }) => Promise<Deal>; onDone: (d: Deal | null) => void; explain: (e: unknown) => string;
 }) {
   const { data: reasons } = useReasons();
   const list = (reasons ?? []).filter((r) => r.kind === pending.to.kind && r.active);
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
+  const today = localDay();
+  const [closedAt, setClosedAt] = useState(today);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const needsReason = pending.to.kind === 'lost' && list.length > 0;
@@ -71,7 +74,7 @@ function OutcomeForm({ pending, submit, onDone, explain }: {
     setBusy(true);
     setErr(null);
     try {
-      onDone(await submit({ reasonId: reason || null, note: note || null }));
+      onDone(await submit({ reasonId: reason || null, note: note || null, closedAt: closedAt && closedAt !== today ? closedAt : null }));
     } catch (e2) {
       setErr(explain(e2));
       setBusy(false);
@@ -86,12 +89,52 @@ function OutcomeForm({ pending, submit, onDone, explain }: {
           {list.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
         </Select>
       ) : null}
+      <Field label="Data do fechamento" type="date" value={closedAt} max={today} onChange={(e) => setClosedAt(e.target.value)}
+        hint="Fechou antes (negócio antigo ou importado)? Escolha a data real: relatórios e metas contam no mês certo." />
       <Textarea label="Observação (opcional)" value={note} onChange={(e) => setNote(e.target.value)} />
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={() => onDone(null)}>Cancelar</Button>
         <Button type="submit" loading={busy} disabled={needsReason && !reason}>{pending.to.kind === 'won' ? 'Marcar como ganho' : 'Marcar como perdido'}</Button>
       </div>
     </form>
+  );
+}
+
+/** Hoje (AAAA-MM-DD) no horário local. */
+export function localDay(d = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** Corrige a data em que um negócio ganho ou perdido fechou. */
+export function ClosedAtDialog({ deal, onClose, onDone }: { deal: Deal; onClose: () => void; onDone: (d: Deal) => void }) {
+  const today = localDay();
+  const [day, setDay] = useState(deal.closedAt ? localDay(new Date(deal.closedAt)) : today);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  async function go(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setErr(null);
+    try {
+      onDone(await api<Deal>('PATCH', `/api/v1/deals/${deal.id}/closed-at`, { closedAt: day }));
+    } catch (e2) {
+      setErr(e2 instanceof ApiError ? (e2.errors[0]?.message ?? e2.title) : 'Não foi possível salvar.');
+      setBusy(false);
+    }
+  }
+  return (
+    <Dialog open onClose={onClose} title="Data do fechamento" description={deal.title}>
+      <form onSubmit={go} className="flex flex-col gap-4">
+        {err ? <Alert tone="error">{err}</Alert> : null}
+        <Field label={deal.status === 'won' ? 'Ganho em' : 'Perdido em'} type="date" value={day} max={today} onChange={(e) => setDay(e.target.value)}
+          hint="Relatórios, metas e o pós-venda passam a contar a partir desta data." />
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button type="submit" loading={busy} disabled={!day}>Salvar</Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }
 

@@ -389,10 +389,25 @@ export class DealsController {
     }), b));
   }
 
+  /** Fechar vários negócios (ganho ou perdido) com a data em que fecharam de verdade. */
+  @Require('deals:edit')
+  @Post('bulk-close')
+  @HttpCode(200)
+  bulkClose(@CurrentActor() a: Actor, @Body() b: unknown) {
+    return this.deals.bulkClose(a, parse(S.dealBulkClose, b));
+  }
+
   @Require('deals:edit')
   @Post()
   create(@CurrentActor() a: Actor, @Body() b: unknown) {
     return this.deals.create(a, parse(S.dealBody, b));
+  }
+
+  /** Corrige a data do fechamento (negócio ganho ou perdido). */
+  @Require('deals:edit')
+  @Patch(':id/closed-at')
+  closedAt(@CurrentActor() a: Actor, @Param('id') v: string, @Body() b: unknown) {
+    return this.deals.setClosedAt(a, id(v), parse(z.object({ closedAt: S.closedDate }), b).closedAt);
   }
 
   @Require('deals:view')

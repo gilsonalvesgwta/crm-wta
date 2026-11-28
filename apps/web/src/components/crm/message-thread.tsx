@@ -172,7 +172,18 @@ export function MessageThread({ contactId, contactName, conversation, target, ca
   const [accountId, setAccountId] = useState('');
   const [to, setTo] = useState('');
   const [subject, setSubject] = useState('');
-  const [text, setText] = useState('');
+  // Rascunho deixado por outra tela (ex.: Pós-venda) para esta conversa.
+  const [text, setText] = useState(() => {
+    if (!conversation || typeof window === 'undefined') return '';
+    try {
+      const k = `crm-draft:${conversation.id}`;
+      const v = sessionStorage.getItem(k) ?? '';
+      sessionStorage.removeItem(k);
+      return v;
+    } catch {
+      return '';
+    }
+  });
   const [file, setFile] = useState<File | null>(null);
   // Áudio gravado no CRM (vai como mensagem de voz).
   const [voice, setVoice] = useState<File | null>(null);

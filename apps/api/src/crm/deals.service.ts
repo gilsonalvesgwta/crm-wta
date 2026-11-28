@@ -74,7 +74,8 @@ export class DealsService {
     @Inject(PipelinesService) private readonly pipelines: PipelinesService,
   ) {}
 
-  private scope(p: Params, actor: Actor, r: Reach): string {
+  /** Negócios que a pessoa enxerga (alcance e funis liberados). */
+  scope(p: Params, actor: Actor, r: Reach): string {
     return `${reachSql(p, 'd', r, dealOwnExtra)} and exists (select 1 from pipelines pl where pl.id = d.pipeline_id and ${pipelineAccessSql(p, actor, 'pl')})`;
   }
 
@@ -405,9 +406,13 @@ export class DealsService {
    * Move o negócio de etapa (ou de funil). Confere a regra de transição, os
    * campos exigidos pela etapa de destino e o motivo de ganho ou perda.
    */
-  async move(actor: Actor, id: string, input: { stageId: string; pipelineId?: string; reasonId?: string | null; note?: string | null }) {
+  async move(actor: Actor, id: string, input: { stageId: string; pipelineId?: string; reasonId?: string | null; note?: string | null; closedAt?: string | null }) {
     const r = reachOf(actor, 'deals:edit');
-    return this.db.app(tenantCtx(actor), async (q) => {
+    return this.db.app(tenantCtx(actor), (q) => this.moveIn(q, actor, r, id, input));
+  }
+
+  private async moveIn(q: Q, actor: Actor, r: Reach, id: string, input: { stageId: string; pipelineId?: string; reasonId?: string | null; note?: string | null; closedAt?: string | null }) {
+    {
       const cur = await this.visible(q, actor, r, id, true);
       const pipelineId = input.pipelineId ?? cur.pipeline_id;
       if (pipelineId !== cur.pipeline_id) {
@@ -450,11 +455,88 @@ export class DealsService {
       if (missing.length) {
         throw new Problem(422, `A etapa "${to.name}" exige campos que faltam.`, 'stage-requirements', undefined, missing);
       }
+      // Fechamento com data informada (negócio antigo): vale para relatórios e metas daquele mês.
+      const closedAt = to.kind !== 'open' && input.closedAt ? await this.applyClosedAt(q, id, input.closedAt) : null;
       const kind = to.kind === 'won' ? 'deal.won' : to.kind === 'lost' ? 'deal.lost' : 'deal.stage_changed';
       await timeline(q, actor, kind, { dealId: id, contactId: cur.contact_id, organizationId: cur.organization_id },
         { fromStage: from.rows[0]?.name, toStage: to.name, toStageId: to.id, pipelineId, reasonId: input.reasonId ?? null,
+          ...(closedAt ? { closedAt: input.closedAt } : {}),
           ...(pipes.length ? { fromPipeline: pipes.find((x) => x.id === cur.pipeline_id)?.name, toPipeline: pipes.find((x) => x.id === pipelineId)?.name } : {}) });
       return this.detail(q, id);
+    }
+  }
+
+  /** Grava a data do fechamento (meio-dia no fuso da empresa); relatórios e metas usam esta data. */
+  private async applyClosedAt(q: Q, id: string, day: string): Promise<Date> {
+    const r = await q.query<{ closed_at: Date }>(
+      `update deals d set closed_at = ($2::date + time '12:00') at time zone t.timezone
+         from tenants t where d.id = $1 and t.id = d.tenant_id returning d.closed_at`, [id, day]);
+    const at = r.rows[0]!.closed_at;
+    // Se o dia é hoje e meio-dia ainda não chegou, fica a hora atual.
+    if (at.getTime() > Date.now()) await q.query('update deals set closed_at = now() where id = $1', [id]);
+    // O caminho no funil (deal_stage_history) só aceita inserção: guarda a hora real da mudança.
+    return at;
+  }
+
+  /** Corrige a data do fechamento de um negócio ganho ou perdido. */
+  async setClosedAt(actor: Actor, id: string, day: string) {
+    const r = reachOf(actor, 'deals:edit');
+    return this.db.app(tenantCtx(actor), async (q) => {
+      const cur = await this.visible(q, actor, r, id, true);
+      const st = (await q.query<{ status: string; closed_at: Date | null }>('select status, closed_at from deals where id = $1', [id])).rows[0]!;
+      if (st.status === 'open') throw Problem.conflict('O negócio está em andamento: marque como ganho ou perdido escolhendo a data.');
+      await this.applyClosedAt(q, id, day);
+      await timeline(q, actor, 'deal.updated', { dealId: id, contactId: cur.contact_id, organizationId: cur.organization_id },
+        { fields: ['closedAt'], closedAt: day, before: st.closed_at?.toISOString() ?? null });
+      await audit(q, actor, 'deal.closed_at', 'deal', id, { closedAt: day });
+      return this.detail(q, id);
+    });
+  }
+
+  /**
+   * Fecha vários negócios de uma vez (ganho ou perdido), com a data em que
+   * fecharam de verdade: para acertar negócios antigos importados de outro
+   * sistema. Cada um vai para a etapa de ganho/perda do próprio funil; os que
+   * não dá para fechar (campo exigido, regra do funil) voltam na lista.
+   */
+  async bulkClose(actor: Actor, b: { ids: string[]; outcome: 'won' | 'lost'; closedAt?: string | null; reasonId?: string | null; note?: string | null }) {
+    const r = reachOf(actor, 'deals:edit');
+    return this.db.app(tenantCtx(actor), async (q) => {
+      const rows = (await q.query<{ id: string; title: string; status: string; stage_id: string | null }>(
+        `select d.id, d.title, d.status,
+                (select s.id from pipeline_stages s where s.pipeline_id = d.pipeline_id and s.kind = $2 order by s.position limit 1) as stage_id
+           from deals d where d.id = any($1::uuid[])`, [[...new Set(b.ids)], b.outcome])).rows;
+      let closed = 0;
+      const skipped: { id: string; title: string; reason: string }[] = [];
+      for (const d of rows) {
+        if (d.status === b.outcome) {
+          if (b.closedAt) {
+            const seen = await this.visible(q, actor, r, d.id, true).then(() => true, () => false);
+            if (!seen) { skipped.push({ id: d.id, title: d.title, reason: 'Sem permissão para este negócio.' }); continue; }
+            await this.applyClosedAt(q, d.id, b.closedAt);
+            closed++;
+          } else skipped.push({ id: d.id, title: d.title, reason: `Já está ${b.outcome === 'won' ? 'ganho' : 'perdido'}.` });
+          continue;
+        }
+        if (!d.stage_id) {
+          skipped.push({ id: d.id, title: d.title, reason: `O funil não tem etapa de ${b.outcome === 'won' ? 'ganho' : 'perda'}.` });
+          continue;
+        }
+        await q.query('savepoint fechar');
+        try {
+          await this.moveIn(q, actor, r, d.id, { stageId: d.stage_id, reasonId: b.reasonId ?? null, note: b.note ?? null, closedAt: b.closedAt ?? null });
+          await q.query('release savepoint fechar');
+          closed++;
+        } catch (err) {
+          await q.query('rollback to savepoint fechar');
+          if (!(err instanceof Problem)) throw err;
+          skipped.push({ id: d.id, title: d.title, reason: [err.title, ...(err.errors ?? []).map((e) => e.message)].join(' ').slice(0, 300) });
+        }
+      }
+      const found = new Set(rows.map((x) => x.id));
+      for (const id of b.ids) if (!found.has(id)) skipped.push({ id, title: '', reason: 'Negócio não encontrado.' });
+      if (closed) await audit(q, actor, 'deal.bulk_close', 'deal', rows[0]!.id, { count: closed, outcome: b.outcome, closedAt: b.closedAt ?? null });
+      return { closed, skipped };
     });
   }
 

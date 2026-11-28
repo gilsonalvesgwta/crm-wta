@@ -16,6 +16,7 @@ import { useDirectory, usePipelines } from '@/components/crm/data';
 import { DealDialog } from '@/components/crm/deal-form';
 import { useMoveDeal } from '@/components/crm/move-deal';
 import { BulkOwnerDialog } from '@/components/crm/bulk-owner';
+import { BulkCloseDialog } from '@/components/crm/bulk-close';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -117,7 +118,7 @@ function Deals() {
         </div>
       </div>
       {!pipelineId ? <Loading /> : f.visao === 'lista'
-        ? <DealList key={listKey} pipelineId={allPipelines ? '' : pipelineId} ownerId={f.ownerId} q={f.q} status={f.status} stale={!!f.parados} page={Number(f.page)} onPage={(p) => setF({ page: String(p) })} />
+        ? <DealList key={listKey} canEdit={can('deals:edit')} pipelineId={allPipelines ? '' : pipelineId} ownerId={f.ownerId} q={f.q} status={f.status} stale={!!f.parados} page={Number(f.page)} onPage={(p) => setF({ page: String(p) })} />
         : <BoardView key={listKey} pipelineId={pipelineId} ownerId={f.ownerId} q={f.q} canMove={can('deals:edit')} onOutcomes={setOutcomes} />}
       <BulkOwnerDialog open={bulk} pipelines={pipelines ?? []} pipelineId={allPipelines ? '' : pipelineId} members={dir?.members ?? []} me={dir?.me ?? ''}
         onClose={() => setBulk(false)}
@@ -288,23 +289,43 @@ function OutcomeZone({ stage }: { stage: Board['stages'][number] }) {
   );
 }
 
-function DealList({ pipelineId, ownerId, q, status, stale, page, onPage }: { pipelineId: string; ownerId: string; q: string; status: string; stale: boolean; page: number; onPage: (p: number) => void }) {
+function DealList({ canEdit, pipelineId, ownerId, q, status, stale, page, onPage }: { canEdit: boolean; pipelineId: string; ownerId: string; q: string; status: string; stale: boolean; page: number; onPage: (p: number) => void }) {
+  const [picked, setPicked] = useState<string[]>([]);
+  const [closing, setClosing] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
   const qs = new URLSearchParams({ status, page: String(page), pageSize: '25' });
   if (pipelineId) qs.set('pipelineId', pipelineId);
   if (stale) qs.set('stale', '1');
   if (ownerId) qs.set('ownerId', ownerId);
   if (q) qs.set('q', q);
   const list = useLoad(() => api<Page<DealCard> & { totalValueCents: number }>('GET', `/api/v1/deals?${qs}`), [qs.toString()]);
+  const ids = list.data?.items.map((d) => d.id) ?? [];
+  const all = ids.length > 0 && ids.every((x) => picked.includes(x));
   if (list.error) return <LoadError error={list.error} retry={list.reload} />;
   if (!list.data) return <Loading />;
   if (!list.data.items.length) return <Empty title="Nenhum negócio com estes filtros" />;
   return (
     <section aria-label="Lista de negócios" className="rounded-[10px] border border-line bg-surface">
-      <p className="border-b border-line px-4 py-2.5 text-[13px] text-muted">{list.data.total} negócios · <span className="font-medium text-ink">{money(list.data.totalValueCents)}</span></p>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2.5">
+        <p className="text-[13px] text-muted">{list.data.total} negócios · <span className="font-medium text-ink">{money(list.data.totalValueCents)}</span>
+          {canEdit && !picked.length ? <span className="ml-2">· marque os negócios para fechar vários de uma vez (com a data certa)</span> : null}</p>
+        {picked.length ? (
+          <div className="flex items-center gap-2">
+            <span className="text-[13px] font-medium">{picked.length} selecionado(s)</span>
+            <Button variant="ghost" onClick={() => setPicked([])}>Limpar</Button>
+            <Button onClick={() => setClosing(true)}><Trophy size={15} aria-hidden />Fechar como ganho/perdido</Button>
+          </div>
+        ) : null}
+      </div>
+      {done ? <div className="px-4 pt-3"><Alert tone="success">{done}</Alert></div> : null}
+      {closing ? <BulkCloseDialog ids={picked} onClose={() => setClosing(false)}
+        onDone={(r) => { setClosing(false); setPicked([]); setDone(`${r.closed} negócio(s) fechado(s) com a data escolhida.`); void list.reload(); }} /> : null}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[820px] text-left text-sm">
           <thead>
             <tr className="border-b border-line text-[12px] text-muted">
+              {canEdit ? <th scope="col" className="w-8 pl-4 py-2.5"><input type="checkbox" aria-label="Selecionar todos desta página" className="size-4 accent-[var(--primary)]" checked={all}
+                onChange={(e) => setPicked(e.target.checked ? [...new Set([...picked, ...ids])] : picked.filter((x) => !ids.includes(x)))} /></th> : null}
               <th scope="col" className="px-4 py-2.5 font-medium">Negócio</th><th scope="col" className="px-3 py-2.5 font-medium">Etapa</th>
               <th scope="col" className="px-3 py-2.5 text-right font-medium">Valor</th><th scope="col" className="px-3 py-2.5 font-medium">Responsável</th>
               <th scope="col" className="px-3 py-2.5 font-medium">Previsão</th><th scope="col" className="px-4 py-2.5 font-medium">Próxima atividade</th>
@@ -313,6 +334,8 @@ function DealList({ pipelineId, ownerId, q, status, stale, page, onPage }: { pip
           <tbody>
             {list.data.items.map((d) => (
               <tr key={d.id} className="border-b border-line last:border-0">
+                {canEdit ? <td className="w-8 pl-4 py-3"><input type="checkbox" aria-label={`Selecionar ${d.title}`} className="size-4 accent-[var(--primary)]" checked={picked.includes(d.id)}
+                  onChange={(e) => setPicked((p) => (e.target.checked ? [...p, d.id] : p.filter((x) => x !== d.id)))} /></td> : null}
                 <td className="px-4 py-3"><Link href={`/negocios/${d.id}`} className="font-medium hover:underline">{d.title}</Link><p className="text-[13px] text-muted">{d.organization?.name ?? d.contact?.name ?? ''}</p></td>
                 <td className="px-3 py-3">{!pipelineId && d.pipeline ? <p className="text-[12px] text-muted">{d.pipeline.name}</p> : null}<span className="inline-flex items-center gap-1.5"><span aria-hidden className="size-2 rounded-full" style={{ background: d.stage?.color }} />{d.stage?.name}</span>{d.rotting ? <p className="mt-0.5 inline-flex rounded-full bg-bad px-2 py-0.5 text-[12px] font-semibold text-white">{idleText(d.idleDays)}</p> : null}</td>
                 <td className="px-3 py-3 text-right font-medium tabular-nums">{money(d.valueCents, d.currency)}</td>

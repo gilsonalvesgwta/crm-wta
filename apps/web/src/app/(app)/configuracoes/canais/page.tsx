@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Confirm } from '@/components/ui/confirm';
 import { Dialog } from '@/components/ui/dialog';
 import { MetaPanels } from '@/components/crm/meta-channels';
+import { VoicePanel } from '@/components/crm/voice-providers';
 import { LoadError, Loading } from '@/components/ui/states';
 
 type Limit = { used: number; max: number | null };
@@ -145,6 +146,8 @@ export default function ChannelsPage() {
           As mensagens enviadas pelo CRM aparecem no histórico do contato. Respostas chegam na caixa de e-mail de sempre; a leitura delas pelo CRM vem numa próxima etapa.
         </p>
       </Panel>
+
+      <VoicePanel />
 
       {newWa ? <NewWhatsapp onClose={() => setNewWa(false)} onCreated={(q) => { setNewWa(false); setQr(q); void reload(); }} /> : null}
       {qr ? <QrDialog initial={qr} onClose={(connected) => { setQr(null); if (connected) setMsg('WhatsApp conectado.'); void reload(); }} /> : null}

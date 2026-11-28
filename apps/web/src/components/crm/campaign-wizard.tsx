@@ -2,17 +2,20 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowRight, Check, Mail, MessageCircle, Send, CalendarClock, Save } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Mail, MessageCircle, Phone, Send, CalendarClock, Save } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { phone } from '@/lib/crm';
 import { dateTime } from '@/lib/admin-types';
-import { channelOfKind, fillTemplate, renderTemplate, templateVariables, type Channel, type QuickReply, type SendAccount, type WaTemplate } from '@/lib/messages';
-import { CAMPAIGN_VARIABLES, emptyAudience, type Audience, type AudiencePreview, type Campaign } from '@/lib/campaigns';
+import { channelOfKind, fillTemplate, renderTemplate, templateVariables, type QuickReply, type SendAccount, type WaTemplate } from '@/lib/messages';
+import { CAMPAIGN_VARIABLES, EXTRA_WHEN, emptyAudience, emptyVoice, type Audience, type AudiencePreview, type Campaign, type CampaignChannel, type VoiceSettings } from '@/lib/campaigns';
+import type { VoiceProvider } from '@/lib/voice';
 import { FLOW_STATUS, type FlowItem } from '@/lib/instagram';
 import { useSession } from '@/components/shell/session';
 import { useDirectory, usePipelines } from './data';
 import { TagPicker } from './pickers';
 import { DealGroupsEditor, PaceFields, paceToApi, type Pace } from './campaign-audience';
+import { VoiceContent } from './campaign-voice';
+import { OddNames } from './odd-names';
 import { Field } from '@/components/ui/field';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -23,7 +26,7 @@ import { Spinner } from '@/components/ui/spinner';
 const STEPS = ['Geral', 'Audiência', 'Conteúdo', 'Configurações', 'Revisão'] as const;
 
 type Draft = {
-  name: string; description: string; channel: Channel | ''; audience: Audience; accountId: string; subject: string; body: string;
+  name: string; description: string; channel: CampaignChannel | ''; audience: Audience; accountId: string; subject: string; body: string;
   perMinute: number; useWindow: boolean; windowStart: string; windowEnd: string; optOutHint: boolean; when: 'now' | 'later'; scheduledAt: string;
   templateId: string; templateParams: string[];
   /** WhatsApp oficial: transmissão com fluxo (modelo com botões que continuam a conversa). */
@@ -32,6 +35,8 @@ type Draft = {
   pace: Pace;
   /** Etiqueta para quem recebeu com sucesso. */
   successTagId: string;
+  /** Voz: operadora, áudio e opções da ligação. */
+  voiceProviderId: string; audioFileId: string; voice: VoiceSettings;
 };
 
 export type CampaignPreset = { flowId?: string | null; broadcast?: boolean };
@@ -46,6 +51,7 @@ function fromCampaign(c: Campaign | null, preset?: CampaignPreset): Draft {
     templateId: c?.templateId ?? '', templateParams: c?.templateParams ?? [],
     useFlow: !!c?.flowId || (!c && !!(preset?.flowId || preset?.broadcast)), flowId: c?.flowId ?? (!c ? preset?.flowId ?? '' : ''),
     successTagId: c?.successTagId ?? '',
+    voiceProviderId: c?.voiceProviderId ?? '', audioFileId: c?.audioFileId ?? '', voice: { ...emptyVoice(), ...(c?.voice ?? {}) },
     pace: {
       windowDays: c?.windowDays ?? [], maxPerHour: c?.maxPerHour ? String(c.maxPerHour) : '', maxPerDay: c?.maxPerDay ? String(c.maxPerDay) : '',
       pauseAt: c?.pauseAt ? toLocalInput(new Date(c.pauseAt)) : '',
@@ -73,7 +79,13 @@ function problems(d: Draft, step: number, preview: AudiencePreview | null, cloud
     if (!d.channel) e.channel = 'Escolha o tipo de campanha.';
   }
   if (step === 1 && preview && preview.eligible === 0) e.audience = 'Ninguém deste público pode receber. Mude os filtros.';
-  if (step === 2) {
+  if (step === 2 && d.channel === 'voice') {
+    if (!d.voiceProviderId) e.voiceProviderId = 'Escolha a operadora.';
+    if (!d.audioFileId) e.audioFileId = 'Escolha ou grave o áudio da ligação.';
+    if (d.voice.whatsapp && !d.voice.whatsapp.text.trim()) e['voice.whatsapp.text'] = 'Escreva a mensagem do WhatsApp.';
+    if (d.voice.whatsapp && !d.voice.whatsapp.accountId) e['voice.whatsapp.accountId'] = 'Escolha o WhatsApp.';
+    if (d.voice.sms && !d.voice.sms.text.trim()) e['voice.sms.text'] = 'Escreva o SMS.';
+  } else if (step === 2) {
     if (!d.accountId) e.accountId = d.channel === 'email' ? 'Escolha a conta de e-mail.' : 'Escolha o WhatsApp.';
     if (d.channel === 'email' && !d.subject.trim()) e.subject = 'Escreva o assunto.';
     if (cloud === 'flow') { if (!d.flowId) e.flowId = 'Escolha o fluxo da transmissão.'; }
@@ -105,6 +117,7 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
   const [templates, setTemplates] = useState<WaTemplate[]>([]);
   const [preview, setPreview] = useState<AudiencePreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  const [voiceProviders, setVoiceProviders] = useState<VoiceProvider[]>([]);
   const set = (p: Partial<Draft>) => setD((cur) => ({ ...cur, ...p }));
   const setA = (p: Partial<Audience>) => setD((cur) => ({ ...cur, audience: { ...cur.audience, ...p } }));
   const approve = can('campaigns:approve');
@@ -113,6 +126,16 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
     api<{ items: SendAccount[] }>('GET', '/api/v1/channels/available').then((r) => setAccounts(r.items)).catch(() => setAccounts([]));
     api<{ items: QuickReply[] }>('GET', '/api/v1/quick-replies').then((r) => setReplies(r.items)).catch(() => setReplies([]));
   }, []);
+
+  const isVoice = d.channel === 'voice';
+  useEffect(() => {
+    if (!isVoice) return;
+    api<{ items: VoiceProvider[] }>('GET', '/api/v1/voice/providers').then((r) => {
+      setVoiceProviders(r.items);
+      const first = r.items.find((x) => x.status === 'ok') ?? r.items[0];
+      if (first) setD((cur) => (cur.voiceProviderId ? cur : { ...cur, voiceProviderId: first.id }));
+    }).catch(() => setVoiceProviders([]));
+  }, [isVoice]);
 
   // Conta da campanha: a primeira do canal, se ainda não escolhida.
   const usable = accounts.filter((a) => d.channel && channelOfKind(a.kind) === d.channel);
@@ -171,6 +194,10 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
       flowId: flowMode && d.flowId ? d.flowId : null,
       ...paceToApi(d.pace),
       successTagId: d.successTagId || null,
+      ...(d.channel === 'voice'
+        ? { accountId: null, body: null, voiceProviderId: d.voiceProviderId || null, audioFileId: d.audioFileId || null,
+          voice: { ...d.voice, keys: d.voice.digits ? d.voice.keys : {} } }
+        : {}),
     };
   }
 
@@ -268,11 +295,15 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
             <Field label="Nome *" value={d.name} onChange={(e) => set({ name: e.target.value })} placeholder="Ex.: Campanha Black Friday 2026" error={fieldErr('name')} maxLength={120} />
             <Textarea label="Descrição" value={d.description} onChange={(e) => set({ description: e.target.value })} rows={4}
               placeholder="Descreva brevemente o objetivo desta campanha…" hint="Opcional" maxLength={1000} />
-            <Select label="Tipo de Campanha *" value={d.channel} onChange={(e) => set({ channel: e.target.value as Channel, accountId: '' })} error={fieldErr('channel')} className="max-w-xs">
+            <Select label="Tipo de Campanha *" value={d.channel} onChange={(e) => set({ channel: e.target.value as CampaignChannel, accountId: '' })} error={fieldErr('channel')} className="max-w-xs">
               <option value="">Selecione o tipo</option>
               <option value="whatsapp">WhatsApp</option>
               <option value="email">E-mail</option>
+              <option value="voice">Ligação (torpedo de voz)</option>
             </Select>
+            {d.channel === 'voice' ? (
+              <p className="-mt-2 text-[13px] text-muted">Liga para cada contato e toca um áudio gravado (pode pedir para apertar uma tecla). Dá para mandar WhatsApp e SMS junto. A operadora é escolhida no passo Conteúdo.</p>
+            ) : null}
           </>
         ) : null}
 
@@ -317,7 +348,7 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
             </div>
             <label className="flex min-h-11 items-center gap-2 text-sm">
               <input type="checkbox" checked={d.audience.consentOnly} onChange={(e) => setA({ consentOnly: e.target.checked })} className="size-[18px] accent-[var(--primary)]" />
-              Só quem deu consentimento para receber marketing por {d.channel === 'email' ? 'e-mail' : 'WhatsApp'}
+              Só quem deu consentimento para receber marketing por {d.channel === 'email' ? 'e-mail' : d.channel === 'voice' ? 'ligação' : 'WhatsApp'}
             </label>
             <div aria-live="polite" className={`rounded-[10px] border p-4 ${fieldErr('audience') ? 'border-bad bg-bad-soft' : 'border-line bg-surface-2'}`}>
               {!preview ? <Spinner label="Calculando o público" /> : (
@@ -331,6 +362,9 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
                       {preview.revoked ? <li>{preview.revoked} revogaram o consentimento</li> : null}
                       {preview.noConsent ? <li>{preview.noConsent} sem consentimento registrado</li> : null}
                     </ul>
+                  ) : null}
+                  {d.channel === 'voice' ? (
+                    <p className="text-[12px] text-muted">Liga para o telefone principal do contato (celular ou fixo); sem telefone, o da organização. Quem pediu para não receber ligações fica de fora.</p>
                   ) : null}
                   {d.channel === 'whatsapp' ? (
                     <p className="text-[12px] text-muted">Vale qualquer telefone do contato (celular, WhatsApp, trabalho, casa ou fixo): o tipo escolhido no cadastro não importa. Número que não tem WhatsApp aparece como falha no relatório da campanha.</p>
@@ -353,6 +387,7 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
                       {preview.noAddress > preview.missing.length ? <p className="mt-1 text-muted">Mostrando {preview.missing.length} de {preview.noAddress}. Em Contatos, filtre por “Sem telefone” para ver todos.</p> : null}
                     </details>
                   ) : null}
+                  <OddNames items={preview.oddNames ?? []} total={preview.oddCount ?? 0} />
                   {fieldErr('audience') ? <p className="font-medium text-bad">{fieldErr('audience')}</p> : null}
                 </div>
               )}
@@ -360,7 +395,13 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
           </>
         ) : null}
 
-        {step === 2 ? (
+        {step === 2 && isVoice ? (
+          <VoiceContent providers={voiceProviders} providerId={d.voiceProviderId} onProvider={(v) => set({ voiceProviderId: v })}
+            audioFileId={d.audioFileId} onAudio={(v) => set({ audioFileId: v })} voice={d.voice} onVoice={(v) => set({ voice: v })}
+            whatsapps={accounts.filter((a) => channelOfKind(a.kind) === 'whatsapp' && a.status === 'connected')} fieldErr={fieldErr} />
+        ) : null}
+
+        {step === 2 && !isVoice ? (
           <>
             {usable.length === 0 ? <Alert tone="info">Nenhum {d.channel === 'email' ? 'e-mail' : 'WhatsApp'} conectado. O administrador conecta em Configurações › Canais.</Alert> : null}
             <Select label={d.channel === 'email' ? 'Enviar pela conta' : 'Enviar pelo número'} value={d.accountId} onChange={(e) => set({ accountId: e.target.value })} error={fieldErr('accountId')}>
@@ -445,6 +486,7 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
                 <button key={v.key} type="button" onClick={() => set({ body: `${d.body}{{${v.key}}}` })} title={v.label}
                   className="rounded-full border border-line px-2 py-0.5 font-mono hover:bg-surface-2">{`{{${v.key}}}`}</button>
               ))}
+              <span className="basis-full">Nome vazio ou estranho no cadastro (“sem nome”, números, frase) fica em branco; para outra palavra use {'{{primeiro_nome|cliente}}'}.</span>
             </div>
             {chosen ? (
               <div className="rounded-[10px] bg-bg p-3">
@@ -476,10 +518,11 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
           <>
             <Select label="Ritmo de envio" value={String(d.perMinute)} onChange={(e) => set({ perMinute: Number(e.target.value) })}
               className="max-w-sm">
-              {[5, 10, 20, 30, 60, 120].map((n) => <option key={n} value={n}>{n} por minuto{n === 10 ? ' (recomendado para WhatsApp)' : ''}</option>)}
+              {[5, 10, 20, 30, 60, 120].map((n) => <option key={n} value={n}>{n} {isVoice ? 'ligações' : ''} por minuto{n === 10 && !isVoice ? ' (recomendado para WhatsApp)' : ''}</option>)}
             </Select>
             <p className="-mt-3 text-[12px] text-muted">
               {d.channel === 'whatsapp' ? 'Mais devagar diminui o risco de o WhatsApp bloquear o número. ' : ''}
+              {isVoice ? 'Cada ligação dura o tempo chamando mais o áudio; ritmo alto demais pode passar do limite de chamadas simultâneas da operadora. ' : ''}
               {preview?.eligible ? `Com ${preview.eligible} contato(s), leva cerca de ${Math.max(1, Math.ceil(preview.eligible / d.perMinute))} minuto(s).` : ''}
             </p>
             <label className="flex min-h-11 items-center gap-2 text-sm">
@@ -493,7 +536,7 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
               </div>
             ) : null}
             <div className="flex max-w-md flex-col gap-1">
-              <TagPicker label="Ao enviar com sucesso, marcar com a etiqueta" value={d.successTagId ? [d.successTagId] : []}
+              <TagPicker label={isVoice ? 'Quando atender, marcar com a etiqueta' : 'Ao enviar com sucesso, marcar com a etiqueta'} value={d.successTagId ? [d.successTagId] : []}
                 onChange={(v) => set({ successTagId: v.filter((x) => x !== d.successTagId).at(-1) ?? (v.includes(d.successTagId) ? d.successTagId : '') })} />
               <p className="text-[12px] text-muted">Opcional. Depois é só filtrar por essa etiqueta (em Contatos ou na próxima campanha) para achar quem recebeu. Crie uma nova digitando o nome, ex.: “Recebeu Black Friday 2026”.</p>
             </div>
@@ -506,7 +549,8 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
                 <input type="checkbox" checked={d.optOutHint} onChange={(e) => set({ optOutHint: e.target.checked })} className="size-[18px] accent-[var(--primary)]" />
                 Acrescentar &ldquo;Para não receber mais mensagens, responda SAIR.&rdquo;
               </label>
-            ) : <p className="text-[13px] text-muted">Os e-mails saem com o link para a pessoa sair da lista, como pede a LGPD.</p>}
+            ) : isVoice ? <p className="text-[13px] text-muted">Ligações seguem o horário escolhido acima (recomendado: dias úteis, das 9h às 20h). Ofereça uma tecla de descadastro para quem não quer mais receber.</p>
+              : <p className="text-[13px] text-muted">Os e-mails saem com o link para a pessoa sair da lista, como pede a LGPD.</p>}
             <fieldset className="flex flex-col gap-2">
               <legend className="mb-1.5 text-[13px] font-medium">Quando enviar</legend>
               <label className="flex min-h-11 items-center gap-2 text-sm">
@@ -523,10 +567,20 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
         {step === 4 ? (
           <dl className="grid gap-x-6 gap-y-3 rounded-[10px] border border-line bg-surface p-5 text-sm sm:grid-cols-[180px_1fr]">
             <dt className="text-muted">Nome</dt><dd className="font-medium">{d.name}</dd>
-            <dt className="text-muted">Canal</dt><dd className="flex items-center gap-1.5">{d.channel === 'email' ? <Mail size={14} aria-hidden /> : <MessageCircle size={14} aria-hidden />}{d.channel === 'email' ? 'E-mail' : 'WhatsApp'}{account ? ` · ${account.name}` : ''}</dd>
+            <dt className="text-muted">Canal</dt><dd className="flex items-center gap-1.5">
+              {isVoice ? <Phone size={14} aria-hidden /> : d.channel === 'email' ? <Mail size={14} aria-hidden /> : <MessageCircle size={14} aria-hidden />}
+              {isVoice ? `Ligação · ${voiceProviders.find((p) => p.id === d.voiceProviderId)?.name ?? ''}` : d.channel === 'email' ? 'E-mail' : 'WhatsApp'}{account && !isVoice ? ` · ${account.name}` : ''}</dd>
             <dt className="text-muted">Público</dt><dd>{preview ? `${preview.eligible} contato(s)` : '…'}</dd>
             {d.channel === 'email' ? <><dt className="text-muted">Assunto</dt><dd>{d.subject}</dd></> : null}
-            <dt className="text-muted">Mensagem</dt><dd className="whitespace-pre-wrap">{chosenFlow ? `Fluxo ${chosenFlow.name}` : chosen ? `Modelo ${chosen.name}: ${fillTemplate(chosen.body, d.templateParams)}` : d.body}</dd>
+            {isVoice ? (
+              <>
+                <dt className="text-muted">Teclas</dt>
+                <dd>{d.voice.digits && Object.keys(d.voice.keys).length ? Object.entries(d.voice.keys).sort().map(([k, v]) => `${k}: ${v.label || 'sem descrição'}`).join(' · ') : 'Só toca o áudio'}</dd>
+                <dt className="text-muted">WhatsApp junto</dt><dd>{d.voice.whatsapp ? `${EXTRA_WHEN[d.voice.whatsapp.when]}: ${d.voice.whatsapp.text}` : 'Não'}</dd>
+                <dt className="text-muted">SMS junto</dt><dd>{d.voice.sms ? `${EXTRA_WHEN[d.voice.sms.when]}: ${d.voice.sms.text}` : 'Não'}</dd>
+              </>
+            ) : null}
+            <dt className={`text-muted ${isVoice ? 'hidden' : ''}`}>Mensagem</dt><dd className={`whitespace-pre-wrap ${isVoice ? 'hidden' : ''}`}>{chosenFlow ? `Fluxo ${chosenFlow.name}` : chosen ? `Modelo ${chosen.name}: ${fillTemplate(chosen.body, d.templateParams)}` : d.body}</dd>
             <dt className="text-muted">Ritmo</dt><dd>{d.perMinute} por minuto{d.useWindow ? `, das ${d.windowStart} às ${d.windowEnd}` : ''}</dd>
             <dt className="text-muted">Quando</dt><dd>{d.when === 'later' && d.scheduledAt ? dateTime.format(new Date(d.scheduledAt)) : 'Assim que aprovar'}</dd>
           </dl>

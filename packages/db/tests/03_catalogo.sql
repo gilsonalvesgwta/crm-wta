@@ -59,7 +59,7 @@ select t.ok(
     'auth_use_recovery_code', 'auth_user_profile', 'auth_user_tenants', 'channel_by_webhook', 'norm', 'public_branding',
     'session_create', 'session_find', 'session_mark_mfa', 'session_revoke',
     'session_revoke_all', 'session_revoke_own', 'session_set_tenant', 'session_touch',
-    'tenant_id', 'user_id'
+    'tenant_id', 'user_id', 'voice_provider_tenant'
   ],
   'a aplicação executa exatamente as funções previstas');
 
