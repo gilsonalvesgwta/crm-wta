@@ -395,14 +395,16 @@ describe('corrigir a mensagem com a campanha pausada e nome estranho no cadastro
   });
 
   test('pausada: mostra os nomes estranhos da fila, edita o texto e retoma com o texto novo', async () => {
+    // Campanhas que ficaram andando nos testes anteriores (público "todos") não podem mandar para os contatos daqui.
+    await f.admin.query(`update campaigns set status = 'canceled' where tenant_id = $1 and status in ('sending', 'scheduled', 'paused')`, [f.tenantA]);
     const tag = (await admin.post('/api/v1/tags', { name: 'Correção' })).body.id;
     const add = async (name: string, phone: string) => {
       const id = await contact({ firstName: name, phones: [{ number: phone }] });
       await f.admin.query('insert into contact_tags (tenant_id, contact_id, tag_id) values ($1, $2, $3)', [f.tenantA, id, tag]);
       return id;
     };
-    const odd = await add('Sem nome - Deus é fiel', '+55 11 92222-0001');
-    await add('REINALDO LIMA', '+55 11 92222-0002');
+    const odd = await add('Sem nome - Deus é fiel', '+55 11 97777-1001');
+    await add('REINALDO LIMA', '+55 11 97777-1002');
     const c = await marketing.post('/api/v1/campaigns', { name: 'Correção', channel: 'whatsapp', accountId: wa, audience: { tagIds: [tag] }, body: 'Olá {{Nome}}, oferta!', perMinute: 120 });
     assert.equal(c.status, 201, JSON.stringify(c.body));
     const pv = await marketing.post('/api/v1/campaigns/preview', { channel: 'whatsapp', audience: { tagIds: [tag] } });
@@ -424,7 +426,7 @@ describe('corrigir a mensagem com a campanha pausada e nome estranho no cadastro
     const before = evo.sent.length;
     assert.equal(await drain(c.body.id), 'done');
     // Só as mensagens desta campanha (outra campanha de teste pode estar terminando junto).
-    const texts = evo.sent.slice(before).filter((x) => ['5511922220001', '5511922220002'].includes(String(x.body.number)))
+    const texts = evo.sent.slice(before).filter((x) => ['5511977771001', '5511977771002'].includes(String(x.body.number)))
       .map((x) => String(x.body.text).split('\n')[0]).sort();
     assert.deepEqual(texts, ['Olá Reinaldo, oferta!', 'Olá amigo, oferta!']);
     assert.equal((await marketing.patch(`/api/v1/campaigns/${c.body.id}/content`, { body: 'x' })).status, 409, 'terminada não muda');
