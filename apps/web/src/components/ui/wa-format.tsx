@@ -30,10 +30,10 @@ export function applyWaFormat(el: HTMLTextAreaElement, kind: Kind) {
     sel = sel.trim();
     const already = sel.startsWith(mark) && sel.endsWith(mark) && sel.length >= mark.length * 2;
     const inner = already ? sel.slice(mark.length, sel.length - mark.length) : sel;
-    const out = already ? inner : `${mark}${inner || 'texto'}${mark}`;
+    const out = already ? inner : `${mark}${inner || 'aqui'}${mark}`;
     const next = value.slice(0, a) + lead + out + trail + value.slice(b);
     const start = a + lead.length + (already ? 0 : mark.length);
-    setNative(el, next, start, start + (inner || (already ? '' : 'texto')).length);
+    setNative(el, next, start, start + (inner || (already ? '' : 'aqui')).length);
     return;
   }
   // Listas e citação: no começo de cada linha selecionada.
@@ -47,9 +47,10 @@ export function applyWaFormat(el: HTMLTextAreaElement, kind: Kind) {
   setNative(el, next, lineStart, lineStart + out.length);
 }
 
-const TOOLS: [Kind, string, typeof Bold][] = [
-  ['bold', 'Negrito (*texto*)', Bold], ['italic', 'Itálico (_texto_)', Italic], ['strike', 'Tachado (~texto~)', Strikethrough],
-  ['mono', 'Monoespaçado (```texto```)', Code], ['bullet', 'Lista com marcadores (- )', List], ['number', 'Lista numerada (1. )', ListOrdered], ['quote', 'Citação (> )', Quote],
+// Nome curto (leitor de tela) e a dica com a marcação.
+const TOOLS: [Kind, string, string, typeof Bold][] = [
+  ['bold', 'Negrito', '*negrito*', Bold], ['italic', 'Itálico', '_itálico_', Italic], ['strike', 'Tachado', '~tachado~', Strikethrough],
+  ['mono', 'Monoespaçado', '```mono```', Code], ['bullet', 'Lista com marcadores', '- item', List], ['number', 'Lista numerada', '1. item', ListOrdered], ['quote', 'Citação', '> citação', Quote],
 ];
 
 /** Barra de formatação do WhatsApp para um campo de texto. */
@@ -58,8 +59,8 @@ export function WaToolbar({ target, preview, onPreview, disabled }: {
 }) {
   return (
     <div role="toolbar" aria-label="Formatação do WhatsApp" className="flex flex-wrap items-center gap-0.5">
-      {TOOLS.map(([k, label, Icon]) => (
-        <button key={k} type="button" title={label} aria-label={label} disabled={disabled}
+      {TOOLS.map(([k, label, tip, Icon]) => (
+        <button key={k} type="button" title={`${label} (${tip})`} aria-label={label} disabled={disabled}
           onMouseDown={(e) => e.preventDefault()} onClick={() => target.current && applyWaFormat(target.current, k)}
           className="flex size-8 items-center justify-center rounded-[6px] text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-40">
           <Icon size={15} aria-hidden />
