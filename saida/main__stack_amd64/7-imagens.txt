@@ -1,2 +1,2 @@
-crmwta-web:teste 423MB
+crmwta-web:teste 424MB
 crmwta-api:teste 1.51GB
