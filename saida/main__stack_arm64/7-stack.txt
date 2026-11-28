@@ -12,7 +12,8 @@ crmwta_migrate 0/1
 crmwta_web 1/1
 traefik-teste 1/1
 docker 28.0.4 (API 1.48, mínima 1.24)
-traefik-teste.1.ojhsmvocd6oe@runnervmu7lcj    | [90m2026-11-28T00:35:43Z[0m [31mERR[0m [1mUnable to obtain ACME certificate for domains[0m [36merror=[0m[31m[1m"cannot get ACME client get directory at 'https://127.0.0.1:1/dir': Get \"https://127.0.0.1:1/dir\": dial tcp 127.0.0.1:1: connect: connection refused"[0m[0m [36mACME CA=[0mhttps://127.0.0.1:1/dir [36macmeCA=[0mhttps://127.0.0.1:1/dir [36mdomains=[0m["crm.teste.localhost"] [36mproviderName=[0mletsencryptresolver.acme [36mrouterName=[0mcrmwta-web@docker [36mrule=[0mHost(`crm.teste.localhost`)
+traefik-teste.1.nzw19u6ldpqf@runnervmu7lcj    | [90m2026-11-28T02:33:11Z[0m [31mERR[0m [1mUnable to obtain ACME certificate for domains[0m [36merror=[0m[31m[1m"cannot get ACME client get directory at 'https://127.0.0.1:1/dir': Get \"https://127.0.0.1:1/dir\": dial tcp 127.0.0.1:1: connect: connection refused"[0m[0m [36mACME CA=[0mhttps://127.0.0.1:1/dir [36macmeCA=[0mhttps://127.0.0.1:1/dir [36mdomains=[0m["crm.teste.localhost"] [36mproviderName=[0mletsencryptresolver.acme [36mrouterName=[0mcrmwta-web@docker [36mrule=[0mHost(`crm.teste.localhost`)
+traefik-teste.1.nzw19u6ldpqf@runnervmu7lcj    | [90m2026-11-28T02:33:12Z[0m [31mERR[0m [1mUnable to obtain ACME certificate for domains[0m [36merror=[0m[31m[1m"cannot get ACME client get directory at 'https://127.0.0.1:1/dir': Get \"https://127.0.0.1:1/dir\": dial tcp 127.0.0.1:1: connect: connection refused"[0m[0m [36mACME CA=[0mhttps://127.0.0.1:1/dir [36macmeCA=[0mhttps://127.0.0.1:1/dir [36mdomains=[0m["crm.teste.localhost"] [36mproviderName=[0mletsencryptresolver.acme [36mrouterName=[0mcrmwta-api@docker [36mrule=[0m"Host(`crm.teste.localhost`) && PathPrefix(`/api`)"
 OK   API pronta atrás do Traefik
 OK   interface responde
 OK   login do superadministrador criado na configuração inicial
@@ -24,9 +25,9 @@ OK   arquivo gravado no volume e baixado pelo endereço assinado
 OK   nenhuma porta da stack publicada
 OK   reimplantar não duplica a configuração inicial
 OK   transcrição no servidor funciona (whisper.cpp)
-backup: crm-20261127-213702.dump (528K)
+backup: crm-20261127-233433.dump (532K)
 OK   cópia do banco
-restaurado em crm_restaurado: 31 migrações, 1 empresas
+restaurado em crm_restaurado: 32 migrações, 1 empresas
 OK   restauração em banco novo
 OK   dados conferidos depois de restaurar
 OK   restauração recusa banco com dados
@@ -46,18 +47,18 @@ OK   serviço db em 1/1
 OK   serviço api em 1/1
 OK   serviço web em 1/1
 OK   serviço backup em 1/1
-migrate| crmwta_migrate.1.jgq7lchdvpqk@runnervmu7lcj    | aplicando 0021_importar_negocios
-migrate| crmwta_migrate.1.jgq7lchdvpqk@runnervmu7lcj    | aplicando 0022_funis_arquivados
-migrate| crmwta_migrate.1.jgq7lchdvpqk@runnervmu7lcj    | aplicando 0023_whatsapp_fluxos
-migrate| crmwta_migrate.1.jgq7lchdvpqk@runnervmu7lcj    | aplicando 0024_conversas_ocultas
-migrate| crmwta_migrate.1.jgq7lchdvpqk@runnervmu7lcj    | aplicando 0025_notas_audio_negocio_parado
-migrate| crmwta_migrate.1.jgq7lchdvpqk@runnervmu7lcj    | aplicando 0026_aviso_parado_destinatarios
-migrate| crmwta_migrate.1.jgq7lchdvpqk@runnervmu7lcj    | aplicando 0027_transcricao_nota_audio
-migrate| crmwta_migrate.1.jgq7lchdvpqk@runnervmu7lcj    | aplicando 0028_campanha_limites
-migrate| crmwta_migrate.1.jgq7lchdvpqk@runnervmu7lcj    | aplicando 0029_campanha_etiqueta_sucesso
-migrate| crmwta_migrate.1.jgq7lchdvpqk@runnervmu7lcj    | aplicando 0030_campanhas_voz
-migrate| crmwta_migrate.1.jgq7lchdvpqk@runnervmu7lcj    | aplicando 0031_pos_venda
-migrate| crmwta_migrate.1.jgq7lchdvpqk@runnervmu7lcj    | migrações aplicadas agora: 31
-migrate| crmwta_migrate.1.jgq7lchdvpqk@runnervmu7lcj    | papel crm_api pronto
-migrate| crmwta_migrate.1.jgq7lchdvpqk@runnervmu7lcj    | pronto: empresa ae29379e-c093-43d7-b2ca-371f160452a8, superadministrador be0f6d68-f772-4258-8f19-659b1956c62f
-migrate| crmwta_migrate.1.jgq7lchdvpqk@runnervmu7lcj    | migrate: concluído
+migrate| crmwta_migrate.1.tnejogkk0kib@runnervmu7lcj    | aplicando 0022_funis_arquivados
+migrate| crmwta_migrate.1.tnejogkk0kib@runnervmu7lcj    | aplicando 0023_whatsapp_fluxos
+migrate| crmwta_migrate.1.tnejogkk0kib@runnervmu7lcj    | aplicando 0024_conversas_ocultas
+migrate| crmwta_migrate.1.tnejogkk0kib@runnervmu7lcj    | aplicando 0025_notas_audio_negocio_parado
+migrate| crmwta_migrate.1.tnejogkk0kib@runnervmu7lcj    | aplicando 0026_aviso_parado_destinatarios
+migrate| crmwta_migrate.1.tnejogkk0kib@runnervmu7lcj    | aplicando 0027_transcricao_nota_audio
+migrate| crmwta_migrate.1.tnejogkk0kib@runnervmu7lcj    | aplicando 0028_campanha_limites
+migrate| crmwta_migrate.1.tnejogkk0kib@runnervmu7lcj    | aplicando 0029_campanha_etiqueta_sucesso
+migrate| crmwta_migrate.1.tnejogkk0kib@runnervmu7lcj    | aplicando 0030_campanhas_voz
+migrate| crmwta_migrate.1.tnejogkk0kib@runnervmu7lcj    | aplicando 0031_pos_venda
+migrate| crmwta_migrate.1.tnejogkk0kib@runnervmu7lcj    | aplicando 0032_whatsapp_lid
+migrate| crmwta_migrate.1.tnejogkk0kib@runnervmu7lcj    | migrações aplicadas agora: 32
+migrate| crmwta_migrate.1.tnejogkk0kib@runnervmu7lcj    | papel crm_api pronto
+migrate| crmwta_migrate.1.tnejogkk0kib@runnervmu7lcj    | pronto: empresa 6699395e-d7d4-470f-bf75-5f23d0068415, superadministrador c55c93a7-ff33-4934-a271-847ce5bd1f0b
+migrate| crmwta_migrate.1.tnejogkk0kib@runnervmu7lcj    | migrate: concluído
