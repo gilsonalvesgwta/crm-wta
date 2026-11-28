@@ -57,6 +57,17 @@ export function VoicePanel() {
                   <p className="text-[13px] text-muted">{PROVIDERS[p.provider].label}{p.config.from ? ` · ${p.config.from}` : ''}{p.sms ? ' · liga e manda SMS' : ' · só ligação'}
                     {p.testedAt ? ` · último teste ${dateTime.format(new Date(p.testedAt))}` : ''}</p>
                   {p.lastError ? <p className="text-[13px] text-bad">{p.lastError}</p> : null}
+                  {p.provider === 'velip' && p.accountUrl ? (
+                    <details className="mt-1 text-[13px]">
+                      <summary className="cursor-pointer text-muted">Configurar os retornos na Velip (opcional)</summary>
+                      <div className="mt-1.5 flex flex-col gap-1.5 rounded-[8px] bg-surface-2 p-2.5">
+                        <p>O resultado de cada ligação já chega sozinho: o CRM manda o endereço de retorno em cada chamada. Para ver a tecla e o “atendeu” na hora, cole este endereço no painel da Velip em <strong>Integrações › Retornos webhook › URL atendimento</strong> (formato JSON ou VAR, método POST):</p>
+                        <code className="break-all rounded bg-surface px-2 py-1 text-[12px]">{p.accountUrl}</code>
+                        <Button variant="ghost" className="self-start" onClick={() => void navigator.clipboard?.writeText(p.accountUrl!).catch(() => undefined)}>Copiar endereço</Button>
+                        <p className="text-muted">Conta Velip “em análise” só liga para o celular de quem abriu a conta; para ligar para a base, peça a liberação à Velip.</p>
+                      </div>
+                    </details>
+                  ) : null}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -83,7 +94,7 @@ export function VoicePanel() {
 }
 
 function ProviderDialog({ provider, onClose, onSaved }: { provider: VoiceProvider | null; onClose: () => void; onSaved: (p: VoiceProvider) => void }) {
-  const [kind, setKind] = useState<VoiceProviderKind>(provider?.provider ?? 'twilio');
+  const [kind, setKind] = useState<VoiceProviderKind>(provider?.provider ?? 'velip');
   const [name, setName] = useState(provider?.name ?? '');
   const [values, setValues] = useState<Record<string, string>>(provider?.config ?? {});
   const [busy, setBusy] = useState(false);

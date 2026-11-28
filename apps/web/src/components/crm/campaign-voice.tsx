@@ -1,5 +1,7 @@
 'use client';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { ApiError, api } from '@/lib/api';
 import { Plus, Trash2 } from 'lucide-react';
 import { phone } from '@/lib/crm';
 import { CAMPAIGN_VARIABLES, EXTRA_WHEN, type ExtraWhen, type KeyAction, type VoiceSettings } from '@/lib/campaigns';
@@ -11,6 +13,102 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert } from '@/components/ui/alert';
 import { TagPicker } from './pickers';
 import { VoiceAudioPicker } from './voice-audio';
+
+type Catalog = { voices: { id: string; name: string }[]; audios: { id: string; name: string; seconds: number | null }[] };
+
+/** Velip: de onde vem o que a pessoa ouve — áudio da biblioteca, áudio já cadastrado na Velip ou texto falado (voz sintética). */
+function VelipSource({ provider, audioFileId, onAudio, voice, set, fieldErr }: {
+  provider: VoiceProvider; audioFileId: string; onAudio: (id: string) => void; voice: VoiceSettings; set: (p: Partial<VoiceSettings>) => void; fieldErr: (k: string) => string | undefined;
+}) {
+  const [cat, setCat] = useState<Catalog | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    api<Catalog>('GET', `/api/v1/voice/providers/${provider.id}/velip`).then((r) => { if (live) setCat(r); })
+      .catch((e) => { if (live) setErr(e instanceof ApiError ? e.title : 'Não foi possível falar com a Velip.'); });
+    return () => { live = false; };
+  }, [provider.id]);
+  const mode = voice.tts ? 'tts' : voice.providerAudioId ? 'velip' : 'library';
+  return (
+    <fieldset className="flex flex-col gap-3 rounded-[10px] border border-line p-3">
+      <legend className="px-1 text-[13px] font-semibold">O que a pessoa ouve</legend>
+      <div role="radiogroup" aria-label="Fonte do áudio" className="flex flex-wrap gap-2">
+        {([['library', 'Áudio gravado (biblioteca)'], ['velip', 'Áudio já cadastrado na Velip'], ['tts', 'Texto falado (voz sintética)']] as const).map(([k, l]) => (
+          <button key={k} type="button" role="radio" aria-checked={mode === k}
+            onClick={() => set({ tts: k === 'tts' ? (voice.tts ?? { text: '', voice: cat?.voices[0]?.id ?? null }) : null, providerAudioId: k === 'velip' ? (voice.providerAudioId ?? cat?.audios[0]?.id ?? '') : null })}
+            className={`h-9 rounded-full px-3 text-[13px] font-medium ${mode === k ? 'bg-primary text-primary-fg' : 'border border-line text-muted hover:text-ink'}`}>{l}</button>
+        ))}
+      </div>
+      {err ? <Alert tone="warning">{err}</Alert> : null}
+      {mode === 'library' ? <VoiceAudioPicker value={audioFileId} onChange={onAudio} error={fieldErr('audioFileId')} /> : null}
+      {mode === 'velip' ? (
+        <Select label="Áudio da Velip *" value={voice.providerAudioId ?? ''} onChange={(e) => set({ providerAudioId: e.target.value || null })} error={fieldErr('audioFileId')}>
+          <option value="">{cat ? (cat.audios.length ? 'Escolha o áudio' : 'Nenhum áudio na conta da Velip') : 'Carregando…'}</option>
+          {(cat?.audios ?? []).map((a) => <option key={a.id} value={a.id}>{a.name}{a.seconds ? ` (${a.seconds}s)` : ''}</option>)}
+        </Select>
+      ) : null}
+      {mode === 'tts' && voice.tts ? (
+        <>
+          <Select label="Voz" value={voice.tts.voice ?? ''} onChange={(e) => set({ tts: { ...voice.tts!, voice: e.target.value || null } })}>
+            <option value="">Voz padrão da conta</option>
+            {(cat?.voices ?? []).map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+          </Select>
+          <Textarea label="Texto que será falado *" rows={4} maxLength={2000} value={voice.tts.text} error={fieldErr('voice.tts.text')}
+            onChange={(e) => set({ tts: { ...voice.tts!, text: e.target.value } })} placeholder="Olá <NOME>, aqui é da Servocar. Temos uma condição especial de Black Friday. Aperte 1 para receber no WhatsApp." />
+          <p className="-mt-1 text-[12px] text-muted">Escreva &lt;NOME&gt; para falar o primeiro nome do contato. Diga no texto o que cada tecla faz.</p>
+        </>
+      ) : null}
+    </fieldset>
+  );
+}
+
+/** Velip: transferência para atendente, novas tentativas e horário por DDD. */
+function VelipExtras({ voice, set, fieldErr }: { voice: VoiceSettings; set: (p: Partial<VoiceSettings>) => void; fieldErr: (k: string) => string | undefined }) {
+  return (
+    <fieldset className="flex flex-col gap-3 rounded-[10px] border border-line p-3">
+      <legend className="px-1 text-[13px] font-semibold">Recursos da Velip</legend>
+      <label className="flex min-h-11 items-center gap-2 text-sm">
+        <input type="checkbox" checked={!!voice.transfer} onChange={(e) => set({ transfer: e.target.checked ? { to: '', key: '1', record: false } : null })} className="size-[18px] accent-[var(--primary)]" />
+        Transferir para um atendente
+      </label>
+      {voice.transfer ? (
+        <div className="flex flex-col gap-2 rounded-[8px] bg-surface-2 p-2.5">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Field label="Para onde *" value={voice.transfer.to} placeholder="11 4000-0000, FI12 (fila) ou RT45 (agente de IA)" error={fieldErr('voice.transfer.to')}
+              onChange={(e) => set({ transfer: { ...voice.transfer!, to: e.target.value } })} />
+            <Select label="Quando" value={voice.transfer.key ?? ''} onChange={(e) => set({ transfer: { ...voice.transfer!, key: e.target.value || null } })}>
+              <option value="">Assim que atender (sem tecla)</option>
+              {'1234567890'.split('').map((d) => <option key={d} value={d}>Ao apertar {d}</option>)}
+            </Select>
+          </div>
+          <label className="flex min-h-9 items-center gap-2 text-sm">
+            <input type="checkbox" checked={voice.transfer.record} onChange={(e) => set({ transfer: { ...voice.transfer!, record: e.target.checked } })} className="size-4 accent-[var(--primary)]" />
+            Gravar a ligação (a gravação aparece no relatório)
+          </label>
+          <p className="text-[12px] text-muted">Com transferência, as teclas acima não são usadas: a ligação só espera a tecla de transferir.</p>
+        </div>
+      ) : null}
+      <label className="flex min-h-11 items-center gap-2 text-sm">
+        <input type="checkbox" checked={!!voice.retries} onChange={(e) => set({ retries: e.target.checked ? { times: 2, everyMinutes: 30 } : null })} className="size-[18px] accent-[var(--primary)]" />
+        Tentar de novo quem não atender
+      </label>
+      {voice.retries ? (
+        <div className="grid max-w-md gap-2 sm:grid-cols-2">
+          <Select label="Novas tentativas" value={String(voice.retries.times)} onChange={(e) => set({ retries: { ...voice.retries!, times: Number(e.target.value) } })}>
+            {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
+          </Select>
+          <Select label="A cada" value={String(voice.retries.everyMinutes)} onChange={(e) => set({ retries: { ...voice.retries!, everyMinutes: Number(e.target.value) } })}>
+            {[10, 15, 30, 60, 120, 240].map((n) => <option key={n} value={n}>{n < 60 ? `${n} minutos` : `${n / 60} hora(s)`}</option>)}
+          </Select>
+        </div>
+      ) : null}
+      <label className="flex min-h-11 items-center gap-2 text-sm">
+        <input type="checkbox" checked={voice.dddHours} onChange={(e) => set({ dddHours: e.target.checked })} className="size-[18px] accent-[var(--primary)]" />
+        Só ligar no horário permitido para o DDD de cada número (dias úteis, sábado e feriados)
+      </label>
+    </fieldset>
+  );
+}
 
 const blankKey = (): KeyAction => ({ label: '', tagId: null, optOut: false, whatsapp: false, sms: false, notifyOwner: false });
 
@@ -44,7 +142,11 @@ export function VoiceContent({ providers, providerId, onProvider, audioFileId, o
       </Select>
       {chosen && chosen.status !== 'ok' ? <Alert tone="warning">Esta operadora ainda não teve uma ligação de teste atendida. Teste em Configurações › Canais antes de ligar para a base.</Alert> : null}
 
-      <VoiceAudioPicker value={audioFileId} onChange={onAudio} error={fieldErr('audioFileId')} />
+      {chosen?.provider === 'velip' ? (
+        <VelipSource provider={chosen} audioFileId={audioFileId} onAudio={onAudio} voice={voice} set={set} fieldErr={fieldErr} />
+      ) : (
+        <VoiceAudioPicker value={audioFileId} onChange={onAudio} error={fieldErr('audioFileId')} />
+      )}
 
       <fieldset className="flex flex-col gap-3 rounded-[10px] border border-line p-3">
         <legend className="px-1 text-[13px] font-semibold">Teclas</legend>
@@ -99,6 +201,8 @@ export function VoiceContent({ providers, providerId, onProvider, audioFileId, o
         </label>
       </div>
 
+      {chosen?.provider === 'velip' ? <VelipExtras voice={voice} set={set} fieldErr={fieldErr} /> : null}
+
       <fieldset className="flex flex-col gap-3 rounded-[10px] border border-line p-3">
         <legend className="px-1 text-[13px] font-semibold">WhatsApp junto (opcional)</legend>
         <label className="flex min-h-11 items-center gap-2 text-sm">
@@ -133,6 +237,7 @@ export function VoiceContent({ providers, providerId, onProvider, audioFileId, o
             className="size-[18px] accent-[var(--primary)]" />
           Mandar um SMS pela mesma operadora
         </label>
+        {voice.sms && chosen?.provider === 'velip' ? <p className="text-[12px] text-muted">Pela Velip o SMS vai até 160 caracteres, sem acentos, e só para celular.</p> : null}
         {voice.sms && chosen && !chosen.sms ? <Alert tone="warning">A operadora “{chosen.name}” não manda SMS. Escolha outra operadora ou desmarque o SMS.</Alert> : null}
         {voice.sms ? (
           <>

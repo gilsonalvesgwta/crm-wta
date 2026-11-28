@@ -1,7 +1,7 @@
 // Operadoras de voz: formato do cadastro, validado aqui.
 import { z } from 'zod';
 
-export const VOICE_PROVIDERS = ['twilio', 'plivo', 'telnyx', 'zenvia', 'infobip', 'sip', 'http'] as const;
+export const VOICE_PROVIDERS = ['twilio', 'plivo', 'telnyx', 'zenvia', 'infobip', 'sip', 'http', 'velip'] as const;
 
 const fields = z.record(z.string().regex(/^[a-zA-Z]{2,40}$/), z.string().trim().max(500)).default({});
 

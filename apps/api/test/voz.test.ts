@@ -17,6 +17,7 @@ const KEY = 'chave-global-de-teste';
 const TWILIO_SID = 'AC0000000000000000000000000000test';
 const TWILIO_TOKEN = 'token-twilio-de-teste-1234';
 const ZENVIA_TOKEN = 'token-zenvia-de-teste-5678';
+const VELIP_TSID = 'velip-token-de-teste-0123456789ab';
 
 type Hit = { method: string; path: string; headers: Record<string, string | string[] | undefined>; body: Record<string, unknown> };
 
@@ -53,6 +54,18 @@ class FakeCarrier {
         }
         if (p.startsWith('/ari/')) return json(200, p.startsWith('/ari/channels') ? { id: 'canal-1' } : { system: { version: '20' } });
         if (p === '/ligar') return json(200, { id: 'ext-1' });
+        if (p.startsWith('/api/v2/')) {
+          // Velip (API v2): token no corpo; "status_code" 0 é sucesso.
+          if (body.tsid !== VELIP_TSID) return json(401, { return: { status: 'fail authentication', status_code: '100' } });
+          const ok = (extra: Record<string, unknown> = {}) => json(200, { return: { status: 'OK', status_code: '0', ...extra } });
+          if (p === '/api/v2/GetUserID.php') return ok({ cdcs_id: '1234' });
+          if (p === '/api/v2/CreateAudioFile.php') return ok({ cdw_file: `tf77${++this.n}` });
+          if (p === '/api/v2/MakeTTSCall.php') return ok({ cd_id: `db_${1000 + ++this.n}` });
+          if (p === '/api/v2/MakeSMS.php') return ok({ cdls_id: '55' });
+          if (p === '/api/v2/GetTTSVoices.php') return json(200, { return: { status: 'OK', status_code: '0' }, voices: [{ cdwv_short: 'Google|pt-BR-Wavenet-A', cdwv_name: 'Rosana', cdwv_tit: 'Português BR', cdwv_language: 'pt-BR', cdwv_genre: 'female' }] });
+          if (p === '/api/v2/GetAudiosList.php') return json(200, { return: { status: 'OK', status_code: '0' }, audios: [{ cdw_file: 'tf12345', cdw_name: 'Boas-vindas', cdw_sec: '8', cdw_expires: '2031-04-15' }] });
+          if (p === '/api/v2/GetCallStatus.php') return json(200, { return: { status: 'OK', status_code: '0' }, calls: [{ cd_id: body.cd_id, cd_status: 'BUSY', dur: '0' }] });
+        }
         json(404, {});
       });
     });
@@ -431,3 +444,116 @@ describe('Zenvia, central SIP e API própria', () => {
     assert.match(String(hit.body.callbackUrl), /\/http$/);
   });
 });
+
+describe('Velip', () => {
+  let velip: string;
+  let fileId: string;
+
+  test('cadastro com o token, conferência e catálogo (vozes e áudios da conta)', async () => {
+    const bad = await admin.post('/api/v1/voice/providers', { name: 'Velip', provider: 'velip', config: {}, secret: {} });
+    assert.equal(bad.status, 422);
+    const r = await admin.post('/api/v1/voice/providers', { name: 'Velip', provider: 'velip', config: { callerId: '11 4000-9999' }, secret: { tsid: VELIP_TSID } });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    velip = r.body.id;
+    assert.match(r.body.accountUrl, /\/api\/v1\/public\/voz\/[0-9a-f-]{36}\.[A-Za-z0-9_-]{32}\/conta\/velip$/);
+    assert.equal((await admin.post(`/api/v1/voice/providers/${velip}/test`, {})).status, 200);
+    const cat = await marketing.get(`/api/v1/voice/providers/${velip}/velip`);
+    assert.equal(cat.status, 200, JSON.stringify(cat.body));
+    assert.equal(cat.body.voices[0].id, 'Google|pt-BR-Wavenet-A');
+    assert.equal(cat.body.audios[0].id, 'tf12345');
+    fileId = (await f.admin.query<{ id: string }>(`select id from files where content_type = 'audio/mpeg' limit 1`)).rows[0]!.id;
+  });
+
+  test('campanha: o áudio vai uma vez para a Velip; teclas, novas tentativas e horário por DDD', async () => {
+    const c = await marketing.post('/api/v1/campaigns', {
+      name: 'Velip teclas', channel: 'voice', audience: { contactIds: [ana, bia] }, perMinute: 60, voiceProviderId: velip, audioFileId: fileId,
+      voice: { digits: true, keys: { 1: { label: 'Quero', tagId: hot }, 2: { label: 'Falar com vendedor', notifyOwner: true } }, retries: { times: 2, everyMinutes: 30 }, dddHours: true,
+        sms: { text: 'Tentamos falar com você.', when: 'not_answered' } },
+    });
+    assert.equal(c.status, 201, JSON.stringify(c.body));
+    const before = carrier.hits.length;
+    assert.equal((await admin.post(`/api/v1/campaigns/${c.body.id}/start`, {})).status, 200);
+    assert.equal(await drain(c.body.id), 'done');
+    const hits = carrier.hits.slice(before);
+    assert.equal(hits.filter((h) => h.path === '/api/v2/CreateAudioFile.php').length, 1, 'o áudio sobe uma vez só');
+    const calls = hits.filter((h) => h.path === '/api/v2/MakeTTSCall.php');
+    assert.equal(calls.length, 2);
+    const a = calls.find((h) => h.body.dest === '551133330001')!;
+    assert.equal(a.body.type, 6);
+    assert.equal(a.body.dtmfini, '1|2');
+    assert.match(String(a.body.content), /^tf77/);
+    assert.equal(a.body.callerid, '1140009999');
+    assert.equal(a.body.bkddd, 1);
+    assert.match(String(a.body.repeat), /^3\|30\|20:00\|\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
+    assert.match(String(a.body.rurl), /\/velip$/);
+    const rs = await recipients(c.body.id);
+    const ra = rs.find((x) => x.contact_id === ana)!;
+    assert.equal(a.body.ctid, ra.id);
+
+    // Fim da ligação em JSON: atendeu, apertou 1, gravação.
+    const done = await app.inject({ method: 'POST', url: new URL(String(a.body.rurl)).pathname, headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ cd_id: 'db_x', cd_status: 'OK', dur: '15', resp_1: '1', ctid: ra.id, cdr_url: 'https://storage.example.com/rec.mp3' }) });
+    assert.equal(done.statusCode, 200);
+    const ra2 = (await recipients(c.body.id)).find((x) => x.contact_id === ana)!;
+    assert.equal(ra2.call_status, 'answered');
+    assert.equal(ra2.call_digits, '1');
+    assert.equal(ra2.call_seconds, 15);
+    assert.ok((await f.admin.query('select 1 from contact_tags where contact_id = $1 and tag_id = $2', [ana, hot])).rowCount);
+    const list = (await marketing.get(`/api/v1/campaigns/${c.body.id}/recipients`)).body.items;
+    assert.equal(list.find((x: { contactId: string }) => x.contactId === ana).callRecordingUrl, 'https://storage.example.com/rec.mp3');
+
+    // "URL atendimento" da conta (sem o destinatário): acha a ligação pelo identificador da Velip.
+    const rb = rs.find((x) => x.contact_id === bia)!;
+    const ref = (await f.admin.query<{ call_ref: string }>('select call_ref from campaign_recipients where id = $1', [rb.id])).rows[0]!.call_ref;
+    const acct = (await admin.get('/api/v1/voice/providers')).body.items.find((x: { id: string }) => x.id === velip).accountUrl as string;
+    const dig = await app.inject({ method: 'POST', url: new URL(acct).pathname, headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      payload: new URLSearchParams({ event: 'digit', digit: '2', cd_id: ref }).toString() });
+    assert.equal(dig.statusCode, 200);
+    assert.equal((await recipients(c.body.id)).find((x) => x.contact_id === bia)!.call_digits, '2');
+  });
+
+  test('sem aviso: o despachante pergunta à Velip pelo resultado; o SMS de "não atendeu" sai pela Velip', async () => {
+    const c = await marketing.post('/api/v1/campaigns', {
+      name: 'Velip consulta', channel: 'voice', audience: { contactIds: [bia] }, perMinute: 60, voiceProviderId: velip, audioFileId: fileId,
+      voice: { sms: { text: 'Tentamos falar com você.', when: 'not_answered' } },
+    });
+    assert.equal((await admin.post(`/api/v1/campaigns/${c.body.id}/start`, {})).status, 200);
+    assert.equal(await drain(c.body.id), 'done');
+    await f.admin.query(`update campaign_recipients set sent_at = now() - interval '3 minutes' where campaign_id = $1`, [c.body.id]);
+    await run();
+    const r = (await recipients(c.body.id))[0]!;
+    assert.equal(r.call_status, 'busy');
+    assert.equal(r.call_extras.sms, 'sent');
+    const sms = carrier.hits.filter((h) => h.path === '/api/v2/MakeSMS.php').at(-1)!;
+    assert.equal(sms.body.dest, '5511911110002');
+  });
+
+  test('texto falado (TTS) com <NOME> e transferência para a fila, com gravação', async () => {
+    const c = await marketing.post('/api/v1/campaigns', {
+      name: 'Velip TTS', channel: 'voice', audience: { contactIds: [ana] }, perMinute: 60, voiceProviderId: velip,
+      voice: { tts: { text: 'Olá <NOME>, temos uma oferta.', voice: 'Google|pt-BR-Wavenet-A' }, transfer: { to: 'FI12', key: null, record: true } },
+    });
+    assert.equal(c.status, 201, JSON.stringify(c.body));
+    assert.equal((await admin.post(`/api/v1/campaigns/${c.body.id}/start`, {})).status, 200, 'sem áudio da biblioteca: o texto basta');
+    const before = carrier.hits.length;
+    assert.equal(await drain(c.body.id), 'done');
+    const call = carrier.hits.slice(before).find((h) => h.path === '/api/v2/MakeTTSCall.php')!;
+    assert.equal(call.body.text, 'Olá <NOME>, temos uma oferta.');
+    assert.equal(call.body.nome, 'Ana');
+    assert.equal(call.body.voice, 'Google|pt-BR-Wavenet-A');
+    assert.equal(call.body.content, undefined);
+    assert.equal(call.body.type, 3);
+    assert.equal(call.body.dest2, 'FI12');
+    assert.equal(call.body.rec, 1);
+  });
+
+  test('recursos da Velip com outra operadora: avisa que não dá', async () => {
+    const other = (await f.admin.query<{ id: string }>(`select id from voice_providers where provider = 'twilio' and tenant_id = $1 limit 1`, [f.tenantA])).rows[0]!.id;
+    const r = await marketing.post('/api/v1/campaigns', {
+      name: 'Errada', channel: 'voice', audience: { contactIds: [ana] }, perMinute: 60, voiceProviderId: other, voice: { tts: { text: 'Oi', voice: null } },
+    });
+    assert.equal(r.status, 422);
+    assert.match(r.body.errors[0].message, /Velip/);
+  });
+});
+

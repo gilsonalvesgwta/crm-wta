@@ -28,8 +28,17 @@ export type VoiceSettings = {
   digits: boolean; keys: Record<string, KeyAction>; ringSeconds: number; machineDetection: boolean;
   whatsapp: { accountId: string; text: string; when: ExtraWhen } | null;
   sms: { text: string; when: ExtraWhen } | null;
+  /** Recursos da Velip. */
+  tts: { text: string; voice: string | null } | null;
+  providerAudioId: string | null;
+  transfer: { to: string; key: string | null; record: boolean } | null;
+  retries: { times: number; everyMinutes: number } | null;
+  dddHours: boolean;
 };
-export const emptyVoice = (): VoiceSettings => ({ digits: false, keys: {}, ringSeconds: 30, machineDetection: false, whatsapp: null, sms: null });
+export const emptyVoice = (): VoiceSettings => ({
+  digits: false, keys: {}, ringSeconds: 30, machineDetection: false, whatsapp: null, sms: null,
+  tts: null, providerAudioId: null, transfer: null, retries: null, dddHours: false,
+});
 
 export const EXTRA_WHEN: Record<ExtraWhen, string> = {
   with_call: 'Junto com a ligação (para todos)',
@@ -87,6 +96,7 @@ export type Recipient = {
   id: string; status: 'pending' | 'sending' | 'sent' | 'failed' | 'skipped'; reason: string | null; address: string;
   sentAt: string | null; contactId: string; name: string; messageStatus: string | null;
   callStatus?: CallStatus | null; callSeconds?: number | null; callDigits?: string | null; callExtras?: { whatsapp?: string; sms?: string };
+  callRecordingUrl?: string | null;
 };
 
 export const CAMPAIGN_STATUS: Record<CampaignStatus, { label: string; tone: 'ok' | 'warn' | 'bad' | 'neutral' | 'info' }> = {

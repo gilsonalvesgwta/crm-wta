@@ -158,6 +158,7 @@ export class CampaignsService {
       const r = await q.query(
         `select r.id, r.status, r.reason, r.address, r.sent_at as "sentAt", c.id as "contactId", c.name,
                 r.call_status as "callStatus", r.call_seconds as "callSeconds", r.call_digits as "callDigits", r.call_extras as "callExtras",
+                r.call_recording_url as "callRecordingUrl",
                 m.status as "messageStatus", count(*) over ()::int as total
            from campaign_recipients r join contacts c on c.id = r.contact_id left join messages m on m.id = r.message_id
           where r.campaign_id = $1 and ($2::text is null or r.status = $2)
@@ -238,8 +239,14 @@ export class CampaignsService {
   private async checkVoice(q: Q, b: CampaignInput) {
     if (b.channel !== 'voice') return;
     if (b.accountId) throw Problem.badRequest('Conta de outro canal.', [{ field: 'accountId', message: 'Na campanha de voz, escolha a operadora.' }]);
-    if (b.voiceProviderId && !(await q.query('select 1 from voice_providers where id = $1', [b.voiceProviderId])).rowCount) {
+    const prov = b.voiceProviderId ? (await q.query<{ provider: string }>('select provider from voice_providers where id = $1', [b.voiceProviderId])).rows[0] : null;
+    if (b.voiceProviderId && !prov) {
       throw Problem.badRequest('Operadora inválida.', [{ field: 'voiceProviderId', message: 'Escolha uma operadora da empresa.' }]);
+    }
+    // Texto falado, áudio da Velip, transferência, novas tentativas e horário por DDD: recursos da Velip.
+    const v = b.voice;
+    if (prov && prov.provider !== 'velip' && (v.tts || v.providerAudioId || v.transfer || v.retries || v.dddHours)) {
+      throw Problem.badRequest('Recurso só da Velip.', [{ field: 'voice', message: 'Texto falado, áudio da Velip, transferência, novas tentativas e horário por DDD só funcionam com a Velip.' }]);
     }
     if (b.audioFileId && !(await q.query(`select 1 from files where id = $1 and deleted_at is null and content_type like 'audio/%'`, [b.audioFileId])).rowCount) {
       throw Problem.badRequest('Áudio inválido.', [{ field: 'audioFileId', message: 'Escolha um áudio da biblioteca.' }]);
@@ -499,7 +506,8 @@ export class CampaignsService {
   private async startVoice(q: Q, k: { voice_provider_id: string | null; file_id: string | null; voice: VoiceSettings }, errors: { field: string; message: string }[]) {
     const v = (k.voice_provider_id ? (await q.query<{ provider: VoiceProviderKind; name: string }>('select provider, name from voice_providers where id = $1', [k.voice_provider_id])).rows[0] : null);
     if (!v) errors.push({ field: 'voiceProviderId', message: 'Escolha a operadora que faz as ligações.' });
-    if (!k.file_id || !(await q.query(`select 1 from files where id = $1 and deleted_at is null and content_type like 'audio/%'`, [k.file_id])).rowCount) {
+    const own = v?.provider === 'velip' && !!(k.voice?.tts?.text || k.voice?.providerAudioId);
+    if (!own && (!k.file_id || !(await q.query(`select 1 from files where id = $1 and deleted_at is null and content_type like 'audio/%'`, [k.file_id])).rowCount)) {
       errors.push({ field: 'audioFileId', message: 'Escolha ou grave o áudio da ligação.' });
     }
     if (k.voice?.sms && v && !PROVIDER_FIELDS[v.provider].sms) errors.push({ field: 'voice.sms', message: `A operadora "${v.name}" não manda SMS.` });

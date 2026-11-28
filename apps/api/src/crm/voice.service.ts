@@ -15,7 +15,7 @@ import { Problem } from '../http/problem.js';
 import { AudioError, convertForPhone } from '../infra/audio.js';
 import { Db, type Q } from '../infra/db.js';
 import {
-  HANGUP_XML, PROVIDER_FIELDS, VoiceError, answerXml, checkAccount, parseEvent, placeCall, pollCall, sendSms,
+  HANGUP_XML, PROVIDER_FIELDS, VoiceError, answerXml, checkAccount, parseEvent, placeCall, pollCall, sendSms, velipAudios, velipUploadAudio, velipVoices,
   type CallEvent, type CallStatus, type VoiceAccount, type VoiceOptions, type VoiceProviderKind,
 } from '../infra/voice.js';
 import { memberJson } from './fields.js';
@@ -28,7 +28,7 @@ const COLUMNS = `v.id, v.name, v.provider, v.config, v.secret_hint as "secretHin
 
 /** Ligação de teste (fora de campanha): "t-<áudio>". */
 const TEST_RID = /^t-([0-9a-f-]{36})$/;
-const KINDS = new Set(['atender', 'tecla', 'status', 'infobip', 'sip', 'http', 'zenvia']);
+const KINDS = new Set(['atender', 'tecla', 'status', 'infobip', 'sip', 'http', 'zenvia', 'velip']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 type Recipient = {
@@ -86,7 +86,11 @@ export class VoiceService {
   }
 
   private view(row: Record<string, unknown> & { id: string; provider: VoiceProviderKind }) {
-    return { ...row, sms: PROVIDER_FIELDS[row.provider].sms, callbackUrl: this.callbackBase(row.id, '{destinatario}') };
+    return {
+      ...row, sms: PROVIDER_FIELDS[row.provider].sms, callbackUrl: this.callbackBase(row.id, '{destinatario}'),
+      // Endereço único (sem o destinatário) para telas de retorno da operadora, ex.: "URL atendimento" da Velip.
+      accountUrl: `${this.callbackBase(row.id, 'conta')}/${row.provider === 'velip' ? 'velip' : 'http'}`,
+    };
   }
 
   async list(actor: Actor) {
@@ -183,6 +187,39 @@ export class VoiceService {
   }
 
   /**
+   * Velip: o áudio da biblioteca vai uma vez para a conta da Velip; o
+   * identificador dela fica guardado (próximas ligações usam o mesmo).
+   */
+  private async providerAudio(tenantId: string, acc: VoiceAccount & { id: string }, fileId: string): Promise<string> {
+    const ctx = { tenantId, userId: null };
+    const cached = await this.db.app(ctx, async (q) => (await q.query<{ id: string | null }>(
+      'select audio_cache ->> $2 as id from voice_providers where id = $1', [acc.id, fileId])).rows[0]?.id ?? null);
+    if (cached) return cached;
+    const { raw, name } = await this.db.app(ctx, async (q) => {
+      const f = (await q.query<{ original_name: string; content_type: string }>('select original_name, content_type from files where id = $1 and deleted_at is null', [fileId])).rows[0];
+      if (!f?.content_type.startsWith('audio/')) throw new VoiceError('O áudio da campanha não existe mais na biblioteca.');
+      return { raw: await this.files.readIn(q, fileId), name: f.original_name };
+    });
+    const mp3 = await convertForPhone(raw, 'mp3').catch(() => { throw new VoiceError('Não foi possível preparar o áudio.'); });
+    const id = await velipUploadAudio(acc, mp3, `CRM - ${name}`, this.opts);
+    await this.db.app(ctx, (q) => q.query(`update voice_providers set audio_cache = audio_cache || jsonb_build_object($2::text, $3::text) where id = $1`, [acc.id, fileId, id]));
+    return id;
+  }
+
+  /** Velip: vozes sintéticas e áudios já cadastrados na conta (para escolher na campanha). */
+  async velipCatalog(actor: Actor, id: string) {
+    const tenantId = actor.tenantId!;
+    const acc = await this.db.app(tenantCtx(actor), (q) => this.account(q, tenantId, id).catch(() => { throw Problem.notFound('Operadora não encontrada.'); }));
+    if (acc.provider !== 'velip') throw Problem.notFound('Operadora não encontrada.');
+    try {
+      const [voices, audios] = await Promise.all([velipVoices(acc, this.opts), velipAudios(acc, this.opts)]);
+      return { voices, audios };
+    } catch (e) {
+      throw Problem.badRequest(e instanceof VoiceError ? e.message : 'Não foi possível falar com a Velip.');
+    }
+  }
+
+  /**
    * Teste: confere as credenciais e, com um telefone, faz uma ligação de verdade
    * tocando o áudio. A operadora só fica "testada" quando a ligação é atendida.
    */
@@ -208,7 +245,9 @@ export class VoiceService {
     await this.db.app(tenantCtx(actor), (q) => this.assertAudio(q, b.audioFileId!));
     try {
       const rid = `t-${b.audioFileId}`;
+      const providerAudioId = acc.provider === 'velip' ? await this.providerAudio(tenantId, acc, b.audioFileId) : null;
       const r = await placeCall(acc, {
+        providerAudioId, keys: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
         to, audioUrl: this.audioUrl(tenantId, b.audioFileId, 'mp3'), audioWavUrl: this.audioUrl(tenantId, b.audioFileId, 'wav'),
         callbackBase: this.callbackBase(id, rid), digits: true, ringSeconds: 30, machineDetection: false, reference: rid,
       }, this.opts);
@@ -296,14 +335,22 @@ export class VoiceService {
     const ctx = { tenantId, userId: null };
     const { rec, acc } = await this.db.app(ctx, async (q) => {
       const rec = await this.recipient(q, recipientId);
-      if (!rec?.voice_provider_id || !rec.file_id) throw new VoiceError('Campanha sem operadora ou sem áudio.');
+      const v0 = rec?.voice ?? ({} as VoiceSettings);
+      const velipOwn = !!(v0.tts?.text || v0.providerAudioId);
+      if (!rec?.voice_provider_id || (!rec.file_id && !velipOwn)) throw new VoiceError('Campanha sem operadora ou sem áudio.');
       return { rec, acc: await this.account(q, tenantId, rec.voice_provider_id) };
     });
     const v = rec.voice ?? ({} as VoiceSettings);
+    const velipMode = acc.provider === 'velip';
+    const providerAudioId = velipMode
+      ? v.providerAudioId ?? (v.tts?.text || !rec.file_id ? null : await this.providerAudio(tenantId, acc, rec.file_id))
+      : null;
+    const fileId = rec.file_id ?? '00000000-0000-4000-8000-000000000000';
     const r = await placeCall(acc, {
-      to: rec.address, audioUrl: this.audioUrl(tenantId, rec.file_id!, 'mp3'), audioWavUrl: this.audioUrl(tenantId, rec.file_id!, 'wav'),
+      to: rec.address, audioUrl: this.audioUrl(tenantId, fileId, 'mp3'), audioWavUrl: this.audioUrl(tenantId, fileId, 'wav'),
       callbackBase: this.callbackBase(acc.id, rec.id), digits: !!v.digits, ringSeconds: v.ringSeconds ?? 30, machineDetection: !!v.machineDetection,
-      reference: rec.id,
+      reference: rec.id, providerAudioId, keys: Object.keys(v.keys ?? {}).sort(),
+      extras: velipMode ? { tts: v.tts ?? null, transfer: v.transfer ?? null, retries: v.retries ?? null, dddHours: !!v.dddHours, name: rec.first_name ?? rec.name } : undefined,
     }, this.opts);
     await this.db.app(ctx, (q) => q.query(`update campaign_recipients set call_ref = $2, call_status = 'queued' where id = $1`, [rec.id, r.ref?.slice(0, 120) ?? null]));
     // WhatsApp e SMS "junto da ligação".
@@ -347,9 +394,10 @@ export class VoiceService {
    * Aviso da operadora sobre uma ligação. Devolve o que responder: XML (quando a
    * operadora pergunta o que tocar) ou um "ok".
    */
-  async handle(token: string, rid: string, kind: string, body: unknown): Promise<{ type: 'xml' | 'json'; body: string }> {
+  async handle(token: string, ridIn: string, kind: string, body: unknown): Promise<{ type: 'xml' | 'json'; body: string }> {
     const ok = { type: 'json' as const, body: '{"ok":true}' };
     if (!KINDS.has(kind)) throw Problem.notFound();
+    let rid = ridIn;
     const m = /^([0-9a-f-]{36})\.([A-Za-z0-9_-]{32})$/.exec(token);
     if (!m || !UUID.test(m[1]!) || !this.verify(`voz:${m[1]}`, m[2]!)) throw Problem.notFound();
     const providerId = m[1]!;
@@ -359,6 +407,17 @@ export class VoiceService {
     const ctx = { tenantId, userId: null };
     const acc = await this.db.app(ctx, (q) => this.account(q, tenantId, providerId));
     const ev = parseEvent(acc.provider, kind, body);
+
+    // Endereço único da conta (ex.: "URL atendimento" da Velip): a ligação vem pelo nosso identificador (ctid) ou pelo da operadora.
+    if (rid === 'conta') {
+      if (ev.reference && (TEST_RID.test(ev.reference) || UUID.test(ev.reference))) rid = ev.reference;
+      else if (ev.ref) {
+        const found = await this.db.app(ctx, (q) => q.query<{ id: string }>(
+          `select r.id from campaign_recipients r join campaigns k on k.id = r.campaign_id where r.call_ref = $1 and k.voice_provider_id = $2 limit 1`, [ev.ref, providerId]));
+        if (!found.rows[0]) return ok;
+        rid = found.rows[0].id;
+      } else return ok;
+    }
 
     // Ligação de teste: atendeu = operadora testada.
     const t = TEST_RID.exec(rid);
@@ -401,6 +460,7 @@ export class VoiceService {
       if ((digit || cur.call_digits) && status !== 'machine') status = 'answered';
       if (cur.call_status === 'answered' && (status === 'no_answer' || status === 'failed' || status === 'canceled')) status = 'answered';
       if (cur.call_ended_at && cur.call_status) status = cur.call_status;
+      if (ev.recordingUrl) await q.query('update campaign_recipients set call_recording_url = $2 where id = $1', [rec.id, ev.recordingUrl.slice(0, 1000)]);
       await q.query(
         `update campaign_recipients set call_status = $2, call_digits = coalesce(call_digits, $3),
                 call_seconds = case when $4::int is not null then $4 else call_seconds end,

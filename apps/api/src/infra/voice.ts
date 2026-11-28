@@ -3,7 +3,7 @@
 // chamada e leitura dos avisos). Nada aqui guarda estado.
 import { resolvePublicHost } from '../domain/net-guard.js';
 
-export type VoiceProviderKind = 'twilio' | 'plivo' | 'telnyx' | 'zenvia' | 'infobip' | 'sip' | 'http';
+export type VoiceProviderKind = 'twilio' | 'plivo' | 'telnyx' | 'zenvia' | 'infobip' | 'sip' | 'http' | 'velip';
 export type CallStatus = 'queued' | 'answered' | 'no_answer' | 'busy' | 'failed' | 'machine' | 'canceled';
 
 /** Conta da operadora: dados sem segredo e os segredos já abertos. */
@@ -24,10 +24,27 @@ export type CallRequest = {
   machineDetection: boolean;
   /** Identificador nosso da ligação (destinatário). */
   reference: string;
+  /** Áudio já guardado na operadora (Velip: "tf12345"). */
+  providerAudioId?: string | null;
+  /** Teclas aceitas (para operadoras que precisam saber antes: Velip). */
+  keys?: string[];
+  /** Recursos da Velip. */
+  extras?: {
+    /** Texto falado por voz sintética, em vez do áudio. */
+    tts?: { text: string; voice: string | null } | null;
+    /** Transferir para um atendente: ao apertar a tecla (ou ao atender, sem tecla). */
+    transfer?: { to: string; key: string | null; record: boolean } | null;
+    /** Tentar de novo quem não atende. */
+    retries?: { times: number; everyMinutes: number } | null;
+    /** Só ligar no horário permitido para o DDD do número. */
+    dddHours?: boolean;
+    /** Nome do contato (para o <NOME> do texto falado). */
+    name?: string | null;
+  };
 };
 
 /** O que um aviso da operadora diz sobre a ligação (campos ausentes: não mudou). */
-export type CallEvent = { ref?: string; status?: CallStatus; final?: boolean; digits?: string; seconds?: number };
+export type CallEvent = { ref?: string; status?: CallStatus; final?: boolean; digits?: string; seconds?: number; recordingUrl?: string; reference?: string };
 
 export class VoiceError extends Error {}
 
@@ -48,7 +65,101 @@ export const PROVIDER_FIELDS: Record<VoiceProviderKind, { config: string[]; requ
   infobip: { config: ['baseUrl', 'from'], required: ['baseUrl', 'from'], secret: ['apiKey'], sms: true },
   sip: { config: ['ariUrl', 'ariUser', 'endpoint', 'context', 'callerId'], required: ['ariUrl', 'ariUser', 'endpoint'], secret: ['ariPassword'], sms: false },
   http: { config: ['callUrl', 'smsUrl', 'from'], required: ['callUrl'], secret: ['authorization'], sms: true },
+  velip: { config: ['baseUrl', 'callerId'], required: [], secret: ['tsid'], sms: true },
 };
+
+export const VELIP_DEFAULT_BASE = 'https://vox.velip.com.br';
+
+// ---- Velip ---------------------------------------------------------------------------------
+
+const velipBase = (acc: VoiceAccount) => `${(acc.config.baseUrl || VELIP_DEFAULT_BASE).replace(/\/+$/, '').replace(/\/api\/v2$/, '')}/api/v2`;
+
+/** Chamada à API v2 da Velip: corpo JSON com o token; "status_code" 0 é sucesso. */
+async function velip(acc: VoiceAccount, endpoint: string, body: Record<string, unknown>, o: VoiceOptions): Promise<Record<string, any>> {
+  if (!acc.secret.tsid) throw new VoiceError('Falta o token (tsid) da Velip.');
+  const url = `${velipBase(acc)}/${endpoint}.php`;
+  if (acc.config.baseUrl) await guard(url, o);
+  const r = await call(url, { json: { tsid: acc.secret.tsid, encoding: 'UTF-8', ...body }, headers: { authorization: `Bearer ${acc.secret.tsid}` } }, o);
+  const b = obj(r.body);
+  const ret = obj(b.return);
+  const code = str(ret.status_code);
+  if (r.status >= 300 || (code !== undefined && code !== '0')) {
+    const msg = str(ret.status) ?? `erro ${r.status}`;
+    if (r.status === 401 || ['100', '101', '102', '110', '114', '198'].includes(code ?? '')) {
+      throw new VoiceError(`A Velip recusou as credenciais: ${msg}${code ? ` (código ${code})` : ''}.`);
+    }
+    throw new VoiceError(`A Velip recusou: ${msg}${code ? ` (código ${code})` : ''}.`);
+  }
+  return b;
+}
+
+/** Envia o áudio (MP3) para a Velip e devolve o identificador dela ("tf12345"). */
+export async function velipUploadAudio(acc: VoiceAccount, mp3: Buffer, name: string, o: VoiceOptions): Promise<string> {
+  const b = await velip(acc, 'CreateAudioFile', {
+    audio64: `data:audio/mpeg;base64,${mp3.toString('base64')}`, name_up: 'crm-audio.mp3', name: name.slice(0, 80), ttswrt: '1',
+  }, o);
+  const id = str(obj(b.return).cdw_file);
+  if (!id) throw new VoiceError('A Velip não devolveu o identificador do áudio.');
+  return id;
+}
+
+/** Vozes sintéticas liberadas na conta da Velip. */
+export async function velipVoices(acc: VoiceAccount, o: VoiceOptions): Promise<{ id: string; name: string; language: string | null; genre: string | null }[]> {
+  const b = await velip(acc, 'GetTTSVoices', {}, o);
+  return (Array.isArray(b.voices) ? b.voices : []).map((v: unknown) => obj(v)).filter((v: Record<string, any>) => str(v.cdwv_short))
+    .map((v: Record<string, any>) => ({ id: str(v.cdwv_short)!, name: `${str(v.cdwv_name) ?? str(v.cdwv_short)}${str(v.cdwv_tit) ? ` · ${str(v.cdwv_tit)}` : ''}`,
+      language: str(v.cdwv_language) ?? null, genre: str(v.cdwv_genre) ?? null }));
+}
+
+/** Áudios já cadastrados na conta da Velip. */
+export async function velipAudios(acc: VoiceAccount, o: VoiceOptions): Promise<{ id: string; name: string; seconds: number | null; expires: string | null }[]> {
+  const b = await velip(acc, 'GetAudiosList', { maxreg: 200 }, o);
+  return (Array.isArray(b.audios) ? b.audios : []).map((v: unknown) => obj(v)).filter((v: Record<string, any>) => str(v.cdw_file))
+    .map((v: Record<string, any>) => ({ id: str(v.cdw_file)!, name: str(v.cdw_name) ?? str(v.cdw_file)!, seconds: num(v.cdw_sec) ?? null, expires: str(v.cdw_expires) ?? null }));
+}
+
+/** "AAAA-MM-DD HH:MM" no horário de Brasília (a Velip agenda nesse fuso). */
+function velipNow(): string {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    .formatToParts(new Date()).map((x) => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;
+}
+
+async function velipCall(acc: VoiceAccount, q: CallRequest, o: VoiceOptions): Promise<{ ref: string | null }> {
+  const x = q.extras ?? {};
+  const body: Record<string, unknown> = {
+    dest: digitsOf(q.to), ctid: q.reference, rurl: `${q.callbackBase}/velip`, ringtime: q.ringSeconds, httpdup: 0,
+  };
+  if (x.tts?.text) {
+    body.text = x.tts.text;
+    if (x.tts.voice) body.voice = x.tts.voice;
+    if (x.name) body.nome = x.name;
+  } else if (q.providerAudioId) {
+    body.content = q.providerAudioId;
+  } else {
+    throw new VoiceError('Campanha sem áudio nem texto falado.');
+  }
+  if (acc.config.callerId) body.callerid = digitsOf(acc.config.callerId);
+  if (x.transfer?.to) {
+    // Transferência: com tecla (type 2 + dtmfconf) ou direto ao atender (type 3).
+    body.dest2 = x.transfer.to.replace(/[^\dA-Za-z]/g, '');
+    if (x.transfer.key) { body.type = 2; body.dtmfconf = x.transfer.key; body.ndig = 1; body.dtime = 8; } else body.type = 3;
+    if (x.transfer.record) { body.rec = 1; body.startrec = 'ini'; }
+  } else if (q.digits && q.keys?.length) {
+    // Confirmação: toca a pergunta e espera uma das teclas aceitas.
+    body.type = 6;
+    body.dtmfini = q.keys.join('|');
+    body.dtmf = 'NO';
+    body.dtmf2 = 'NO';
+    body.dtime = 8;
+  } else {
+    body.type = 0;
+  }
+  if (x.retries) body.repeat = `${x.retries.times + 1}|${x.retries.everyMinutes}|20:00|${velipNow()}`;
+  if (x.dddHours) body.bkddd = 1;
+  const b = await velip(acc, 'MakeTTSCall', body, o);
+  return { ref: str(obj(b.return).cd_id) ?? null };
+}
 
 export const ZENVIA_DEFAULT_BASE = 'https://api2.totalvoice.com.br';
 
@@ -144,6 +255,8 @@ export async function placeCall(acc: VoiceAccount, q: CallRequest, o: VoiceOptio
   const c = acc.config;
   const s = acc.secret;
   switch (acc.provider) {
+    case 'velip':
+      return velipCall(acc, q, o);
     case 'twilio': {
       need(acc, 'accountSid', 'from', 'authToken');
       const form: Record<string, string> = {
@@ -271,6 +384,10 @@ export async function sendSms(acc: VoiceAccount, to: string, text: string, o: Vo
       break;
     case 'sip':
       throw new VoiceError('A central SIP não manda SMS. Escolha outra operadora para o SMS.');
+    case 'velip':
+      // SMS da Velip: até 160 caracteres, celular brasileiro.
+      await velip(acc, 'MakeSMS', { dest: digitsOf(to), message: text.slice(0, 160), httpdup: 0 }, o);
+      return;
   }
   if (r.status >= 300) throw failure('A operadora', r);
 }
@@ -363,6 +480,27 @@ export function parseEvent(provider: VoiceProviderKind, kind: string, raw: unkno
     else if (/falha|erro|invalid|sem saldo|cancel/.test(st)) status = 'failed';
     return { ref: str(d.id), status, final: !!status, seconds, digits: dtmf(d.resposta ?? d.resposta_usuario) };
   }
+  if (kind === 'velip') {
+    // Fim da ligação (rurl / URL campanha) ou eventos durante a ligação (URL atendimento: callstart, digit).
+    const x = obj(Array.isArray(b.calls) ? b.calls[0] : b);
+    const ev = (str(x.event) ?? str(x.evento) ?? str(x.type_event) ?? '').toLowerCase();
+    const ref = str(x.cd_id) ?? str(x.cdid) ?? undefined;
+    const reference = str(x.ctid) ?? str(x.cd_ctid) ?? undefined;
+    if (ev === 'callstart') return { ref, reference, status: 'answered' };
+    if (ev === 'digit' || ev === 'dtmf') return { ref, reference, digits: dtmf(x.digit ?? x.dtmf ?? x.value ?? x.resp ?? x.resp_1) };
+    if (ev === 'recstart' || ev === 'recend') return { ref, reference };
+    const st = (str(x.cd_status) ?? str(x.status) ?? '').toUpperCase();
+    const seconds = num(x.dur ?? x.cd_time_sec ?? x.cd_dur);
+    const machine = (str(x.cd_amdasw) ?? '').toUpperCase() === 'MA';
+    let status: CallStatus | undefined;
+    if (st === 'OK') status = machine ? 'machine' : 'answered';
+    else if (st === 'NOANSWER' || st === 'CANCEL' || st === 'NAE') status = 'no_answer';
+    else if (st === 'BUSY') status = 'busy';
+    else if (st === 'SK') status = 'canceled';
+    else if (st) status = 'failed';
+    const rec = str(x.cdr_url);
+    return { ref, reference, status, final: !!status, seconds, digits: dtmf(x.resp_1 ?? x.cd_resp_1), ...(rec && /^https?:\/\//.test(rec) ? { recordingUrl: rec } : {}) };
+  }
   // API própria (http): { status, digits, duration }.
   const st = str(b.status) as CallStatus | undefined;
   const ok: CallStatus[] = ['answered', 'no_answer', 'busy', 'failed', 'machine', 'canceled'];
@@ -371,6 +509,11 @@ export function parseEvent(provider: VoiceProviderKind, kind: string, raw: unkno
 
 /** Zenvia: pergunta o resultado de uma ligação. */
 export async function pollCall(acc: VoiceAccount, ref: string, o: VoiceOptions): Promise<CallEvent | null> {
+  if (acc.provider === 'velip') {
+    const b = await velip(acc, 'GetCallStatus', { cd_id: ref }, o).catch(() => null);
+    const c = b && Array.isArray(b.calls) ? b.calls[0] : null;
+    return c ? parseEvent('velip', 'velip', c) : null;
+  }
   if (acc.provider !== 'zenvia') return null;
   const r = await call(`${(acc.config.apiBase || ZENVIA_DEFAULT_BASE).replace(/\/+$/, '')}/audio/${encodeURIComponent(ref)}`,
     { method: 'GET', headers: { 'access-token': acc.secret.accessToken! } }, o);
@@ -409,6 +552,9 @@ export async function checkAccount(acc: VoiceAccount, o: VoiceOptions): Promise<
       break;
     case 'http':
       await guard(c.callUrl!, o);
+      return;
+    case 'velip':
+      await velip(acc, 'GetUserID', {}, o);
       return;
   }
   if (r && r.status >= 300) throw failure(acc.provider === 'sip' ? 'A central' : 'A operadora', r);

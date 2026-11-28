@@ -231,6 +231,7 @@ function Recipients({ id, version, voice }: { id: string; version: number; voice
                     {voice && r.callStatus ? <Badge tone={CALL_STATUS[r.callStatus].tone}>{CALL_STATUS[r.callStatus].label}</Badge> : null}
                     {voice && r.callDigits ? <span className="font-medium text-ink">apertou {r.callDigits}</span> : null}
                     {voice && r.callSeconds ? <span>{r.callSeconds}s</span> : null}
+                    {voice && r.callRecordingUrl ? <a href={r.callRecordingUrl} target="_blank" rel="noreferrer" className="font-medium text-ink underline">ouvir gravação</a> : null}
                     {voice && r.callExtras?.whatsapp ? <span>WhatsApp {r.callExtras.whatsapp === 'sent' ? 'enviado' : 'falhou'}</span> : null}
                     {voice && r.callExtras?.sms ? <span>SMS {r.callExtras.sms === 'sent' ? 'enviado' : 'falhou'}</span> : null}
                     {voice && r.status === 'sent' ? '' : RECIPIENT_STATUS[r.status]}{r.messageStatus === 'read' ? ' · lida' : r.messageStatus === 'delivered' ? ' · entregue' : ''}
