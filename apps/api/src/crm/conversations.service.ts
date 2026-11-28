@@ -176,6 +176,13 @@ export class ConversationsService {
     });
   }
 
+  /** WhatsApp por QR code: traz do celular o que faltar na conversa (mensagens do cliente e as mandadas pelo celular). */
+  async sync(actor: Actor, id: string, force: boolean) {
+    const v = await this.db.app(tenantCtx(actor), (q) => this.visible(q, actor, id));
+    if (v.channel !== 'whatsapp') return { added: 0, checked: 0 };
+    return this.messages.syncWhatsapp(actor.tenantId!, v.contact_id, force);
+  }
+
   async markSeen(actor: Actor, id: string) {
     return this.db.app(tenantCtx(actor), async (q) => {
       const v = await this.visible(q, actor, id);

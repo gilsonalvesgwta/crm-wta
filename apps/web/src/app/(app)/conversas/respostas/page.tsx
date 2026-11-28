@@ -125,7 +125,7 @@ function Editor({ initial, canShare, onClose, onSaved }: {
           <Field label="Título" value={d.title} onChange={(e) => set({ title: e.target.value })} error={err?.fieldError('title')} autoComplete="off" />
         </div>
         {d.channel === 'email' ? <Field label="Assunto" value={d.subject} onChange={(e) => set({ subject: e.target.value })} error={err?.fieldError('subject')} /> : null}
-        <Textarea label="Texto" value={d.body} onChange={(e) => set({ body: e.target.value })} rows={6} error={err?.fieldError('body')} />
+        <Textarea whatsapp={d.channel === 'whatsapp'} label="Texto" value={d.body} onChange={(e) => set({ body: e.target.value })} rows={6} error={err?.fieldError('body')} />
         <p className="text-[12px] text-muted">Variáveis: {REPLY_VARIABLES.map((v) => <code key={v.key} className="mr-2 rounded bg-surface-2 px-1" title={v.label}>{`{{${v.key}}}`}</code>)}</p>
         {canShare ? (
           <label className="flex min-h-11 items-center gap-2 text-sm">

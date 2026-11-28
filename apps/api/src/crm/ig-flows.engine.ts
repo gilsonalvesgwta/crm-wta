@@ -137,6 +137,8 @@ export class IgFlowEngine {
       let outcome: string;
       let qrOutcome: string | null = null;
       if (ev.payload && parsePayload(ev.payload)) outcome = await this.click(tenantId, acc, wa, ev.payload);
+      // Palavra-chave exata de um fluxo ativo recomeça o fluxo, mesmo com outro esperando resposta.
+      else if (ev.text && await this.exactKeyword(tenantId, acc, ev.text)) outcome = await this.triggerWa(tenantId, acc, wa, ev.text);
       else if (isQr(acc) && (qrOutcome = await this.choose(tenantId, acc, ids, ev.text ?? '')) !== null) outcome = qrOutcome as string;
       else if (ev.text && await this.clickByText(tenantId, acc, ids, ev.text)) outcome = 'clique no botão (texto)';
       else if (await this.answer(tenantId, acc, wa, ev.text ?? '', ids)) outcome = 'resposta da pergunta';
@@ -234,6 +236,18 @@ export class IgFlowEngine {
   }
 
   /** Palavra-chave numa mensagem do WhatsApp: começa o fluxo para a pessoa. */
+  /** O texto é exatamente a palavra-chave de algum fluxo ativo desta conta? */
+  private async exactKeyword(tenantId: string, acc: IgAccount, text: string): Promise<boolean> {
+    const flows = await this.db.app({ tenantId, userId: null }, async (q) => (await q.query<{ published: unknown }>(
+      `select published from ig_flows where channel_account_id = $1 and trigger_type = 'wa_keyword' and status = 'active'`, [acc.id])).rows);
+    return flows.some((f) => {
+      const g = graphSchema.safeParse(f.published);
+      if (!g.success) return false;
+      const t = triggerOf(g.data);
+      return t.match !== 'any' && keywordScore({ ...t, match: 'exact' }, text) === 3;
+    });
+  }
+
   private async triggerWa(tenantId: string, acc: IgAccount, wa: string, text: string): Promise<string> {
     const ctx = { tenantId, userId: null };
     const picked = await this.db.app(ctx, async (q) => {
@@ -257,9 +271,11 @@ export class IgFlowEngine {
         `select p.contact_id from contact_phones p join contacts c on c.id = p.contact_id
           where p.e164 = any($1::text[]) and c.anonymized_at is null order by p.is_primary desc, c.created_at limit 1`, [phoneVariants(`+${wa}`)])).rows[0]?.contact_id ?? null;
       if (!contactId) return null;
+      // Recomeça: o que estava esperando resposta desta pessoa nesta conta para (de qualquer fluxo).
       await q.query(
         `update ig_flow_runs set status = 'canceled', finished_at = now(), last_error = 'Recomeçou pelo gatilho'
-          where flow_id = $1 and ig_user_id = $2 and status in ('waiting', 'running')`, [best.id, wa]);
+          where (flow_id = $1 or channel_account_id = $3) and ig_user_id = any($2::text[]) and status in ('waiting', 'running')`,
+        [best.id, phoneVariants(`+${wa}`).map((v) => v.replace(/\D/g, '')), acc.id]);
       const context: RunContext = { trigger: 'wa_keyword', text: text.slice(0, 1000), lastInboundAt: new Date().toISOString() };
       const run = (await q.query<{ id: string }>(
         `insert into ig_flow_runs (tenant_id, flow_id, flow_version, channel_account_id, contact_id, ig_user_id, status, node_id, context)

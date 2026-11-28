@@ -116,6 +116,14 @@ export class ConversationsController {
     return this.svc.send(a, id(i), parse(sendBody, u.body), u.file);
   }
 
+  /** Traz do celular (WhatsApp por QR code) as mensagens que faltam na conversa. */
+  @Require('conversations:reply')
+  @Post(':id/sync')
+  @HttpCode(200)
+  sync(@CurrentActor() a: Actor, @Param('id') i: string, @Query('force') force?: string) {
+    return this.svc.sync(a, id(i), force === '1');
+  }
+
   @Require('conversations:reply')
   @Post(':id/seen')
   @HttpCode(200)

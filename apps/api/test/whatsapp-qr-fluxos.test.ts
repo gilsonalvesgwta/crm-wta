@@ -202,3 +202,79 @@ describe('Fluxos no WhatsApp por QR code', () => {
     assert.equal(texts('5531977771111').at(-1), 'Ótimo! Já te passo os detalhes.');
   });
 });
+
+describe('Palavra-chave, teste no próprio celular e conversa completa', () => {
+  const cupom = () => ({
+    nodes: [
+      { id: 'trigger', type: 'trigger', position: { x: 0, y: 0 }, data: { type: 'wa_keyword', posts: 'any', postIds: [], match: 'exact', keywords: ['#01'], frequency: 'every' } },
+      text('c1', 300, 'Seu cupom é BF10 🎉'),
+    ],
+    edges: [{ id: 'c-e1', source: 'trigger', sourceHandle: 'next', target: 'c1' }],
+  });
+
+  test('palavra-chave exata ("#01") começa o fluxo mesmo com outro fluxo esperando resposta', async () => {
+    const c = await admin.post('/api/v1/whatsapp/flows', { accountId: account, name: 'Cupom', triggerType: 'wa_keyword' });
+    assert.equal((await admin.patch(`/api/v1/whatsapp/flows/${c.body.id}`, { draft: cupom() })).status, 200);
+    assert.equal((await admin.post(`/api/v1/whatsapp/flows/${c.body.id}/publish`)).status, 200);
+    await inbound('5521922223333', 'promo', false, 'Edu');
+    assert.match(texts('5521922223333').at(-1)!, /Quer saber da Black Friday/);
+    await inbound('5521922223333', '#01');
+    assert.equal(texts('5521922223333').at(-1), 'Seu cupom é BF10 🎉');
+    // O fluxo anterior parou de esperar: "1" agora não segue o outro caminho.
+    const waiting = await f.admin.query(`select 1 from ig_flow_runs where ig_user_id = '5521922223333' and status = 'waiting'`);
+    assert.equal(waiting.rowCount, 0);
+  });
+
+  test('mensagem para si mesmo no celular conectado também testa o fluxo', async () => {
+    await inbound('5511988887777', '#01', true, 'Eu');
+    assert.equal(texts('5511988887777').at(-1), 'Seu cupom é BF10 🎉');
+  });
+
+  test('diagnóstico: o que aconteceu com cada mensagem que chegou', async () => {
+    await inbound('5521900001111', 'mensagem qualquer', false, 'Fábio');
+    const r = await admin.get(`/api/v1/instagram/accounts/${account}/events`);
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    const last = r.body.items[0];
+    assert.equal(last.summary, 'mensagem qualquer');
+    assert.equal(last.outcome, 'nenhum fluxo para este gatilho');
+    assert.ok(r.body.items.some((x: { outcome: string }) => /fluxo "Cupom"/.test(x.outcome ?? '')));
+    assert.equal((await adminB.get(`/api/v1/instagram/accounts/${account}/events`)).status, 404);
+  });
+
+  test('endereço privado (@lid): aprende o número e mostra também o que foi mandado pelo celular', async () => {
+    const ts = Math.floor(Date.now() / 1000);
+    let r = await hook({ event: 'messages.upsert', instance, data: {
+      key: { remoteJid: '987654321098765@lid', remoteJidAlt: '5521944445555@s.whatsapp.net', fromMe: false, id: 'LID-IN-1' },
+      pushName: 'Gabi', message: { conversation: 'Oi, tudo bem?' }, messageType: 'conversation', messageTimestamp: ts } });
+    assert.equal(r.status, 200);
+    r = await hook({ event: 'messages.upsert', instance, data: {
+      key: { remoteJid: '987654321098765@lid', fromMe: true, id: 'LID-OUT-1' },
+      message: { conversation: 'Tudo ótimo! Respondi pelo celular.' }, messageType: 'conversation', messageTimestamp: ts + 1 } });
+    assert.equal(r.status, 200);
+    const msgs = await f.admin.query<{ direction: string; body: string }>(
+      `select m.direction, m.body from messages m join contact_phones p on p.contact_id = m.contact_id where p.e164 = '+5521944445555' order by m.created_at`);
+    assert.deepEqual(msgs.rows.map((x) => [x.direction, x.body]), [['in', 'Oi, tudo bem?'], ['out', 'Tudo ótimo! Respondi pelo celular.']]);
+  });
+
+  test('sincronizar com o celular: traz para a conversa o que o aviso não trouxe, em ordem', async () => {
+    const contact = (await f.admin.query<{ contact_id: string }>(`select contact_id from contact_phones where e164 = '+5521944445555'`)).rows[0]!.contact_id;
+    const conv = await admin.post('/api/v1/conversations', { contactId: contact, channel: 'whatsapp' });
+    assert.ok(conv.status === 200 || conv.status === 201, JSON.stringify(conv.body));
+    const t0 = Math.floor(Date.now() / 1000) + 10;
+    const rec = (id: string, fromMe: boolean, body: string, at: number) => ({
+      key: { remoteJid: '5521944445555@s.whatsapp.net', fromMe, id }, pushName: fromMe ? null : 'Gabi', message: { conversation: body }, messageType: 'conversation', messageTimestamp: at,
+    });
+    evo.stored.set('PHONE-1', rec('PHONE-1', true, 'Mandei pelo celular e o aviso não chegou', t0));
+    evo.stored.set('PHONE-2', rec('PHONE-2', false, 'Recebi, obrigado!', t0 + 5));
+    evo.stored.set('LID-IN-1', { ...rec('LID-IN-1', false, 'Oi, tudo bem?', t0 - 100) });
+    const s = await admin.post(`/api/v1/conversations/${conv.body.id}/sync?force=1`, {});
+    assert.equal(s.status, 200, JSON.stringify(s.body));
+    assert.equal(s.body.added, 2, 'a que já estava no CRM não duplica');
+    const h = await admin.get(`/api/v1/conversations/${conv.body.id}/messages`);
+    assert.deepEqual(h.body.items.map((m: { body: string }) => m.body).slice(-2), ['Mandei pelo celular e o aviso não chegou', 'Recebi, obrigado!']);
+    assert.equal((await adminB.post(`/api/v1/conversations/${conv.body.id}/sync`, {})).status, 404);
+    // Sincronizar não dispara fluxos.
+    assert.ok(!texts('5521944445555').length);
+  });
+});
+

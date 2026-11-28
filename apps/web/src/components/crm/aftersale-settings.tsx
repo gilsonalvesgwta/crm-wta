@@ -179,7 +179,7 @@ function TextWithVars({ label, value, vars, onChange, error, hint }: {
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <Textarea label={label} rows={4} value={value} onChange={(e) => onChange(e.target.value)} error={error} hint={hint} />
+      <Textarea whatsapp label={label} rows={4} value={value} onChange={(e) => onChange(e.target.value)} error={error} hint={hint} />
       <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-muted">
         <span>Inserir:</span>
         {vars.map(([k, l]) => (

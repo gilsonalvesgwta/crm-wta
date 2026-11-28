@@ -118,7 +118,7 @@ export function VoiceContent({ providers, providerId, onProvider, audioFileId, o
                 {Object.entries(EXTRA_WHEN).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
               </Select>
             </div>
-            <Textarea label="Mensagem do WhatsApp *" rows={4} maxLength={4000} value={voice.whatsapp.text} error={fieldErr('voice.whatsapp.text')}
+            <Textarea whatsapp label="Mensagem do WhatsApp *" rows={4} maxLength={4000} value={voice.whatsapp.text} error={fieldErr('voice.whatsapp.text')}
               onChange={(e) => set({ whatsapp: { ...voice.whatsapp!, text: e.target.value } })} placeholder="Oi {{primeiro_nome}}! Acabamos de ligar sobre a Black Friday. Veja a oferta: …" />
             <Vars onAdd={(v) => set({ whatsapp: { ...voice.whatsapp!, text: `${voice.whatsapp!.text}{{${v}}}` } })} />
             {voice.whatsapp.when === 'key' && !usesKey('whatsapp') ? <p className="text-[12px] text-warn">Marque “Mandar o WhatsApp” em alguma tecla.</p> : null}

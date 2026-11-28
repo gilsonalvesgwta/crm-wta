@@ -1,4 +1,5 @@
 'use client';
+import { WaPreview, WaToolbar } from '@/components/ui/wa-format';
 import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Check, Copy, Link2, Plus, RefreshCw, Trash2, Upload, X } from 'lucide-react';
@@ -101,7 +102,9 @@ export function TextVars({ label, value, onChange, max, rows = 4, placeholder, h
 }) {
   const id = useId();
   const ref = useRef<HTMLTextAreaElement>(null);
-  const vars = useContext(ChannelCtx) === 'whatsapp' ? WA_VARIABLES : VARIABLES;
+  const wa = useContext(ChannelCtx) === 'whatsapp';
+  const vars = wa ? WA_VARIABLES : VARIABLES;
+  const [preview, setPreview] = useState(false);
   function insert(k: string) {
     const el = ref.current;
     const tag = `{{${k}}}`;
@@ -116,8 +119,10 @@ export function TextVars({ label, value, onChange, max, rows = 4, placeholder, h
         <label htmlFor={id} className="text-[13px] font-medium">{label}</label>
         <span className={`text-xs ${value.length > max * 0.9 ? 'text-warn' : 'text-muted'}`}>{value.length}/{max}</span>
       </div>
+      {wa ? <WaToolbar target={ref} preview={preview} onPreview={setPreview} /> : null}
       <textarea id={id} ref={ref} rows={rows} maxLength={max} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
         className="rounded-[6px] border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted" />
+      {wa && preview ? <WaPreview text={value} /> : null}
       <div className="flex flex-wrap gap-1" aria-label="Inserir variável">
         {vars.map((v) => (
           <button key={v.key} type="button" onClick={() => insert(v.key)} title={v.label}
@@ -353,7 +358,7 @@ function QrMessageSettings({ d, upd }: { d: NodeData['text']; upd: Upd<NodeData[
     <>
       <p className="text-[13px] text-muted">No WhatsApp por QR code, as opções chegam numeradas (1️⃣, 2️⃣…) e a pessoa responde com o número ou o nome. Botões clicáveis só existem no WhatsApp oficial.</p>
       <TextVars label="Mensagem" value={d.text} max={1000} rows={5} onChange={(text) => upd({ text }, 'text')} placeholder="Oi, {{primeiro_nome}}! Quer saber mais sobre a promoção?"
-        hint="*negrito*, _itálico_ e emojis funcionam no WhatsApp." />
+        hint="Use a barra para negrito, itálico, listas…; “Prévia” mostra como chega no celular." />
       <section className="flex flex-col gap-2">
         <h3 className="text-sm font-semibold">Opções de resposta <span className="font-normal text-muted">(até 10)</span></h3>
         {opts.map((b, i) => (

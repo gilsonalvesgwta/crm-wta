@@ -193,7 +193,7 @@ function TemplateDialog({ accountId, onClose, onSaved }: { accountId: string; on
               <HeaderFile kind={headerKind} value={file} onChange={setFile} error={err?.fieldError('headerFileId')} />
             ) : null}
           </fieldset>
-          <Textarea label="Texto" value={v.body} onChange={(e) => set({ body: e.target.value })} rows={5} maxLength={1024} error={err?.fieldError('body')}
+          <Textarea whatsapp label="Texto" value={v.body} onChange={(e) => set({ body: e.target.value })} rows={5} maxLength={1024} error={err?.fieldError('body')}
             hint="Use {{1}}, {{2}}… onde entram os dados de cada pessoa (nome, pedido…). Não comece nem termine com variável." />
           <div className="-mt-2"><Button type="button" variant="ghost" onClick={() => set({ body: `${v.body}{{${n + 1}}}` })}><Plus size={14} aria-hidden />Inserir variável {`{{${n + 1}}}`}</Button></div>
           {n ? (

@@ -2,10 +2,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { BarChart3, ChevronLeft, Copy, Eye, MoreHorizontal, Pause, Play, Redo2, Rocket, Send, Trash2, TriangleAlert, Undo2, Check, CloudOff } from 'lucide-react';
+import { Activity, BarChart3, ChevronLeft, Copy, Eye, MoreHorizontal, Pause, Play, Redo2, Rocket, Send, Trash2, TriangleAlert, Undo2, Check, CloudOff } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { COMMENT_TRIGGERS, FLOW_BASE, FLOW_STATUS, newId, newNode, nodeTitle, outputsOf, type Flow, type FlowChannel, type FlowGraph, type FlowNode, type NodeType } from '@/lib/instagram';
 import { FlowCanvas, NODE_W, QrCtx } from './flow-canvas';
+import { FlowActivityDialog } from './flow-activity';
 import { NodeSettings, Palette } from './node-settings';
 import { Simulator } from './simulator';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +27,7 @@ export function FlowEditor({ initial, readOnly, channel = 'instagram' }: { initi
   const [save, setSave] = useState<SaveState>('saved');
   const [name, setName] = useState(initial.name);
   const [preview, setPreview] = useState(false);
+  const [activity, setActivity] = useState(false);
   const [issuesOpen, setIssuesOpen] = useState(false);
   const [menu, setMenu] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -260,6 +262,7 @@ export function FlowEditor({ initial, readOnly, channel = 'instagram' }: { initi
             <button type="button" aria-label="Refazer" title="Refazer (Ctrl+Shift+Z)" disabled={!future.current.length} onClick={redo} className="flex size-9 items-center justify-center rounded-[6px] text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-40"><Redo2 size={16} aria-hidden /></button>
           </div>
         ) : null}
+        {meta.accountId ? <Button variant="ghost" aria-label="Testar o fluxo" onClick={() => setActivity(true)}><Activity size={15} aria-hidden /><span className="hidden lg:inline">Testar</span></Button> : null}
         <Button variant="secondary" onClick={() => setPreview(true)}><Eye size={15} aria-hidden />Visualizar</Button>
         {broadcast && meta.status === 'active' && !meta.unpublishedChanges ? <Link href={`/campanhas/nova?fluxo=${initial.id}`} className="hidden h-9 items-center gap-1.5 rounded-[6px] border border-line px-3 text-[13px] font-medium hover:bg-surface-2 sm:inline-flex"><Send size={15} aria-hidden />Enviar campanha</Link> : null}
         {!readOnly ? <Button loading={busy === 'publish'} onClick={publish}><Rocket size={15} aria-hidden />{meta.status === 'draft' ? 'Publicar' : meta.unpublishedChanges ? 'Publicar alterações' : 'Publicado'}</Button> : null}
@@ -277,6 +280,7 @@ export function FlowEditor({ initial, readOnly, channel = 'instagram' }: { initi
           ) : null}
         </div>
       </header>
+      {activity && meta.accountId ? <FlowActivityDialog accountId={meta.accountId} onClose={() => setActivity(false)} /> : null}
       {notice ? <div className="border-b border-line bg-surface px-4 py-2"><Alert tone={notice.tone}>{notice.text} <button type="button" className="ml-2 underline" onClick={() => setNotice(null)}>Ok</button></Alert></div> : null}
       <div className="flex min-h-0 flex-1 flex-col-reverse md:flex-row">
         <aside className="max-h-[45vh] w-full shrink-0 overflow-y-auto border-t border-line bg-surface p-4 md:max-h-none md:w-[360px] md:border-r md:border-t-0">

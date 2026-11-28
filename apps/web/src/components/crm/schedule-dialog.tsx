@@ -78,7 +78,7 @@ export function ScheduleDialog({ open, contact, initial, defaults, onClose, onSa
           {accounts.map((a) => <option key={a.id} value={a.id}>{KIND_NAME[a.kind]} · {a.name}{a.address ? ` · ${a.address.startsWith('+') ? phone(a.address) : a.address}` : ''}</option>)}
         </Select>
         {isEmail ? <Field label="Assunto" value={subject} onChange={(e) => setSubject(e.target.value)} error={err?.fieldError('subject')} /> : null}
-        <Textarea label="Mensagem" value={text} onChange={(e) => setText(e.target.value)} rows={5} error={err?.fieldError('text')} />
+        <Textarea whatsapp label="Mensagem" value={text} onChange={(e) => setText(e.target.value)} rows={5} error={err?.fieldError('text')} />
         <Field label="Enviar em" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} error={err?.fieldError('sendAt')} className="max-w-xs" />
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>

@@ -479,7 +479,7 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
               </Select>
             ) : null}
             {isCloud ? null : d.channel === 'email' ? <Field label="Assunto *" value={d.subject} onChange={(e) => set({ subject: e.target.value })} error={fieldErr('subject')} maxLength={998} /> : null}
-            {!isCloud && !flowMode ? <Textarea label="Mensagem *" value={d.body} onChange={(e) => set({ body: e.target.value })} rows={8} error={fieldErr('body')} /> : null}
+            {!isCloud && !flowMode ? <Textarea whatsapp={d.channel === 'whatsapp'} label="Mensagem *" value={d.body} onChange={(e) => set({ body: e.target.value })} rows={8} error={fieldErr('body')} /> : null}
             <div className={`flex flex-wrap items-center gap-1.5 text-[12px] text-muted ${isCloud || flowMode ? 'hidden' : ''}`}>
               <span>Inserir:</span>
               {CAMPAIGN_VARIABLES.map((v) => (

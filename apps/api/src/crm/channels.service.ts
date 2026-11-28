@@ -5,7 +5,7 @@ import { tenantCtx } from '../access/decorators.js';
 import { audit } from '../admin/audit.js';
 import { CONFIG, type Config } from '../config.js';
 import { newToken, tokenHash } from '../domain/secrets.js';
-import { jidToE164, readEvolutionEvent } from '../domain/whatsapp.js';
+import { jidToE164, phoneVariants, readEvolutionEvent } from '../domain/whatsapp.js';
 import { Problem } from '../http/problem.js';
 import { Db, type Q } from '../infra/db.js';
 import { Evolution, EvolutionError } from '../infra/evolution.js';
@@ -292,6 +292,12 @@ export class ChannelsService {
 
   // ---- Webhook da Evolution -------------------------------------------------------------
 
+  private async isOwnNumber(tenantId: string, accountId: string, e164: string): Promise<boolean> {
+    const a = await this.db.app({ tenantId, userId: null }, (q) => q.query<{ address: string | null }>('select address from channel_accounts where id = $1', [accountId]));
+    const own = a.rows[0]?.address;
+    return !!own && phoneVariants(own).includes(e164);
+  }
+
   async handleEvolution(token: string, body: unknown): Promise<{ handled: number }> {
     if (!/^[A-Za-z0-9_-]{20,100}$/.test(token)) throw Problem.notFound();
     const acc = await this.db.auth(async (q) => (await q.query<{ tenant_id: string; account_id: string; kind: string; external_id: string }>(
@@ -305,12 +311,15 @@ export class ChannelsService {
       try {
         if (ev.type === 'message') {
           const stored = await this.messages.receiveWhatsapp(acc.tenant_id, acc.account_id, ev);
-          if (stored !== 'duplicate') handled++;
+          if (stored === 'unknown') this.log.warn(`mensagem do WhatsApp com endereço privado (@lid) sem número conhecido: ${ev.id}`);
+          else if (stored !== 'duplicate') handled++;
           if (stored === 'stored') {
             // Fluxos do WhatsApp por QR code: a resposta da pessoa escolhe a opção, responde a pergunta
             // ou começa um fluxo pela palavra-chave. Resposta da equipe pelo celular para o fluxo.
             const fa = { id: acc.account_id, external_id: acc.external_id, secret: null, config: {}, kind: 'whatsapp_evolution' };
-            const job = ev.fromMe
+            // Conversa "comigo mesmo" no celular conectado vale como cliente: dá para testar o fluxo sem outro aparelho.
+            const self = ev.fromMe && await this.isOwnNumber(acc.tenant_id, acc.account_id, ev.e164);
+            const job = ev.fromMe && !self
               ? this.flows.humanReplied(acc.tenant_id, fa, ev.e164)
               : this.flows.onWhatsapp(acc.tenant_id, fa, { id: ev.id, from: ev.e164, text: ev.text });
             await Promise.resolve(job).catch((err: unknown) => this.log.error(`fluxos do WhatsApp (QR code): ${String(err)}`));
