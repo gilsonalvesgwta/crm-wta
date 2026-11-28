@@ -137,6 +137,13 @@ export class IgFlowsController {
     }), q));
   }
 
+  /** O que aconteceu com as últimas mensagens da conta (para entender por que um fluxo não começou). */
+  @Require('campaigns:view')
+  @Get('accounts/:id/events')
+  events(@CurrentActor() a: Actor, @Param('id') id: string) {
+    return this.svc.events(a, parse(S.uuid, id));
+  }
+
   @Require('campaigns:view')
   @Get('diagnostics')
   diagnostics(@CurrentActor() a: Actor, @Query() q: unknown) {

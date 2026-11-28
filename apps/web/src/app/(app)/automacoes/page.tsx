@@ -402,7 +402,7 @@ function ActionFields({ a, onChange, accounts, tags, stages }: {
             {list.map((x) => <option key={x.id} value={x.id}>{x.name}{x.address ? ` · ${x.address}` : ''}</option>)}
           </Select>
           {a.type === 'send_email' ? <Field label="Assunto" value={a.subject} onChange={(e) => onChange({ ...a, subject: e.target.value })} /> : null}
-          <Textarea label="Texto" rows={3} value={a.text} onChange={(e) => onChange({ ...a, text: e.target.value })} />
+          <Textarea whatsapp label="Texto" rows={3} value={a.text} onChange={(e) => onChange({ ...a, text: e.target.value })} />
         </div>
       );
     }
@@ -524,7 +524,7 @@ function NotifyTeamFields({ a, onChange, accounts }: { a: Extract<Action, { type
         <p className="text-[12px] text-muted">Pela API oficial, o aviso só chega para quem mandou mensagem a esse número nas últimas 24 horas. Para avisos da equipe, prefira um número conectado por QR code.</p>
       ) : null}
       {a.emailAccountId ? <Field label="Assunto do e-mail" value={a.subject} onChange={(e) => onChange({ ...a, subject: e.target.value })} /> : null}
-      <Textarea label="Aviso" rows={4} value={a.text} onChange={(e) => onChange({ ...a, text: e.target.value })} hint="Use {{negocio}}, {{valor}}, {{nome}}, {{link}}…" />
+      <Textarea whatsapp label="Aviso" rows={4} value={a.text} onChange={(e) => onChange({ ...a, text: e.target.value })} hint="Use {{negocio}}, {{valor}}, {{nome}}, {{link}}…" />
       <div className="flex flex-col gap-1.5">
         <span className="text-[13px] font-medium">Anexos (até 5: PDF, imagem, vídeo, áudio)</span>
         <div className="flex flex-wrap gap-1.5">

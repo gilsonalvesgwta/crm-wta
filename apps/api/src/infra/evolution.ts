@@ -151,6 +151,16 @@ export class Evolution {
     return hit ?? null;
   }
 
+  /** Últimas mensagens de uma conversa guardadas na Evolution (as do celular também), da mais nova para a mais antiga. */
+  async chatMessages(name: string, remoteJid: string, limit = 100): Promise<Json[]> {
+    const r = await this.call<unknown>('POST', `/chat/findMessages/${name}`, { where: { key: { remoteJid } }, page: 1, offset: limit }, 30_000);
+    const root = r as Json | unknown[] | null;
+    const list: unknown[] = Array.isArray(root) ? root
+      : Array.isArray((root as Json | null)?.messages) ? (root as Json).messages as unknown[]
+        : Array.isArray(((root as Json | null)?.messages as Json | undefined)?.records) ? ((root as Json).messages as Json).records as unknown[] : [];
+    return list.filter((m): m is Json => !!m && typeof m === 'object' && (((m as Json).key as Json | undefined)?.remoteJid === remoteJid)).slice(0, limit);
+  }
+
   /** Baixa a mídia de uma mensagem que a Evolution guardou (quando o aviso chegou sem o arquivo). */
   async mediaOf(name: string, messageId: string): Promise<{ base64: string; mimetype: string | null; fileName: string | null } | null> {
     const r = await this.call<Json>('POST', `/chat/getBase64FromMediaMessage/${name}`, { message: { key: { id: messageId } }, convertToMp4: false }, 60_000);

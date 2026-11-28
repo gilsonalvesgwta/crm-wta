@@ -88,6 +88,7 @@ begin
           'crmwta-' || right(replace(p_tenant::text, '-', ''), 12), '+5511988887777', sha256(convert_to('token-' || p_tenant::text, 'UTF8')), p_member);
   insert into messages (id, tenant_id, channel_account_id, channel, direction, status, contact_id, external_id, remote, body)
   values (t.id(p_tenant, 19), p_tenant, t.id(p_tenant, 18), 'whatsapp', 'in', 'received', t.id(p_tenant, 2), 'MSG-1', '+5511999990000', 'Olá');
+  insert into whatsapp_lids (tenant_id, channel_account_id, lid, e164) values (p_tenant, t.id(p_tenant, 18), '123456789012345', '+5511999990000');
 
   -- Automações (lote 3): uma regra e uma execução.
   insert into automation_rules (id, tenant_id, name, trigger, actions, created_by)

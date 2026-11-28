@@ -538,8 +538,21 @@ export class MessagesService {
     return r.rows[0]?.contact_id ?? null;
   }
 
-  async receiveWhatsapp(tenantId: string, accountId: string, ev: EvoMessage): Promise<'stored' | 'duplicate' | 'claimed'> {
+  async receiveWhatsapp(tenantId: string, accountId: string, ev: EvoMessage): Promise<'stored' | 'duplicate' | 'claimed' | 'unknown'> {
     return this.db.app({ tenantId, userId: null }, async (q) => {
+      // Endereço privado (@lid): guarda a relação com o número quando vem junto; senão, usa a já conhecida.
+      if (ev.lid) {
+        if (ev.e164) {
+          await q.query(
+            `insert into whatsapp_lids (tenant_id, channel_account_id, lid, e164) values (app.tenant_id(), $1, $2, $3)
+             on conflict (channel_account_id, lid) do update set e164 = excluded.e164, updated_at = now()`, [accountId, ev.lid, ev.e164]);
+        } else {
+          const known = (await q.query<{ e164: string }>('select e164 from whatsapp_lids where channel_account_id = $1 and lid = $2', [accountId, ev.lid])).rows[0];
+          if (!known) return 'unknown';
+          ev.e164 = known.e164;
+        }
+      }
+      if (!ev.e164) return 'unknown';
       // Eco de uma mensagem enviada pelo CRM que ainda não recebeu o identificador.
       if (ev.fromMe) {
         const claimed = await q.query(
@@ -749,6 +762,58 @@ export class MessagesService {
       if (!ok) throw new Problem(409, 'O WhatsApp não devolveu o arquivo desta mensagem. Ele pode ter expirado no celular.', 'media-unavailable');
     }
     return this.db.app(tenantCtx(actor), (q) => this.row(q, messageId));
+  }
+
+  private readonly synced = new Map<string, number>();
+
+  /**
+   * Traz da Evolution as últimas mensagens da conversa com o contato (as do
+   * cliente e as mandadas pelo celular), para a conversa no CRM ficar completa
+   * mesmo quando algum aviso não chegou. Não dispara fluxos nem automações.
+   */
+  async syncWhatsapp(tenantId: string, contactId: string, force = false): Promise<{ added: number; checked: number }> {
+    const key = `${tenantId}:${contactId}`;
+    const last = this.synced.get(key) ?? 0;
+    if (!force && Date.now() - last < 60_000) return { added: 0, checked: 0 };
+    this.synced.set(key, Date.now());
+    if (this.synced.size > 5000) this.synced.delete(this.synced.keys().next().value!);
+    const info = await this.db.app({ tenantId, userId: null }, async (q) => {
+      const phones = (await q.query<{ e164: string }>('select e164 from contact_phones where contact_id = $1 order by is_primary desc, created_at', [contactId])).rows.map((r) => r.e164);
+      const accounts = (await q.query<{ id: string; external_id: string }>(
+        `select id, external_id from channel_accounts where kind = 'whatsapp_evolution' and status = 'connected' and external_id is not null`)).rows;
+      const variants = [...new Set(phones.flatMap((p) => phoneVariants(p)))];
+      const lids = variants.length ? (await q.query<{ channel_account_id: string; lid: string; e164: string }>(
+        'select channel_account_id, lid, e164 from whatsapp_lids where e164 = any($1::text[])', [variants])).rows : [];
+      return { phones, variants, accounts, lids };
+    });
+    if (!info.phones.length || !info.accounts.length) return { added: 0, checked: 0 };
+    let added = 0;
+    let checked = 0;
+    let media = 0;
+    for (const acc of info.accounts) {
+      const jids = [
+        ...info.variants.map((p) => ({ jid: `${toEvolutionNumber(p)}@s.whatsapp.net`, e164: p })),
+        ...info.lids.filter((l) => l.channel_account_id === acc.id).map((l) => ({ jid: `${l.lid}@lid`, e164: l.e164 })),
+      ];
+      for (const j of jids) {
+        const records = await this.evo.chatMessages(acc.external_id, j.jid, 100).catch(() => [] as Record<string, unknown>[]);
+        // Da mais antiga para a mais nova: a ordem da conversa fica certa.
+        for (const rec of [...records].reverse()) {
+          const ev = readEvolutionMessage(rec);
+          if (ev.type !== 'message') continue;
+          checked++;
+          if (!ev.e164) ev.e164 = j.e164;
+          const r = await this.receiveWhatsapp(tenantId, acc.id, ev).catch(() => 'duplicate' as const);
+          if (r !== 'stored') continue;
+          added++;
+          if (!ev.media && MEDIA_KINDS.has(ev.kind) && media < 10) {
+            media++;
+            void this.recoverMedia(tenantId, acc.id, acc.external_id, ev.id).catch(() => false);
+          }
+        }
+      }
+    }
+    return { added, checked };
   }
 
   /** Mensagem da Evolution que chegou vazia: tenta de novo pelo histórico da Evolution (sem pessoa; usado logo depois do aviso). */

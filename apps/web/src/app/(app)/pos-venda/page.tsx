@@ -150,7 +150,7 @@ function Row({ item: i, tab, onDone, onUndo, onError }: { item: Item; tab: strin
       </div>
       {tab !== 'done' ? (
         <div className="mt-3 flex flex-col gap-2 border-t border-line pt-3">
-          <Textarea label="Mensagem de pós-venda" rows={3} value={text} onChange={(e) => setText(e.target.value)} />
+          <Textarea whatsapp label="Mensagem de pós-venda" rows={3} value={text} onChange={(e) => setText(e.target.value)} />
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" loading={opening} disabled={!i.contact} onClick={() => void openChat()}><MessageCircle size={15} aria-hidden />Abrir conversa com a mensagem</Button>
             <Button variant="ghost" onClick={() => void copy()}><Copy size={15} aria-hidden />{copied ? 'Copiada' : 'Copiar'}</Button>

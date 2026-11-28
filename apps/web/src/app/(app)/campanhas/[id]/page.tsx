@@ -380,7 +380,7 @@ function ContentDialog({ campaign: c, odd, onClose, onSaved }: { campaign: Campa
         {err ? <Alert tone="error">{err.errors[0]?.message ?? err.title}</Alert> : null}
         {voice ? (
           <>
-            {c.voice?.whatsapp ? <><Textarea label="Mensagem do WhatsApp" rows={5} value={wa} onChange={(e) => setWa(e.target.value)} error={err?.fieldError('whatsappText')} />{vars(wa, setWa)}{preview(wa)}</> : null}
+            {c.voice?.whatsapp ? <><Textarea whatsapp label="Mensagem do WhatsApp" rows={5} value={wa} onChange={(e) => setWa(e.target.value)} error={err?.fieldError('whatsappText')} />{vars(wa, setWa)}{preview(wa)}</> : null}
             {c.voice?.sms ? <><Textarea label="Texto do SMS" rows={3} maxLength={612} value={sms} onChange={(e) => setSms(e.target.value)} error={err?.fieldError('smsText')} />{vars(sms, setSms)}{preview(sms)}</> : null}
             {!c.voice?.whatsapp && !c.voice?.sms ? <p className="text-[13px] text-muted">Esta campanha de voz só toca o áudio: não há texto para editar.</p> : null}
           </>
@@ -395,7 +395,7 @@ function ContentDialog({ campaign: c, odd, onClose, onSaved }: { campaign: Campa
         ) : (
           <>
             {c.channel === 'email' ? <Field label="Assunto" value={subject} onChange={(e) => setSubject(e.target.value)} error={err?.fieldError('subject')} /> : null}
-            <Textarea label="Mensagem" rows={8} value={body} onChange={(e) => setBody(e.target.value)} error={err?.fieldError('body')} />
+            <Textarea whatsapp={c.channel === 'whatsapp'} label="Mensagem" rows={8} value={body} onChange={(e) => setBody(e.target.value)} error={err?.fieldError('body')} />
             {vars(body, setBody)}
             {preview(body)}
           </>

@@ -10,6 +10,13 @@ Atualizado em 9 de novembro de 2026.
 
 ## Concluído, com teste
 
+### Fluxos, formatação do WhatsApp e conversa completa (28 nov 2026)
+
+- Fluxos no WhatsApp: a palavra-chave exata (ex.: "#01") começa o fluxo mesmo com outro fluxo esperando a resposta da pessoa (o que esperava é cancelado). Mensagem para si mesmo no celular conectado (conversa "Você") também testa o fluxo. Botão "Testar" no editor mostra as últimas mensagens que chegaram no número e o que os fluxos fizeram com cada uma (`GET /api/v1/instagram/accounts/:id/events`).
+- Área de trabalho do fluxo: zoom no alto à direita, sempre visível (−, barra, +, 100%, "Ver tudo"), Ctrl + rolar o mouse e Ctrl +/−/0.
+- Formatação do WhatsApp (negrito, itálico, tachado, monoespaçado, listas, citação) com "Prévia" em balão: campanha, campanha pausada, conversa, fluxos, respostas prontas, ações agendadas, automações, modelos, pós-venda e campanha de voz. As mensagens do WhatsApp aparecem formatadas na conversa.
+- Conversa completa: mensagens com endereço privado do WhatsApp (@lid) passam a ser reconhecidas (o CRM aprende o número quando vem junto; migração 0032 `whatsapp_lids`), inclusive as mandadas pelo celular. "Sincronizar com o celular" na conversa (e automático ao abrir, no máximo 1 vez por minuto) traz da Evolution as últimas 100 mensagens da conversa que faltarem, em ordem, sem disparar fluxos (`POST /api/v1/conversations/:id/sync`).
+
 ### Data do fechamento e pós-venda (27 nov 2026)
 
 - Ao marcar ganho ou perdido, campo "Data do fechamento" (padrão hoje, sem datas futuras): negócio antigo ou importado fecha com a data real e conta no mês certo em relatórios, metas e KPIs (`closed_at` e a passagem no funil). "Alterar data" na página do negócio fechado (`PATCH /api/v1/deals/:id/closed-at`).

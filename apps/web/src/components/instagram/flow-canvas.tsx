@@ -163,7 +163,7 @@ export function FlowCanvas({ graph, selected, selectedEdge, issues, readOnly, ch
   function zoomAt(clientX: number, clientY: number, factor: number) {
     const r = box.current!.getBoundingClientRect();
     setView((v) => {
-      const zoom = Math.min(1.6, Math.max(0.3, v.zoom * factor));
+      const zoom = Math.min(2, Math.max(0.2, v.zoom * factor));
       const px = clientX - r.left, py = clientY - r.top;
       return { zoom, x: px - ((px - v.x) / v.zoom) * zoom, y: py - ((py - v.y) / v.zoom) * zoom };
     });
@@ -172,6 +172,22 @@ export function FlowCanvas({ graph, selected, selectedEdge, issues, readOnly, ch
     const r = box.current!.getBoundingClientRect();
     zoomAt(r.left + r.width / 2, r.top + r.height / 2, f);
   };
+  /** Vai para um zoom exato (100%, ou o da barra), mantendo o centro da tela. */
+  const zoomTo = (z: number) => zoomCenter(z / view.zoom);
+
+  // Atalhos: Ctrl/⌘ + e − aproximam e afastam; Ctrl/⌘ 0 enquadra o fluxo.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomCenter(1.2); }
+      else if (e.key === '-') { e.preventDefault(); zoomCenter(1 / 1.2); }
+      else if (e.key === '0') { e.preventDefault(); fit(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   const byNode = new Map<string, FlowIssue[]>();
   for (const i of issues) if (i.nodeId) byNode.set(i.nodeId, [...(byNode.get(i.nodeId) ?? []), i]);
@@ -221,11 +237,19 @@ export function FlowCanvas({ graph, selected, selectedEdge, issues, readOnly, ch
             onLinkStart={(e, handle) => { if (!readOnly) down(e, { kind: 'link', source: n.id, handle, to: toWorld(e.clientX, e.clientY) }); }} />
         ))}
       </div>
-      <div className="absolute bottom-3 left-3 flex overflow-hidden rounded-[8px] border border-line bg-surface shadow-sm" onPointerDown={(e) => e.stopPropagation()}>
-        <button type="button" aria-label="Afastar" onClick={() => zoomCenter(1 / 1.2)} className="flex size-9 items-center justify-center hover:bg-surface-2"><Minus size={16} aria-hidden /></button>
-        <span className="flex w-12 items-center justify-center border-x border-line text-xs text-muted">{Math.round(view.zoom * 100)}%</span>
-        <button type="button" aria-label="Aproximar" onClick={() => zoomCenter(1.2)} className="flex size-9 items-center justify-center hover:bg-surface-2"><Plus size={16} aria-hidden /></button>
-        <button type="button" aria-label="Enquadrar o fluxo" onClick={fit} className="flex size-9 items-center justify-center border-l border-line hover:bg-surface-2"><Maximize size={15} aria-hidden /></button>
+      {/* Zoom no alto, sempre à vista (também Ctrl + rolar o mouse e Ctrl + / Ctrl −). */}
+      <div role="toolbar" aria-label="Zoom da área de trabalho" onPointerDown={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()}
+        className="absolute right-3 top-3 z-10 flex items-center overflow-hidden rounded-[10px] border border-line bg-surface shadow-md">
+        <button type="button" aria-label="Afastar" title="Afastar (Ctrl −)" onClick={() => zoomCenter(1 / 1.2)} className="flex size-10 items-center justify-center hover:bg-surface-2"><Minus size={18} aria-hidden /></button>
+        <input type="range" aria-label="Zoom" min={20} max={200} step={5} value={Math.round(view.zoom * 100)} onChange={(e) => zoomTo(Number(e.target.value) / 100)}
+          className="hidden w-28 accent-[var(--primary)] sm:block" />
+        <button type="button" aria-label="Aproximar" title="Aproximar (Ctrl +)" onClick={() => zoomCenter(1.2)} className="flex size-10 items-center justify-center hover:bg-surface-2"><Plus size={18} aria-hidden /></button>
+        <button type="button" title="Tamanho real (100%)" onClick={() => zoomTo(1)} className="flex h-10 min-w-14 items-center justify-center border-x border-line px-2 text-[13px] font-semibold tabular-nums hover:bg-surface-2">
+          {Math.round(view.zoom * 100)}%
+        </button>
+        <button type="button" aria-label="Enquadrar o fluxo" title="Ver o fluxo inteiro (Ctrl 0)" onClick={fit} className="flex h-10 items-center gap-1.5 px-3 text-[13px] font-medium hover:bg-surface-2">
+          <Maximize size={16} aria-hidden /><span className="hidden md:inline">Ver tudo</span>
+        </button>
       </div>
     </div>
   );

@@ -355,6 +355,23 @@ export class IgFlowsService {
 
   // ---- Diagnóstico --------------------------------------------------------------------
 
+  /**
+   * Últimas mensagens que chegaram na conta e o que os fluxos fizeram com cada
+   * uma ("fluxo X", "nenhum fluxo para este gatilho", "resposta da pergunta"…).
+   * Vale para o WhatsApp (QR code e oficial) e o Instagram.
+   */
+  async events(actor: Actor, accountId: string) {
+    return this.db.app(tenantCtx(actor), async (q) => {
+      const a = (await q.query<{ id: string; name: string; kind: string; address: string | null }>('select id, name, kind, address from channel_accounts where id = $1', [accountId])).rows[0];
+      if (!a) throw Problem.notFound('Conta não encontrada.');
+      const items = (await q.query(
+        `select l.id, l.kind, l.summary, l.outcome, l.created_at as "createdAt",
+                (select json_build_object('id', f.id, 'name', f.name) from ig_flows f where f.id = l.flow_id) as flow
+           from ig_webhook_log l where l.channel_account_id = $1 order by l.id desc limit 30`, [accountId])).rows;
+      return { account: { id: a.id, name: a.name, kind: a.kind, address: a.address }, items };
+    });
+  }
+
   async diagnostics(actor: Actor, accountId: string) {
     const a = await this.db.app(tenantCtx(actor), (q) => this.account(q, accountId));
     let subscribed: string[] | null = null;

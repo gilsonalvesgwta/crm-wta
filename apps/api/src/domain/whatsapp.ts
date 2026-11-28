@@ -11,7 +11,10 @@ export type EvoMessage = {
   fromMe: boolean;
   /** Tipo original no WhatsApp (para explicar quando não dá para mostrar). */
   msgType?: string | null;
+  /** Número em E.164. Vazio quando o WhatsApp mandou só o identificador privado (@lid) e o número ainda não é conhecido. */
   e164: string;
+  /** Identificador privado do WhatsApp ("1234567890@lid" → "1234567890"), quando veio. */
+  lid?: string | null;
   pushName: string | null;
   kind: MessageKind;
   text: string | null;
@@ -142,7 +145,9 @@ function readMessage(d: Record<string, unknown>): EvoMessage | EvoIgnored {
   const remote = str(key.remoteJid) ?? '';
   if (/@(g\.us|broadcast|newsletter)$/.test(remote)) return { type: 'ignored', reason: 'grupo, status ou canal' };
   const e164 = jids.map(jidToE164).find((v) => v) ?? null;
-  if (!e164) return { type: 'ignored', reason: 'número não identificado' };
+  // Endereço privado (@lid): o número pode vir junto (remoteJidAlt/senderPn) ou já ser conhecido de outra mensagem.
+  const lid = jids.map((j) => /^(\d{5,25})(?::\d+)?@lid$/.exec(j ?? '')?.[1]).find((v) => v) ?? null;
+  if (!e164 && !lid) return { type: 'ignored', reason: 'número não identificado' };
   const raw = obj(d.message) ?? {};
   const hint = str(d.messageType);
   if (hint && SKIP_TYPES.has(hint)) return { type: 'ignored', reason: hint };
@@ -169,7 +174,8 @@ function readMessage(d: Record<string, unknown>): EvoMessage | EvoIgnored {
     type: 'message',
     id,
     fromMe: key.fromMe === true,
-    e164,
+    e164: e164 ?? '',
+    lid,
     pushName: str(d.pushName),
     kind,
     text: text ? text.slice(0, 65536) : null,

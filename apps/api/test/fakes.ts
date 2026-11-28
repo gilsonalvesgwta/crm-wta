@@ -82,8 +82,14 @@ export class FakeEvolution {
               : send(400, { status: 400, error: 'Bad Request', response: { message: ['Message not found'] } });
           }
           case 'POST /chat/findMessages': {
-            const id = String(((body.where as { key?: { id?: string } } | undefined)?.key?.id) ?? '');
-            const m = this.stored.get(id);
+            const where = (body.where as { key?: { id?: string; remoteJid?: string } } | undefined)?.key ?? {};
+            if (where.remoteJid) {
+              // Histórico da conversa, da mais nova para a mais antiga (como a Evolution).
+              const recs = [...this.stored.values()].filter((m) => (m.key as { remoteJid?: string } | undefined)?.remoteJid === where.remoteJid)
+                .sort((a, b) => Number(b.messageTimestamp) - Number(a.messageTimestamp));
+              return send(200, { messages: { total: recs.length, pages: 1, currentPage: 1, records: recs } });
+            }
+            const m = this.stored.get(String(where.id ?? ''));
             return send(200, { messages: { total: m ? 1 : 0, pages: 1, currentPage: 1, records: m ? [m] : [] } });
           }
           case 'POST /webhook/set': inst.webhook = (body.webhook as { url: string }).url; return send(201, { webhook: body.webhook });

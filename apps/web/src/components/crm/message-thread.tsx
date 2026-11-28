@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { AlertCircle, AtSign, CalendarClock, Check, CheckCheck, Clock, Download, FileText, Mail, MessageCircle, MessageSquareText, Paperclip, Play, Send, X } from 'lucide-react';
+import { AlertCircle, AtSign, RefreshCw, CalendarClock, Check, CheckCheck, Clock, Download, FileText, Mail, MessageCircle, MessageSquareText, Paperclip, Play, Send, X } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { fileSize, fmtDateTime, phone } from '@/lib/crm';
 import { CHANNEL_NAME, KIND_LABEL, KIND_NAME, STATUS_LABEL, channelOfKind, fillTemplate, renderTemplate, templateVariables, type Channel, type Message, type QuickReply, type SendAccount, type WaTemplate } from '@/lib/messages';
@@ -10,6 +10,7 @@ import { MediaPreview, VoiceRecorder } from './media';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
+import { WaPreview, WaText, WaToolbar } from '@/components/ui/wa-format';
 
 type Target = { phones: string[]; emails: string[]; instagram?: string[] };
 
@@ -141,7 +142,7 @@ function Bubble({ m }: { m: Message }) {
         {m.file || MEDIA_ACTION[m.kind] ? <MessageMedia m={m} out={out} />
           : !m.body && m.kind === 'other' && m.channel === 'whatsapp' ? <MissingContent m={m} out={out} />
             : !m.body ? <p className="italic text-muted">{KIND_LABEL[m.kind] ?? 'Mensagem'}</p> : null}
-        {m.body ? <p className="whitespace-pre-wrap break-words"><Linked text={m.body} /></p> : null}
+        {m.body ? (m.channel === 'whatsapp' ? <p><WaText text={m.body} /></p> : <p className="whitespace-pre-wrap break-words"><Linked text={m.body} /></p>) : null}
         {m.status === 'failed' && m.error ? <p className="text-[12px] font-medium text-bad">{m.error}</p> : null}
         <p className="flex items-center justify-end gap-1.5 text-[11px] text-muted">
           <time dateTime={m.createdAt}>{fmtDateTime.format(new Date(m.createdAt))}</time>
@@ -231,6 +232,23 @@ export function MessageThread({ contactId, contactName, conversation, target, ca
     return () => clearInterval(t);
   }, [load]);
 
+  // WhatsApp por QR code: ao abrir, traz do celular o que faltar (mensagens do cliente e as mandadas pelo celular).
+  const [syncing, setSyncing] = useState<'idle' | 'busy' | string>('idle');
+  const syncId = conversation?.channel === 'whatsapp' ? conversation.id : null;
+  const sync = useCallback(async (force: boolean) => {
+    if (!syncId) return;
+    setSyncing('busy');
+    try {
+      const r = await api<{ added: number }>('POST', `/api/v1/conversations/${syncId}/sync${force ? '?force=1' : ''}`, {});
+      if (r.added) await load();
+      setSyncing(force ? (r.added ? `${r.added} mensagem(ns) trazida(s) do celular` : 'Já está tudo aqui') : 'idle');
+    } catch {
+      setSyncing(force ? 'Não foi possível falar com o celular agora' : 'idle');
+    }
+  }, [syncId, load]);
+  useEffect(() => { void sync(false); }, [sync]);
+
+  const [preview, setPreview] = useState(false);
   const only = conversation?.channel;
   useEffect(() => {
     if (!canSend) return;
@@ -339,6 +357,15 @@ export function MessageThread({ contactId, contactName, conversation, target, ca
   const pickerId = `respostas-${contactId}`;
   return (
     <div className="flex flex-col">
+      {syncId ? (
+        <div className="flex items-center justify-end gap-2 border-b border-line bg-surface px-3 py-1.5 text-[12px] text-muted">
+          {syncing !== 'idle' && syncing !== 'busy' ? <span role="status">{syncing}</span> : null}
+          <button type="button" onClick={() => void sync(true)} disabled={syncing === 'busy'} title="Traz do celular as mensagens que faltarem nesta conversa"
+            className="inline-flex h-7 items-center gap-1.5 rounded-[6px] px-2 font-medium hover:bg-surface-2 hover:text-ink disabled:opacity-60">
+            <RefreshCw size={13} aria-hidden className={syncing === 'busy' ? 'animate-spin' : ''} />Sincronizar com o celular
+          </button>
+        </div>
+      ) : null}
       <ul ref={list} aria-label="Mensagens" aria-live="polite" className={`flex ${height} flex-col gap-2 overflow-y-auto bg-bg p-3`}>
         {loadErr ? <li><Alert tone="error">{loadErr}</Alert></li>
           : !items ? <li className="m-auto text-muted"><Spinner label="Carregando mensagens" /></li>
@@ -460,11 +487,13 @@ export function MessageThread({ contactId, contactName, conversation, target, ca
                 )}
               </div>
             ) : null}
+            {channel === 'whatsapp' && !tpl ? <WaToolbar target={textArea} preview={preview} onPreview={setPreview} /> : null}
             <label className="sr-only" htmlFor={`texto-${contactId}`}>Mensagem</label>
             <textarea ref={textArea} id={`texto-${contactId}`} hidden={!!tpl} value={text} onChange={(e) => onText(e.target.value)} onKeyDown={onKey} rows={3}
               aria-describedby={`dica-${contactId}`}
               placeholder={isEmail ? 'Escreva o e-mail (/ para respostas prontas)' : 'Escreva a mensagem (/ para respostas prontas, Ctrl+Enter envia)'}
               className="resize-y rounded-[6px] border border-line-strong bg-surface px-3 py-2 text-sm" />
+            {channel === 'whatsapp' && !tpl && preview ? <WaPreview text={text} /> : null}
             <span id={`dica-${contactId}`} className="sr-only">Digite barra para buscar uma resposta pronta; use as setas e Enter para escolher.</span>
             <input ref={fileInput} type="file" className="sr-only" tabIndex={-1} aria-label="Anexar arquivo à mensagem"
               onChange={(e) => { setFile(e.target.files?.[0] ?? null); keepVoice(null); e.target.value = ''; }} />
