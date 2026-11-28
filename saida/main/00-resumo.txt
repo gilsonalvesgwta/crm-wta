@@ -3,4 +3,4 @@ tipos: success
 testes-api: success
 compilar: success
 ponta-a-ponta: success
-fim: 2026-11-28T00:41:41Z
+fim: 2026-11-28T02:40:26Z
