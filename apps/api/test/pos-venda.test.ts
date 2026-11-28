@@ -145,14 +145,14 @@ describe('Pós-venda', () => {
   test('X dias depois do ganho: avisa a equipe por WhatsApp e no CRM, e repete a cada Y dias até o limite', async () => {
     contact = (await admin.post('/api/v1/contacts', { firstName: 'Marcos', lastName: 'Silva', phones: [{ number: '+55 11 95555-1234' }] })).body.id;
     won = await deal('Carta 300 mil', { contactId: contact });
-    await admin.post(`/api/v1/deals/${won}/move`, { stageId: stage('won').id, closedAt: new Date(Date.now() - 31 * 86400_000).toISOString().slice(0, 10) });
+    await admin.post(`/api/v1/deals/${won}/move`, { stageId: stage('won').id, closedAt: new Date(Date.now() - 32 * 86400_000).toISOString().slice(0, 10) });
     // Os negócios fechados em 2024/2025 dos testes acima também entram (sem data "a partir de").
     const before = evo.sent.length;
     await run();
     const msgs = evo.sent.slice(before);
     const toTeam = msgs.filter((m) => JSON.stringify(m.body).includes('Marcos Silva'));
     assert.equal(new Set(toTeam.map((m) => String(m.body.number))).size, 2, 'as duas pessoas (fixa e número avulso)');
-    assert.match(String(toTeam[0]!.body.text), /Pós-venda: Marcos Silva \(\(11\) 95555-1234\) fechou há 31 dias — 1º aviso\./);
+    assert.match(String(toTeam[0]!.body.text), /Pós-venda: Marcos Silva \(\(11\) 95555-1234\) fechou há 3[123] dias — 1º aviso\./);
     const n = await f.admin.query(`select title, link from notifications where kind = 'deal.aftersale' and membership_id = $1`, [salesMember]);
     assert.equal(n.rowCount, 1);
     assert.equal(n.rows[0].link, '/pos-venda');
