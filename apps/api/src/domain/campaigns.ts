@@ -63,7 +63,28 @@ export const voiceSettings = z.object({
     text: z.string().trim().min(1, { message: 'Escreva o SMS.' }).max(612, { message: 'SMS de até 612 caracteres.' }),
     when: extraWhen.default('not_answered'),
   }).nullable().default(null),
-}).default({ digits: false, keys: {}, ringSeconds: 30, machineDetection: false, whatsapp: null, sms: null });
+  // ---- Recursos da Velip ----
+  /** Texto falado por voz sintética, em vez do áudio gravado ("<NOME>" vira o primeiro nome do contato). */
+  tts: z.object({
+    text: z.string().trim().min(1, { message: 'Escreva o texto que será falado.' }).max(2000),
+    voice: z.string().trim().max(120).nullable().default(null),
+  }).nullable().default(null),
+  /** Áudio que já está cadastrado na Velip ("tf12345"), em vez de um da biblioteca. */
+  providerAudioId: z.string().trim().regex(/^[A-Za-z0-9]{1,40}$/, { message: 'Áudio inválido.' }).nullable().default(null),
+  /** Transferir para um atendente (número, fila "FI…" ou agente de IA "RT…"): ao apertar a tecla ou direto ao atender. */
+  transfer: z.object({
+    to: z.string().trim().min(3, { message: 'Informe para onde transferir.' }).max(40),
+    key: z.string().regex(/^[0-9]$/).nullable().default(null),
+    record: z.boolean().default(false),
+  }).nullable().default(null),
+  /** Tentar de novo quem não atende. */
+  retries: z.object({
+    times: z.number().int().min(1).max(5),
+    everyMinutes: z.number().int().min(5, { message: 'Mínimo 5 minutos.' }).max(240),
+  }).nullable().default(null),
+  /** Só ligar no horário permitido para o DDD do número. */
+  dddHours: z.boolean().default(false),
+}).default({ digits: false, keys: {}, ringSeconds: 30, machineDetection: false, whatsapp: null, sms: null, tts: null, providerAudioId: null, transfer: null, retries: null, dddHours: false });
 export type VoiceSettings = z.infer<typeof voiceSettings>;
 
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'Use HH:MM.' });

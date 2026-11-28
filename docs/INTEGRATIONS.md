@@ -201,6 +201,7 @@ Campanha "Ligação (torpedo de voz)": o CRM pede a ligação à operadora escol
 | Zenvia Voz (TotalVoice) | `POST {api2.totalvoice.com.br}/audio` (`url_audio`, `resposta_usuario`) | gravada pela Zenvia | o despachante consulta `GET /audio/{id}` | `POST /sms` |
 | Infobip | `POST {conta}/tts/3/advanced` (`audioFileUrl`, `notifyUrl`) | `dtmfTimeout` | aviso em `…/infobip` | `/sms/2/text/advanced` |
 | Central própria (Asterisk) | ARI `POST /ari/channels` → contexto `crm-voz` (roteiro na tela) | `Read()` + `CURL` em `…/sip?evento=tecla` | `…/sip?evento=fim&status=ANSWER&duracao=` | — |
+| Velip | `POST {vox.velip.com.br}/api/v2/MakeTTSCall.php` (`content` ou `text`+`voice`, `type` 0/6/2/3, `ctid`, `rurl`, `repeat`, `bkddd`) | confirmação `type=6` (`dtmfini`) ou transferência `dtmfconf` | `rurl` com `cd_status`, `dur`, `resp_1`, `cdr_url`; consulta `GetCallStatus` | `MakeSMS` (160) |
 | Outra operadora (API) | `POST` no endereço informado com `to`, `audioUrl`, `callbackUrl`… | — | `POST callbackUrl { status, digits, duration }` | endereço opcional |
 
 - Endereços: `APP_URL/api/v1/public/voz/<id da operadora>.<assinatura>/<destinatário>/<evento>`; áudio em `/api/v1/public/voz/audio/<assinado>.mp3|.wav` (vale 2 dias). Sem login; endereço adulterado devolve 404.

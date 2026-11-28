@@ -10,6 +10,15 @@ Atualizado em 9 de novembro de 2026.
 
 ## Concluído, com teste
 
+### Velip nas campanhas de voz (28 nov 2026)
+
+- Nova operadora "Velip" (API v2 em https://vox.velip.com.br/api/v2, token `tsid` de Integrações › Tokens API, cifrado). "Testar" confere o token (GetUserID) e faz a ligação de teste.
+- O que a pessoa ouve: áudio gravado da biblioteca (sobe uma vez para a Velip por CreateAudioFile e o identificador fica guardado), áudio já cadastrado na Velip (GetAudiosList) ou texto falado com as vozes da conta (GetTTSVoices), com `<NOME>` virando o primeiro nome.
+- Teclas: confirmação da Velip (type 6, teclas aceitas), com as mesmas ações das outras operadoras. Transferência para atendente, fila (FI…) ou agente de IA (RT…), ao apertar a tecla ou ao atender, com gravação ("ouvir gravação" no relatório). Novas tentativas para quem não atende (`repeat`) e horário permitido por DDD (`bkddd`). SMS junto pela Velip (MakeSMS, 160 caracteres).
+- Resultado: o CRM manda o endereço de retorno em cada ligação (`rurl`, JSON, formulário ou GET), com `ctid` = destinatário; "URL atendimento" da Velip (tecla e "atendeu" na hora) pode apontar para o endereço único da conta, que acha a ligação pelo `cd_id`. Sem aviso, o despachante consulta GetCallStatus.
+- Migração 0033: operadora `velip`, `voice_providers.audio_cache` e `campaign_recipients.call_recording_url`.
+- Testado com uma Velip de mentira no formato da documentação pública. **Falta o teste com a conta real** (a conta está "em análise": só liga para o celular de quem abriu a conta até a Velip liberar).
+
 ### Fluxos, formatação do WhatsApp e conversa completa (28 nov 2026)
 
 - Fluxos no WhatsApp: a palavra-chave exata (ex.: "#01") começa o fluxo mesmo com outro fluxo esperando a resposta da pessoa (o que esperava é cancelado). Mensagem para si mesmo no celular conectado (conversa "Você") também testa o fluxo. Botão "Testar" no editor mostra as últimas mensagens que chegaram no número e o que os fluxos fizeram com cada uma (`GET /api/v1/instagram/accounts/:id/events`).

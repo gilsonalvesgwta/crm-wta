@@ -1,10 +1,12 @@
 // Operadoras de voz (campanhas de ligação): campos de cada uma e textos de ajuda.
 
-export type VoiceProviderKind = 'twilio' | 'plivo' | 'telnyx' | 'zenvia' | 'infobip' | 'sip' | 'http';
+export type VoiceProviderKind = 'twilio' | 'plivo' | 'telnyx' | 'zenvia' | 'infobip' | 'sip' | 'http' | 'velip';
 
 export type VoiceProvider = {
   id: string; name: string; provider: VoiceProviderKind; config: Record<string, string>; secretHint: string | null;
   status: 'untested' | 'ok' | 'error'; lastError: string | null; testedAt: string | null; sms: boolean; callbackUrl: string;
+  /** Endereço único da conta (ex.: "URL atendimento" da Velip). */
+  accountUrl?: string;
 };
 
 export type VoiceAudio = { id: string; name: string; contentType: string; size: number; createdAt: string };
@@ -12,6 +14,16 @@ export type VoiceAudio = { id: string; name: string; contentType: string; size: 
 type FieldDef = { key: string; label: string; placeholder?: string; hint?: string; required?: boolean; secret?: boolean };
 
 export const PROVIDERS: Record<VoiceProviderKind, { label: string; about: string; site?: string; fields: FieldDef[] }> = {
+  velip: {
+    label: 'Velip',
+    about: 'Empresa brasileira de torpedo de voz e SMS, com crédito pré-pago em reais. Além do áudio gravado: voz sintética (texto falado), teclas, transferência para atendente ou fila, gravação, novas tentativas e horário permitido por DDD.',
+    site: 'https://vox.velip.com.br',
+    fields: [
+      { key: 'tsid', label: 'Token da API (tsid)', secret: true, required: true, hint: 'No painel da Velip: Integrações › Tokens API › Gerar token (não use o token do MCP Server).' },
+      { key: 'callerId', label: 'Bina (opcional)', placeholder: '11 4000-0000', hint: 'Só vale se a sua conta Velip tiver bina fixa ou rota própria.' },
+      { key: 'baseUrl', label: 'Endereço da API', placeholder: 'https://vox.velip.com.br', hint: 'Deixe em branco, salvo se a Velip indicar outro.' },
+    ],
+  },
   twilio: {
     label: 'Twilio',
     about: 'Global, cadastro na hora pelo site e pagamento em dólar por minuto. Precisa de um número de telefone comprado na Twilio (ou verificado) para aparecer como bina.',

@@ -81,7 +81,10 @@ function problems(d: Draft, step: number, preview: AudiencePreview | null, cloud
   if (step === 1 && preview && preview.eligible === 0) e.audience = 'Ninguém deste público pode receber. Mude os filtros.';
   if (step === 2 && d.channel === 'voice') {
     if (!d.voiceProviderId) e.voiceProviderId = 'Escolha a operadora.';
-    if (!d.audioFileId) e.audioFileId = 'Escolha ou grave o áudio da ligação.';
+    // Velip: o áudio pode ser um já cadastrado lá ou texto falado.
+    if (!d.audioFileId && !d.voice.tts && !d.voice.providerAudioId) e.audioFileId = 'Escolha ou grave o áudio da ligação.';
+    if (d.voice.tts && !d.voice.tts.text.trim()) e['voice.tts.text'] = 'Escreva o texto que será falado.';
+    if (d.voice.transfer && !d.voice.transfer.to.trim()) e['voice.transfer.to'] = 'Informe para onde transferir.';
     if (d.voice.whatsapp && !d.voice.whatsapp.text.trim()) e['voice.whatsapp.text'] = 'Escreva a mensagem do WhatsApp.';
     if (d.voice.whatsapp && !d.voice.whatsapp.accountId) e['voice.whatsapp.accountId'] = 'Escolha o WhatsApp.';
     if (d.voice.sms && !d.voice.sms.text.trim()) e['voice.sms.text'] = 'Escreva o SMS.';
@@ -196,7 +199,7 @@ export function CampaignWizard({ initial, preset }: { initial: Campaign | null; 
       successTagId: d.successTagId || null,
       ...(d.channel === 'voice'
         ? { accountId: null, body: null, voiceProviderId: d.voiceProviderId || null, audioFileId: d.audioFileId || null,
-          voice: { ...d.voice, keys: d.voice.digits ? d.voice.keys : {} } }
+          voice: { ...d.voice, keys: d.voice.digits ? d.voice.keys : {}, providerAudioId: d.voice.providerAudioId || null } }
         : {}),
     };
   }

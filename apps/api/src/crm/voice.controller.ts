@@ -48,6 +48,13 @@ export class VoiceController {
     return this.svc.test(a, id(i), parse(voiceTestBody, b ?? {}));
   }
 
+  /** Velip: vozes sintéticas e áudios já cadastrados na conta. */
+  @Require('campaigns:view')
+  @Get('providers/:id/velip')
+  velip(@CurrentActor() a: Actor, @Param('id') i: string) {
+    return this.svc.velipCatalog(a, id(i));
+  }
+
   @Require('campaigns:view')
   @Get('audios')
   audios(@CurrentActor() a: Actor) {
