@@ -1,0 +1,556 @@
+
+> @crm/api@ test /home/runner/work/crm-wta/crm-wta/apps/api
+> rm -rf .test-out && tsc -p tsconfig.json --outDir .test-out && node --test --test-concurrency=1 --test-reporter=spec ".test-out/test/**/*.test.js"
+
+(node:3930) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ acesso às rotas de administração
+  ✔ administrador sem 2FA é barrado com explicação (15.583221ms)
+  ✔ vendedor não administra usuários, mas lê os dados da empresa (9.517639ms)
+  ✔ gestor vê auditoria mas não administra usuários (18.030532ms)
+✔ acesso às rotas de administração (1642.66237ms)
+▶ empresa e identidade visual
+  ✔ fuso inválido é recusado; válido é salvo e auditado (9.373202ms)
+  ✔ vendedor não altera a empresa (2.659618ms)
+  ✔ cor sem contraste é recusada; cor válida gera o tema e só vale para a empresa (16.559669ms)
+✔ empresa e identidade visual (28.956102ms)
+▶ convites
+  ✔ convidar envia e-mail e aparece na lista (16.977577ms)
+  ✔ reenviar invalida o link anterior (8.14939ms)
+  ✔ aceitar o convite cria a pessoa com o perfil escolhido (30.966268ms)
+  ✔ não convida quem já tem acesso (9.532338ms)
+  ✔ cancelar convite (18.480673ms)
+  ✔ perfil de outra empresa não serve para convite (5.893457ms)
+✔ convites (90.610018ms)
+▶ usuários
+  ✔ a lista mostra perfis e situação da verificação (4.790482ms)
+  ✔ ninguém desativa o próprio acesso (4.143633ms)
+  ✔ a empresa nunca fica sem administrador (19.189403ms)
+  ✔ desativar alguém derruba a sessão dele na hora (24.268494ms)
+  ✔ trocar o perfil muda as permissões (17.174733ms)
+  ✔ vínculo de outra empresa é invisível (6.150622ms)
+✔ usuários (76.203927ms)
+▶ equipes
+  ✔ criar, nomes únicos, membros e exclusão (28.244421ms)
+✔ equipes (28.403382ms)
+▶ perfis
+  ✔ o catálogo informa os alcances permitidos (3.148212ms)
+  ✔ perfil personalizado: criar, aplicar, editar, proteger e excluir (67.086293ms)
+  ✔ perfil de outra empresa é invisível (4.999815ms)
+✔ perfis (75.475946ms)
+▶ auditoria
+  ✔ lista as ações da empresa, da mais nova para a mais velha, com paginação (9.158066ms)
+  ✔ a empresa B não vê nada da A (2.531836ms)
+✔ auditoria (11.843214ms)
+▶ plataforma
+  ✔ quem não é superadministrador nem sabe que a rota existe (1.945159ms)
+  ✔ superadministrador sem 2FA é barrado (11.137231ms)
+  ✔ criar empresa prepara perfis e convida o administrador; suspender derruba o acesso (89.695823ms)
+✔ plataforma (103.016765ms)
+(node:4266) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ saúde
+  ✔ healthz e readyz respondem sem login (16.627023ms)
+  ✔ rota inexistente devolve 404 no formato de problema (1.282296ms)
+  ✔ cabeçalhos de segurança (0.743983ms)
+✔ saúde (1393.026507ms)
+▶ login
+  ✔ sem sessão, /me pede login (0.802982ms)
+  ✔ senha errada e e-mail desconhecido dão a mesma resposta (32.865905ms)
+  ✔ campos inválidos devolvem 422 com o campo (2.567856ms)
+  ✔ login certo grava cookie httpOnly, Secure e SameSite=Lax e entra na única empresa (27.502105ms)
+  ✔ "manter conectado" grava validade no cookie (13.738747ms)
+  ✔ o vendedor recebe só as permissões do perfil Comercial (15.441472ms)
+  ✔ mutação sem o cabeçalho anti-CSRF é recusada (15.185122ms)
+  ✔ sair encerra a sessão no servidor (15.620099ms)
+  ✔ cookie forjado não abre sessão (1.735814ms)
+  ✔ conta sem empresa ativa entra sem empresa e não alcança dado de empresa alguma (14.823996ms)
+✔ login (141.170995ms)
+▶ várias empresas
+  ✔ quem tem duas empresas escolhe uma depois do login (25.667195ms)
+  ✔ não entra em empresa onde não tem vínculo (15.66378ms)
+  ✔ vínculo desativado derruba a sessão naquela empresa (16.879273ms)
+✔ várias empresas (58.562521ms)
+▶ força bruta
+  ✔ cinco senhas erradas travam o e-mail por um minuto, mesmo com a senha certa (43.107048ms)
+  ✔ o bloqueio de um e-mail não atinge outro (8.955327ms)
+  ✔ cada tentativa fica registrada (0.693547ms)
+✔ força bruta (53.032449ms)
+▶ nova senha por link
+  ✔ pedir, receber o e-mail, redefinir e entrar com a senha nova (43.447249ms)
+  ✔ e-mail desconhecido recebe a mesma resposta e nenhum e-mail sai (2.306966ms)
+  ✔ o e-mail não guarda o token no banco, só o hash (1.036444ms)
+✔ nova senha por link (47.081228ms)
+▶ troca de senha
+  ✔ exige a senha atual e mantém só a sessão atual (43.292716ms)
+✔ troca de senha (43.493408ms)
+▶ verificação em duas etapas
+  ✔ configurar e ativar com um código do aplicativo (22.386425ms)
+  ✔ no próximo login, nada abre antes do código (22.780123ms)
+  ✔ código de recuperação vale uma vez (25.828702ms)
+  ✔ administrador não pode desligar a verificação (24.267574ms)
+✔ verificação em duas etapas (95.713683ms)
+▶ sessões
+  ✔ a pessoa lista e encerra as próprias sessões, e não as de outra (36.47855ms)
+✔ sessões (36.660645ms)
+▶ convites
+  ✔ pessoa nova aceita, cria a conta e entra (27.131586ms)
+  ✔ conta que ficou sem empresa entra e aceita um convite novo (43.785332ms)
+  ✔ quem já tem conta precisa estar logado como ela (27.26192ms)
+✔ convites (98.512412ms)
+(node:4580) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ variáveis
+  ✔ troca as variáveis e some com as desconhecidas (0.626034ms)
+✔ variáveis (1839.310738ms)
+(node:4580) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+▶ automações
+  ✔ contato novo: WhatsApp com o nome, etiqueta e aviso ao n8n (4346.66751ms)
+  ✔ negócio entra na etapa: espera e depois cria a tarefa para o responsável (6435.355481ms)
+  ✔ negócio ganho: avisa a equipe por WhatsApp e e-mail, com o PDF anexado (2223.812713ms)
+  ✔ filtro de etiqueta: contato sem a etiqueta é pulado, com o motivo (2135.048305ms)
+  ✔ aniversário: e-mail no dia, uma vez (4255.32468ms)
+  ✔ negócio parado: tarefa de follow-up depois de N dias sem atividade (2182.909782ms)
+  ✔ mensagem recebida: resposta automática no máximo a cada 12 horas por contato (4280.33315ms)
+  ✔ opt-out: automação não envia para quem está na lista de supressão (2163.21193ms)
+  ✔ validação, limite do plano, desligar cancela as que esperam, permissão (2141.045461ms)
+✔ automações (30164.756061ms)
+▶ n8n: chave de API e entrada de dados
+  ✔ cria a chave (mostrada uma vez) e cadastra contato e negócio no funil e etapa pelo nome (26.296516ms)
+  ✔ erros claros: etapa inexistente, chave errada, chave revogada, plano sem API (20.949696ms)
+✔ n8n: chave de API e entrada de dados (47.465192ms)
+▶ agente de cópias
+  ✔ lê o bloco COPY com escapes (1.461095ms)
+  ✔ a cópia leva banco, arquivos e um manifesto com as empresas (203.76181ms)
+  ✔ restaura uma empresa excluída, sem mexer na outra (2661.100569ms)
+  ✔ restaura o banco inteiro e guarda o anterior (1395.740113ms)
+  ✔ cópia antiga (.dump sem donos) ganha manifesto e restaura com os donos certos (1986.510015ms)
+  ✔ cópia de uma empresa: só os dados dela, sem senhas, e restaura por cima (2039.117936ms)
+  ✔ cópias das empresas somem depois do prazo (9.649579ms)
+  ✔ fila: pedido da plataforma é executado e registrado (123.148159ms)
+  ✔ arquivo enviado que não é cópia é recusado e apagado (6.198128ms)
+✔ agente de cópias (9728.915913ms)
+(node:6703) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ cópias na plataforma
+  ✔ sem a pasta ligada, a tela avisa e não aceita pedido (6.695325ms)
+  ✔ cópia agora: o pedido vai para a fila e o agente executa (155.609846ms)
+  ✔ baixar a cópia e enviar de volta (83.656225ms)
+  ✔ restaurar uma empresa da cópia, com confirmação (2531.003707ms)
+  ✔ a API sobrevive às conexões derrubadas (troca do banco na restauração completa) (216.255679ms)
+  ✔ só o administrador geral vê; excluir uma cópia (10.04758ms)
+✔ cópias na plataforma (4574.359003ms)
+▶ cópias dentro da empresa
+  ✔ o administrador da empresa faz a cópia só da própria empresa (947.630182ms)
+  ✔ outra empresa não vê, não baixa e não restaura a cópia (16.741947ms)
+  ✔ quem não administra a empresa não usa as cópias (10.093686ms)
+  ✔ restaurar a cópia da empresa, com confirmação (1215.547405ms)
+  ✔ excluir uma cópia da empresa (8.488769ms)
+✔ cópias dentro da empresa (2241.837128ms)
+(node:7798) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ senha fraca impede a primeira configuração (1545.708711ms)
+✔ cria a empresa WTA, o superadministrador e os perfis (51.366917ms)
+✔ rodar de novo não duplica nada nem troca a senha (21.481702ms)
+✔ o dono entra como administrador da WTA (61.92382ms)
+(node:8135) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:8135) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+▶ campanha de WhatsApp
+  ✔ o público mostra quem recebe e por que alguns ficam de fora (21.569121ms)
+  ✔ qualquer telefone vale (fixo também); sem telefone, usa o da organização e aponta o provável duplicado (57.337012ms)
+  ✔ o marketing cria o rascunho; só quem aprova inicia o envio (24.305348ms)
+  ✔ aprovada, o despachante monta o público e envia no ritmo, com variáveis e o "responda SAIR" (98.978833ms)
+  ✔ quem responde SAIR vai para a supressão e não recebe a próxima (28.793272ms)
+  ✔ duplicar, editar só antes do envio e excluir só o que não está em andamento (17.866266ms)
+✔ campanha de WhatsApp (2049.873845ms)
+▶ campanha de e-mail, pausa e conta desconectada
+  ✔ e-mail com assunto, variáveis e link para sair que funciona (111.375894ms)
+  ✔ sem conteúdo ou com público vazio não inicia; agendar para o passado também não (56.657309ms)
+  ✔ WhatsApp desconectado no meio: a campanha pausa e retoma depois (144.552932ms)
+  ✔ limite por hora: envia até o limite, espera e continua de onde parou; pausa programada (144.280605ms)
+  ✔ público por funil e várias etapas, com exclusão por etapa e por etiqueta, e etiquetas "todas" (128.266672ms)
+  ✔ etiqueta de quem recebeu com sucesso: na hora do envio e depois, para quem já recebeu (88.758702ms)
+  ✔ excluir campanhas: uma ou várias (rascunhos de teste); em andamento fica (32.369057ms)
+✔ campanha de e-mail, pausa e conta desconectada (707.049069ms)
+▶ corrigir a mensagem com a campanha pausada e nome estranho no cadastro
+  ✔ {{Nome}} em maiúscula, alternativa {{primeiro_nome|amigo}} e vírgula sem espaço sobrando (0.881671ms)
+  ✔ pausada: mostra os nomes estranhos da fila, edita o texto e retoma com o texto novo (107.709438ms)
+✔ corrigir a mensagem com a campanha pausada e nome estranho no cadastro (108.914867ms)
+(node:8450) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ WhatsApp pela Evolution
+  ✔ cria a instância com o prefixo do CRM, o webhook próprio e o QR code (25.410628ms)
+  ✔ novo QR code enquanto não conecta; conectado, guarda o número (27.831458ms)
+  ✔ o limite do plano vale para números de WhatsApp (9.027314ms)
+  ✔ mensagem de número desconhecido cria o contato e aparece nas conversas (57.464661ms)
+(node:8450) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+  ✔ número sem o nono dígito encontra o contato já cadastrado (29.617118ms)
+  ✔ envia texto, recebe os avisos de entrega e leitura, e o eco não duplica (30.940826ms)
+  ✔ mensagem enviada pelo celular entra no histórico como enviada (17.365403ms)
+  ✔ áudio gravado no CRM vai como mensagem de voz (Ogg/Opus) (110.014128ms)
+  ✔ envia e recebe arquivos (44.480177ms)
+  ✔ áudio de voz do WhatsApp: guardado, recuperado depois e sob demanda (511.10443ms)
+  ✔ mensagem que chega vazia: completa quando o conteúdo chega e sob demanda pela Evolution (50.74142ms)
+  ✔ nota de áudio: grava, ouve, edita o texto; apagar leva o áudio junto (50.614415ms)
+  ✔ negócio parado: aviso no card e por WhatsApp para quem cadastrou, de tantos em tantos dias (96.757793ms)
+  ✔ negócio parado em massa: um resumo por pessoa (responsável + fixa), no WhatsApp e no CRM (145.079605ms)
+  ✔ falha no envio fica registrada com o motivo (16.00302ms)
+  ✔ avisos inválidos, de grupo ou com token errado (4.39907ms)
+  ✔ sem a permissão, sem acesso; outra empresa não vê a conta (9.485765ms)
+✔ WhatsApp pela Evolution (2842.07222ms)
+▶ e-mail da empresa
+  ✔ cadastra a caixa com a senha cifrada e manda o e-mail de teste (22.22449ms)
+  ✔ senha errada: a conta fica com erro e o motivo (29.120832ms)
+  ✔ envia e-mail ao contato, com assunto, e fica no histórico (27.310245ms)
+  ✔ o limite do plano vale para contas de e-mail (4.633773ms)
+✔ e-mail da empresa (83.665597ms)
+▶ conta removida e privacidade
+  ✔ desconectar e remover a instância; o histórico fica (17.058806ms)
+  ✔ anonimizar o titular apaga as mensagens (21.068137ms)
+✔ conta removida e privacidade (38.387846ms)
+(node:8450) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+▶ sem a Evolution configurada
+  ✔ a tela avisa e criar um número responde 409 (72.353734ms)
+✔ sem a Evolution configurada (72.5962ms)
+(node:8810) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:8810) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+▶ iniciar conversa
+  ✔ contato novo, sem mensagem nenhuma: a conversa abre e o WhatsApp sai (51.820128ms)
+  ✔ e-mail é outra conversa, e só aceita conta de e-mail (46.03226ms)
+  ✔ contato sem telefone não abre conversa de WhatsApp (13.017039ms)
+  ✔ não abre conversa com contato fora do alcance (14.901813ms)
+✔ iniciar conversa (1793.660169ms)
+▶ estado, responsável e filtros
+  ✔ número desconhecido: conversa sem responsável que o comercial pode assumir (43.655177ms)
+  ✔ marcar como lida, responder, aguardar e encerrar; o cliente escreve e reabre (43.913942ms)
+  ✔ o administrador atribui e troca a equipe; filtros por pessoa, equipe, etiqueta e negócio (103.381363ms)
+  ✔ filtro por número/conexão e ocultar conversas (só administrador e gestor) (76.003852ms)
+  ✔ quem está com a conversa devolve para a fila ou transfere para outra pessoa (23.613366ms)
+  ✔ a empresa B não vê nem altera (9.238759ms)
+✔ estado, responsável e filtros (300.47033ms)
+▶ respostas prontas
+  ✔ o administrador cria respostas da empresa; o comercial, as suas (19.995339ms)
+  ✔ cada um vê as da empresa e as suas; busca e filtro por canal (15.761481ms)
+  ✔ editar e excluir: a própria sim; a da empresa e a do colega, não (17.984027ms)
+✔ respostas prontas (54.08761ms)
+(node:9123) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:9123) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+▶ contatos
+  ✔ cria com vários e-mails e telefones normalizados, etiquetas e campos personalizados (32.164519ms)
+  ✔ valida e-mail, telefone, campo personalizado e data (15.199838ms)
+  ✔ busca ignora acentos e acha por e-mail e telefone (19.650453ms)
+  ✔ duplicado por e-mail ou telefone é avisado, e pode ser criado de propósito (16.066731ms)
+  ✔ duplicado fora do alcance não revela o nome (4.16562ms)
+  ✔ alcance: comercial vê os seus; líder vê os da equipe; outra equipe e outra empresa não veem (31.780675ms)
+  ✔ comercial não atribui contato a outra pessoa; líder atribui dentro da equipe (10.443146ms)
+  ✔ visualizador lê e não escreve; excluir exige permissão (8.374857ms)
+  ✔ edição registra na linha do tempo só os nomes dos campos (12.002466ms)
+  ✔ mesclagem preserva histórico, negócios e notas, e fica auditada (63.529395ms)
+  ✔ consentimento por canal com origem e data; opt-out entra na supressão (16.266705ms)
+  ✔ primeira origem nunca é sobrescrita; a última acompanha (10.879581ms)
+  ✔ paginação e ordenação (69.364307ms)
+✔ contatos (1993.74618ms)
+▶ funis e negócios
+  ✔ funil novo nasce com as etapas padrão e só administrador configura (12.561361ms)
+  ✔ negócio começa na primeira etapa, com histórico (8.127267ms)
+  ✔ previsão de fechamento volta como data simples (AAAA-MM-DD) em todo lugar (32.913076ms)
+  ✔ etapa com campo obrigatório barra a mudança e diz o que falta (27.541211ms)
+  ✔ regra de transição limita os destinos (20.522901ms)
+  ✔ perda exige motivo quando há motivos cadastrados; ganho fecha com data (32.15798ms)
+  ✔ itens de produto definem o valor (22.112012ms)
+  ✔ quadro: totais por etapa e alcance do comercial (18.543089ms)
+  ✔ participante vê o negócio do colega (24.525599ms)
+  ✔ comercial não troca o responsável; gestor troca e fica auditado (20.651767ms)
+  ✔ troca de responsável em massa: conta antes, transfere, avisa e fica auditada (73.473199ms)
+  ✔ notas: autor edita; gestor edita a nota de outra pessoa (fica no histórico); colega não (32.250159ms)
+  ✔ funil restrito some da interface, da API e da exportação (72.098387ms)
+  ✔ etapa com negócios não é removida (3.966262ms)
+  ✔ outra empresa não usa funil nem negócio daqui (9.23898ms)
+✔ funis e negócios (411.797763ms)
+▶ leads e distribuição
+  ✔ rodízio distribui por igual mesmo com entradas simultâneas (228.573108ms)
+  ✔ lead de outra origem não entra no rodízio do site (7.137111ms)
+  ✔ contato existente é reaproveitado e a origem fica registrada (13.773635ms)
+  ✔ qualificar cria o negócio ligado ao lead e ao contato (23.895994ms)
+  ✔ comercial não vê nem atribui lead do colega (15.644088ms)
+  ✔ descartar pede motivo e pode ser desfeito (15.442695ms)
+✔ leads e distribuição (311.793499ms)
+▶ tarefas e agenda
+  ✔ recorrência semanal mantém o horário local e respeita a contagem (15.293859ms)
+  ✔ editar "esta e as seguintes" desloca a série; excluir as seguintes encerra (20.235972ms)
+  ✔ série sem fim é estendida pelo despachante (217.609409ms)
+  ✔ tarefas por prazo: atrasadas, hoje, próximos 7 dias e sem data (28.143791ms)
+  ✔ lembrete vira notificação uma vez; concluir atualiza o último contato (55.105807ms)
+  ✔ tarefas de colega não aparecem; outra empresa não abre (15.719199ms)
+✔ tarefas e agenda (352.682705ms)
+▶ arquivos
+  ✔ aceita pelo conteúdo e entrega só por endereço assinado (16.288466ms)
+  ✔ recusa HTML, executável e extensão falsa (11.154878ms)
+  ✔ arquivo de registro fora do alcance ou de outra empresa devolve 404 (20.114561ms)
+  ✔ endereço vencido não serve; arquivo removido some (14.16454ms)
+✔ arquivos (68.776782ms)
+▶ importação e exportação
+  ✔ CSV de 10 mil linhas com erro por linha, duplicados e etiquetas (59264.27631ms)
+  ✔ importação retomada depois de queda não repete linhas (2022.300445ms)
+  ✔ Pipedrive: pessoas e negócios exportados entram sem erro, com telefones e e-mails arrumados (176.106939ms)
+  ✔ transferir negócio para outro funil, na etapa escolhida (inclusive ganho ou perdido volta a andar) (40.129521ms)
+  ✔ funis arquivados: listar, renomear, desarquivar, nome livre de novo; limpar negócios e excluir com negócios (93.702863ms)
+  ✔ comercial não importa nem exporta (4.022801ms)
+  ✔ exportação respeita o alcance e fica registrada (522.445511ms)
+✔ importação e exportação (62123.589454ms)
+▶ privacidade do titular
+  ✔ exporta tudo e anonimiza, com auditoria; exige permissão e 2FA (46.924027ms)
+✔ privacidade do titular (47.126793ms)
+▶ painel
+  ✔ números batem com a consulta direta e respeitam o alcance (47.441892ms)
+✔ painel (47.623436ms)
+▶ números do WhatsApp
+  ✔ JID de pessoa vira E.164; grupo, lista e canal não (0.542158ms)
+  ✔ celular brasileiro com e sem o nono dígito (0.57671ms)
+✔ números do WhatsApp (1.751383ms)
+▶ avisos da Evolution
+  ✔ mensagem de texto, legenda, localização e o número alternativo (LID) (0.889162ms)
+  ✔ mensagens embrulhadas (temporária, ver uma vez, outro aparelho) e tipos menos comuns (0.505884ms)
+  ✔ reação, grupo e evento desconhecido são ignorados (0.124128ms)
+  ✔ estado de entrega e de conexão (0.166722ms)
+✔ avisos da Evolution (1.904214ms)
+▶ proteção de rede do SMTP da empresa
+  ✔ endereços internos são recusados (3.706403ms)
+  ✔ texto do e-mail não vira HTML (0.250829ms)
+✔ proteção de rede do SMTP da empresa (4.143634ms)
+✔ acha e-mail e telefone no texto da mensagem (2.49875ms)
+✔ nome provisório do Instagram e divisão do nome (0.468998ms)
+▶ recorrência
+  ✔ mantém o horário de parede na mudança de horário de verão (1.6961ms)
+  ✔ mensal no dia 31 cai no último dia dos meses curtos (0.40469ms)
+  ✔ anual em 29 de fevereiro cai em 28 nos anos comuns (0.313623ms)
+  ✔ semanal em vários dias, a cada duas semanas, até uma data (0.222005ms)
+  ✔ sem fim para no horizonte e retoma de onde parou (0.343088ms)
+  ✔ regras inválidas são recusadas (0.171129ms)
+✔ recorrência (3.940076ms)
+▶ dados de contato
+  ✔ telefone em E.164, com DDD do Brasil por padrão (3.064234ms)
+  ✔ e-mail, domínio e aniversário (0.314114ms)
+✔ dados de contato (3.586182ms)
+▶ campos personalizados
+  ✔ converte e valida cada tipo (0.648599ms)
+  ✔ obrigatório na criação e ao limpar; vazio remove (0.250979ms)
+✔ campos personalizados (1.046179ms)
+▶ CSV
+  ✔ lê UTF-8 com BOM e Windows-1252, com ; ou , (2.134731ms)
+  ✔ sugere o destino pelo cabeçalho (0.582629ms)
+✔ CSV (2.825354ms)
+✔ palavra-chave: qualquer, contém (palavra inteira, sem acento) e exata (0.978547ms)
+✔ variáveis no texto e respostas (0.433384ms)
+✔ clique no botão leva a execução e o botão (0.643ms)
+✔ fluxo inicial do comentário: resposta pública, privado com botão "Quero", sem erros (5.468934ms)
+✔ avisos: janela fechada no comentário, bloco solto, gatilho errado, publicação não escolhida (1.182645ms)
+✔ desenho inválido é recusado: dois gatilhos, seta para bloco inexistente (0.750262ms)
+✔ WhatsApp: transmissão começa pelo modelo; blocos só do Instagram dão erro; janela fechada antes do clique (1.708158ms)
+✔ QR code: opções numeradas, links no fim e escolha pelo número, nome ou palavra (0.613086ms)
+✔ sorteio: escolhe o caminho pelo peso (0.193372ms)
+✔ QR code: campanha começa por mensagem (sem modelo), até 10 opções e exemplo pronto (1.308074ms)
+✔ telefones do Pipedrive e do Excel viram +DDI (5.197774ms)
+✔ e-mails de preenchimento, valores e datas (0.738965ms)
+✔ Greenn: lê venda e contrato, decide a ação e recusa corpo inválido (1.516228ms)
+✔ Greenn: fim do período no horário de Brasília e segredo comparado por inteiro (0.815931ms)
+✔ plano: sem plano não há limite; recurso ausente é negado; número nulo é ilimitado (0.115865ms)
+✔ as paletas prontas passam nas regras de contraste (1.8088ms)
+✔ HOTP confere com os vetores da RFC 4226 (1.284589ms)
+✔ TOTP confere com os vetores da RFC 6238 (0.196677ms)
+✔ verifyTotp aceita um passo de diferença e recusa dois (0.363278ms)
+✔ base32 vai e volta, e o otpauth leva o segredo (0.797153ms)
+✔ SecretBox cifra, decifra, recusa adulteração e troca de contexto (0.81561ms)
+✔ tokens e códigos de recuperação (0.531983ms)
+✔ regra de senha (0.210057ms)
+✔ bloqueio progressivo (0.131388ms)
+✔ perfis padrão respeitam o alcance de cada permissão (0.408046ms)
+✔ só o administrador tem as permissões que exigem 2FA (0.198049ms)
+✔ linhas da matriz conferidas uma a uma (0.150417ms)
+✔ união de perfis fica com o maior alcance (0.17197ms)
+✔ contraste segue a fórmula da WCAG (0.234864ms)
+✔ o tema da WTA sai igual ao padrão (0.469679ms)
+✔ cor escura recebe texto branco; cor clara recebe texto escuro (0.409248ms)
+✔ cor quase branca serve no tema escuro, mas não no claro (0.33752ms)
+✔ formato inválido é recusado (0.100431ms)
+✔ toda cor válida gera tema com contraste ou é recusada com explicação (23.819637ms)
+(node:9807) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:9807) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+✔ resultado da call: concluir pede o resultado, reabrir apaga (1728.215481ms)
+✔ indicadores comerciais: contatados, calls, vendas na call e no follow-up, conversão (333.790114ms)
+(node:10120) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ fluxos do Instagram
+  ✔ a conta ativa os avisos que os fluxos usam (comentários, live, menções, reações, cliques) (30.429194ms)
+  ✔ comentário "eu quero": responde no comentário e no privado; clique, pergunta, condição e ação (180.681901ms)
+  ✔ palavra no direct com botão (o Instagram recusa o modelo: vai como resposta rápida) e espera de 5 minutos (79.19771ms)
+  ✔ menção e resposta a story, reação e comentário em live (131.148462ms)
+  ✔ no comentário, o direct só abre pelo clique: texto direto falha com o motivo; publicação escolhida (53.654622ms)
+  ✔ publicar com erro é barrado; rascunho não mexe no publicado; pausar, duplicar, excluir (71.946094ms)
+  ✔ publicações, biblioteca de mídia (bloco de mídia manda o arquivo) e contatos com a janela aberta (63.885244ms)
+✔ fluxos do Instagram (2331.536055ms)
+(node:10456) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ investimento lançado à mão: criar, mudar, apagar e quem pode (1725.25838ms)
+✔ Meta Ads: liga a conta, importa o gasto por dia e atualiza (97.563074ms)
+(node:10456) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+✔ KPIs por período: funil, no-show, custos, ROAS e conversão (130.993364ms)
+✔ KPIs fiéis: um painel por funil, conferência e tirar da conta (291.102733ms)
+✔ desligar a conta da Meta tira o gasto importado (8.009474ms)
+(node:10769) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ WhatsApp oficial (Cloud API)
+  ✔ cadastrar: token errado mostra o erro; certo conecta e mostra o endereço dos avisos (44.659166ms)
+  ✔ a Meta verifica o endereço; aviso sem assinatura certa é recusado (9.895596ms)
+  ✔ mensagem recebida cria o contato e a conversa; a resposta sai pela Cloud API e o status volta (53.104967ms)
+  ✔ imagem recebida é baixada da Meta e fica no histórico (23.261264ms)
+(node:10769) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+  ✔ fora das 24 h: texto livre é recusado; modelo criado, aprovado e enviado (64.584544ms)
+  ✔ sincronizar traz os modelos da Meta; outra empresa não vê; excluir apaga lá e aqui (23.181909ms)
+  ✔ campanha pelo WhatsApp oficial sai com o modelo e as variáveis de cada contato (131.189476ms)
+✔ WhatsApp oficial (Cloud API) (1957.395865ms)
+▶ modelos com mídia e botões de link
+  ✔ cabeçalho de imagem vai para a Meta como arquivo de exemplo; o envio leva o link da imagem (76.263903ms)
+  ✔ modelo com imagem trazido da Meta usa o exemplo guardado lá (27.487063ms)
+✔ modelos com mídia e botões de link (104.186213ms)
+▶ registro do número e chaves
+  ✔ com o PIN, o número é registrado na Cloud API; PIN errado mostra o erro (20.079787ms)
+✔ registro do número e chaves (20.286689ms)
+▶ Instagram
+  ✔ cadastrar e receber: o contato nasce com o @ do Instagram (31.558041ms)
+  ✔ responder dentro de 24 h; depois disso o Instagram não deixa (20.297185ms)
+  ✔ aviso assinado com a segunda chave (app do Instagram) também vale (18.525637ms)
+  ✔ o contato do Instagram ganha o nome do perfil e o e-mail e telefone que a pessoa escreveu (33.18073ms)
+  ✔ mídia do direct: áudio, arquivo buscado de novo, reels; responder com áudio gravado (249.311054ms)
+  ✔ o token do Instagram é renovado sozinho antes dos 60 dias (38.681984ms)
+✔ Instagram (392.083881ms)
+(node:11141) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ o padrão é exigir; só "false" ou "0" desliga (1580.233286ms)
+✔ administrador sem 2FA abre as áreas administrativas e a plataforma (88.20448ms)
+✔ quem ativou a 2FA continua precisando do código para entrar (49.169097ms)
+(node:11455) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ status da operação
+  ✔ volume, tempo de resposta, fila e atendentes (107.705649ms)
+  ✔ cada um vê o seu alcance; outra empresa não vê nada (32.847697ms)
+✔ status da operação (1854.55882ms)
+(node:11455) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+▶ ações agendadas
+  ✔ agendar uma mensagem; sai no horário em nome de quem agendou (78.643405ms)
+  ✔ mudar o horário e cancelar só antes de sair; a lista junta tarefas e automações (43.674733ms)
+✔ ações agendadas (122.687606ms)
+(node:11789) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ empresas na plataforma
+  ✔ edita nome e contato e reenvia o convite do administrador (17.230316ms)
+  ✔ exclui só com o identificador digitado; a empresa da WTA não sai (70.670556ms)
+✔ empresas na plataforma (1738.579159ms)
+▶ planos e limites
+  ✔ plano com limites; a empresa vê o próprio plano e o uso (16.441576ms)
+  ✔ o limite de usuários barra o convite além do plano (12.257698ms)
+  ✔ domínio próprio só no plano que permite (130.640444ms)
+  ✔ plano em uso não é excluído (3.548863ms)
+✔ planos e limites (163.326511ms)
+▶ marca e acesso pelo domínio
+  ✔ paletas prontas passam no contraste; menu claro demais é recusado (19.393808ms)
+  ✔ logotipo enviado aparece por endereço público; formato errado é recusado (17.062753ms)
+  ✔ no domínio verificado, a tela de login recebe a marca e o login entra direto na empresa (25.923536ms)
+✔ marca e acesso pelo domínio (62.822585ms)
+▶ Greenn
+  ✔ segredo errado: 404; o endereço aparece para o superadministrador (4.102795ms)
+  ✔ venda paga cria a empresa com o plano, convida o comprador, e repetir não duplica (41.221208ms)
+  ✔ reembolso suspende na hora; nova compra reativa (11.576997ms)
+  ✔ assinatura: paga vale até o fim do contrato; cancelada vale até o fim e depois suspende (63.361633ms)
+  ✔ produto sem plano, aguardando pagamento e corpo inválido ficam só registrados (7.617682ms)
+✔ Greenn (140.340849ms)
+(node:12104) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ Data do fechamento
+  ✔ ganho com a data em que fechou de verdade: o relatório conta naquele mês (44.056887ms)
+  ✔ corrigir a data de um negócio já fechado (33.44908ms)
+  ✔ fechar vários de uma vez com a data certa; os que não dá voltam com o motivo (59.954998ms)
+✔ Data do fechamento (1729.91636ms)
+▶ Pós-venda
+  ✔ configuração: padrão sugerido, só o administrador salva e confere o que falta (18.942285ms)
+(node:12104) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+  ✔ X dias depois do ganho: avisa a equipe por WhatsApp e no CRM, e repete a cada Y dias até o limite (106.691051ms)
+  ✔ tela: lista quem contatar com a mensagem pronta; "Feito" tira da lista (43.835129ms)
+  ✔ "a partir de": negócios antigos não entram (12.736581ms)
+✔ Pós-venda (182.665922ms)
+✔ as migrações desta versão são encontradas (1263.28755ms)
+(node:12439) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ migração pendente deixa a API fora de serviço até ser aplicada (120.733357ms)
+(node:12752) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ Transcrição das notas de áudio
+  ✔ texto do whisper fica limpo, sem marcas como [Música] ou (risos) (2.205269ms)
+  ✔ no próprio servidor: a nota nasce "transcrevendo" e ganha o texto (104.869599ms)
+  ✔ chave da OpenAI: só o administrador configura, é conferida e fica cifrada (42.81241ms)
+  ✔ pela OpenAI: transcrever de novo uma nota antiga usa a chave da empresa (61.539602ms)
+  ✔ falha na OpenAI marca "não foi possível" e dá para tentar de novo (109.498958ms)
+  ✔ remover a chave volta para o servidor (4.619143ms)
+✔ Transcrição das notas de áudio (1933.819123ms)
+(node:13146) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:13146) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+▶ Avisos de cada operadora (formato único)
+  ✔ Twilio/Telnyx, Plivo, Infobip, central SIP, Zenvia e API própria (1.4641ms)
+✔ Avisos de cada operadora (formato único) (1657.373556ms)
+▶ Campanha de voz
+  ✔ operadora: só o administrador cadastra; o token fica cifrado e não volta (27.580315ms)
+  ✔ áudio gravado na hora vira MP3 na biblioteca (85.448941ms)
+  ✔ teste: confere as credenciais, liga de verdade e só fica "testada" quando atendem (108.652872ms)
+  ✔ público por telefone: vale fixo e celular; quem não tem telefone fica de fora (23.228924ms)
+  ✔ cria, confere o que falta e liga para o público (100.082544ms)
+  ✔ atendeu e apertou 1: etiqueta, aviso ao responsável e WhatsApp; atendida marca a etiqueta de sucesso (31.621736ms)
+  ✔ não atendeu: sai o SMS pela operadora; o relatório mostra o resultado de cada ligação (16.149428ms)
+  ✔ endereço de aviso adulterado ou de outra operadora: 404 (3.968851ms)
+  ✔ não dá para excluir a operadora com campanha em andamento (3.861519ms)
+✔ Campanha de voz (401.506645ms)
+▶ Zenvia, central SIP e API própria
+  ✔ Zenvia: liga com o número nacional e o resultado é consultado pelo despachante (68.729564ms)
+  ✔ central própria (Asterisk): confere a ARI e avisa por GET com a tecla e o fim (65.735373ms)
+  ✔ API própria: manda o pedido com o endereço de retorno (10.534323ms)
+✔ Zenvia, central SIP e API própria (145.303699ms)
+(node:13506) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ fluxos do WhatsApp oficial
+  ✔ criar o fluxo de transmissão: começa pelo modelo; só publica com modelo aprovado e botões ligados (65.630481ms)
+(node:13506) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+  ✔ transmissão: a campanha com o fluxo manda o modelo com o dado de cada botão (186.938195ms)
+  ✔ o clique no botão do modelo continua o fluxo: etiqueta, pergunta com validação e resposta final (74.837334ms)
+  ✔ escrever o nome do botão vale como clique; botão da mensagem interativa continua o caminho (38.335467ms)
+  ✔ resultados: disparos, cliques por botão e quem tocou na campanha (11.472888ms)
+  ✔ palavra-chave: mensagem com a palavra começa o fluxo para quem escreveu (65.165359ms)
+✔ fluxos do WhatsApp oficial (1983.542502ms)
+(node:13839) [FSTDEP022] FastifyWarning: The router options for maxParamLength property access is deprecated. Please use "options.routerOptions" instead for accessing router options. The router options will be removed in `fastify@6`.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ Fluxos no WhatsApp por QR code
+  ✔ o número de QR code aparece para os fluxos e o fluxo novo já vem com um exemplo pronto (24.848047ms)
+  ✔ palavra-chave: mensagem com opções numeradas e "digitando…"; o número escolhe o caminho (104.142527ms)
+  ✔ aceita o nome ou uma palavra da opção; resposta fora das opções pede de novo (até 2 vezes) (124.876092ms)
+  ✔ com a saída "Outra resposta" ligada, segue por ela; a equipe respondendo pelo celular para o fluxo (79.780219ms)
+(node:13839) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+  ✔ campanha com fluxo pelo QR code: manda a primeira mensagem para a base e a resposta continua (185.017585ms)
+✔ Fluxos no WhatsApp por QR code (2075.464638ms)
+▶ Palavra-chave, teste no próprio celular e conversa completa
+  ✔ palavra-chave exata ("#01") começa o fluxo mesmo com outro fluxo esperando resposta (57.561734ms)
+  ✔ mensagem para si mesmo no celular conectado também testa o fluxo (21.757854ms)
+  ✔ diagnóstico: o que aconteceu com cada mensagem que chegou (15.336674ms)
+  ✔ endereço privado (@lid): aprende o número e mostra também o que foi mandado pelo celular (16.57328ms)
+  ✔ sincronizar com o celular: traz para a conversa o que o aviso não trouxe, em ordem (22.403934ms)
+✔ Palavra-chave, teste no próprio celular e conversa completa (134.19269ms)
+ℹ tests 350
+ℹ suites 68
+ℹ pass 350
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 165367.785112
