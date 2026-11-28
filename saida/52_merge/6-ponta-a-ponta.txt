@@ -32,7 +32,7 @@ aplicando 0031_pos_venda
 aplicando 0032_whatsapp_lid
 migrações aplicadas agora: 32
 papel crm_api pronto
-pronto: empresa 1dced1c0-3dc7-466f-bf6e-60a01a832743, superadministrador 97dc8f46-4dd2-4839-9020-fc07d0794b9f
+pronto: empresa a4a5a76d-0f75-4408-87cf-66fd6c11c135, superadministrador a8d783d0-b47a-4605-929e-4023a3855565
 {"status":"ok","database":"ok","version":"dev"}
 
 > @crm/web@ e2e /home/runner/work/crm-wta/crm-wta/apps/web
@@ -42,8 +42,8 @@ pronto: empresa 1dced1c0-3dc7-466f-bf6e-60a01a832743, superadministrador 97dc8f4
 Running 47 tests using 1 worker
 
   ✓   1 [chromium] › e2e/acesso.spec.ts:12:1 › a tela de login é acessível, no computador e no celular (1.3s)
-  ✓   2 [chromium] › e2e/acesso.spec.ts:24:1 › senha errada mostra a mensagem e não entra (281ms)
-  ✓   3 [chromium] › e2e/acesso.spec.ts:30:1 › sem sessão, a área interna manda para o login e volta depois (407ms)
+  ✓   2 [chromium] › e2e/acesso.spec.ts:24:1 › senha errada mostra a mensagem e não entra (291ms)
+  ✓   3 [chromium] › e2e/acesso.spec.ts:30:1 › sem sessão, a área interna manda para o login e volta depois (425ms)
   ✓   4 [chromium] › e2e/acesso.spec.ts:40:1 › o administrador entra e vê o aviso para ativar a verificação em duas etapas (1.6s)
   ✓   5 [chromium] › e2e/acesso.spec.ts:49:1 › convite: a pessoa cria a conta e entra (1.4s)
   ✓   6 [chromium] › e2e/acesso.spec.ts:72:1 › esqueci a senha: o link do e-mail cria uma senha nova (1.6s)
@@ -51,106 +51,42 @@ Running 47 tests using 1 worker
   ✓   8 [chromium] › e2e/admin.spec.ts:14:1 › convidar, aceitar, trocar o perfil e desativar (2.8s)
   ✓   9 [chromium] › e2e/admin.spec.ts:54:1 › equipes: criar e definir as pessoas (1.9s)
   ✓  10 [chromium] › e2e/admin.spec.ts:72:1 › perfis: o administrador é protegido; um perfil novo nasce de um modelo (2.2s)
-  ✓  11 [chromium] › e2e/admin.spec.ts:89:1 › identidade visual: recusa cor sem contraste, aplica a nova e restaura (2.3s)
-  ✓  12 [chromium] › e2e/admin.spec.ts:119:1 › auditoria mostra o que foi feito, com filtro (1.6s)
+  ✓  11 [chromium] › e2e/admin.spec.ts:89:1 › identidade visual: recusa cor sem contraste, aplica a nova e restaura (2.4s)
+  ✓  12 [chromium] › e2e/admin.spec.ts:119:1 › auditoria mostra o que foi feito, com filtro (1.7s)
   ✓  13 [chromium] › e2e/admin.spec.ts:130:1 › plataforma: criar e suspender uma empresa (1.8s)
   ✓  14 [chromium] › e2e/crm.spec.ts:9:1 › contatos: cadastrar, anotar, agendar, anexar e achar duplicado (4.6s)
   ✓  15 [chromium] › e2e/crm.spec.ts:91:1 › negócios: funil padrão, quadro, regras de etapa, ganho e perda (4.9s)
   ✓  16 [chromium] › e2e/crm.spec.ts:165:1 › dado inesperado num negócio mostra um aviso, sem derrubar o CRM (1.8s)
-  ✓  17 [chromium] › e2e/crm.spec.ts:193:1 › leads: cadastrar e qualificar em negócio (1.7s)
-  ✓  18 [chromium] › e2e/crm.spec.ts:213:1 › agenda e painel (2.5s)
-  ✓  19 [chromium] › e2e/crm.spec.ts:233:1 › importar planilha CSV com erro por linha (4.3s)
-  ✓  20 [chromium] › e2e/crm.spec.ts:254:1 › planilha modelo: baixar, importar sem mexer em nada e reconhecer todas as colunas (4.0s)
-  ✓  21 [chromium] › e2e/crm.spec.ts:278:1 › Pipedrive: exportação de pessoas e de negócios entra sem erro (6.8s)
-  ✓  22 [chromium] › e2e/crm.spec.ts:320:1 › funis: arquivar, ver nos arquivados, renomear, desarquivar; limpar negócios e excluir (2.4s)
+  ✓  17 [chromium] › e2e/crm.spec.ts:193:1 › leads: cadastrar e qualificar em negócio (1.8s)
+  ✓  18 [chromium] › e2e/crm.spec.ts:213:1 › agenda e painel (2.4s)
+  ✓  19 [chromium] › e2e/crm.spec.ts:233:1 › importar planilha CSV com erro por linha (4.5s)
+  ✓  20 [chromium] › e2e/crm.spec.ts:254:1 › planilha modelo: baixar, importar sem mexer em nada e reconhecer todas as colunas (4.1s)
+  ✓  21 [chromium] › e2e/crm.spec.ts:278:1 › Pipedrive: exportação de pessoas e de negócios entra sem erro (6.9s)
+  ✓  22 [chromium] › e2e/crm.spec.ts:320:1 › funis: arquivar, ver nos arquivados, renomear, desarquivar; limpar negócios e excluir (2.2s)
   ✓  23 [chromium] › e2e/crm.spec.ts:353:1 › configurações do CRM: funis e campos (3.4s)
-  ✓  24 [chromium] › e2e/mensagens-automacoes.spec.ts:11:1 › automação: contato novo vira tarefa, com o histórico da execução (6.7s)
-  ✓  25 [chromium] › e2e/mensagens-automacoes.spec.ts:67:1 › n8n: chave de API mostrada uma vez, cadastro de contato e negócio pela entrada, revogar (2.4s)
-  ✓  26 [chromium] › e2e/mensagens.spec.ts:19:1 › WhatsApp: conectar pelo QR code, receber e responder pelas Conversas (35.1s)
-  ✓  27 [chromium] › e2e/mensagens.spec.ts:107:1 › e-mail da empresa: cadastrar, testar e enviar pelo contato (3.1s)
-  ✘  28 [chromium] › e2e/mensagens.spec.ts:147:1 › conversas: nova conversa com quem nunca escreveu, resposta pronta pelo atalho, estado e filtros (855ms)
-  -  29 [chromium] › e2e/mensagens.spec.ts:222:1 › campanha de WhatsApp: cinco passos, público, envio no ritmo e relatório
-  -  30 [chromium] › e2e/mensagens.spec.ts:275:1 › painel da operação: status agora, tendências, mapa de calor e atendentes
-  -  31 [chromium] › e2e/mensagens.spec.ts:291:1 › indicadores comerciais: resultado da call e números de contato, calls e vendas
-  -  32 [chromium] › e2e/mensagens.spec.ts:329:1 › KPIs: investimento lançado e importado da Meta, planilha por período e fator de escala
-  -  33 [chromium] › e2e/mensagens.spec.ts:438:1 › ações agendadas: agendar pelo contato e pela conversa, mudar e cancelar
-  ✘  34 [chromium] › e2e/meta.spec.ts:33:1 › WhatsApp oficial: cadastrar, avisos da Meta, modelo aprovado (4.1s)
-  -  35 [chromium] › e2e/meta.spec.ts:92:1 › WhatsApp oficial nas Conversas: recebe, responde e usa modelo fora das 24 h
-  -  36 [chromium] › e2e/meta.spec.ts:124:1 › Instagram: cadastrar, receber a mensagem direta e responder
-  -  37 [chromium] › e2e/meta.spec.ts:156:1 › passo a passo em página própria, para abrir ao lado do site da Meta
-  -  38 [chromium] › e2e/meta.spec.ts:169:1 › Instagram: fluxo de comentário "eu quero" — criar, testar, publicar e rodar
-  -  39 [chromium] › e2e/meta.spec.ts:246:1 › modelo do WhatsApp oficial com imagem, rodapé e botões de link e telefone, com prévia no celular
-  -  40 [chromium] › e2e/meta.spec.ts:281:1 › mídia do direct no CRM: imagem ampliada, PDF e vídeo na janela, áudio no player; gravar e mandar áudio
-  -  41 [chromium] › e2e/meta.spec.ts:324:1 › WhatsApp: transmissão com fluxo — modelo com botões, o que cada botão responde, publicar e enviar
-  ✓  42 [chromium] › e2e/plataforma.spec.ts:19:1 › plataforma: plano com limites, edição da empresa, assinatura e exclusão (3.1s)
-  ✓  43 [chromium] › e2e/plataforma.spec.ts:86:1 › conta que perdeu a empresa entra e aceita o convite de uma empresa nova (3.5s)
+  ✓  24 [chromium] › e2e/mensagens-automacoes.spec.ts:11:1 › automação: contato novo vira tarefa, com o histórico da execução (7.0s)
+  ✓  25 [chromium] › e2e/mensagens-automacoes.spec.ts:67:1 › n8n: chave de API mostrada uma vez, cadastro de contato e negócio pela entrada, revogar (2.5s)
+  ✓  26 [chromium] › e2e/mensagens.spec.ts:19:1 › WhatsApp: conectar pelo QR code, receber e responder pelas Conversas (35.2s)
+  ✓  27 [chromium] › e2e/mensagens.spec.ts:107:1 › e-mail da empresa: cadastrar, testar e enviar pelo contato (3.0s)
+  ✓  28 [chromium] › e2e/mensagens.spec.ts:147:1 › conversas: nova conversa com quem nunca escreveu, resposta pronta pelo atalho, estado e filtros (5.2s)
+  ✓  29 [chromium] › e2e/mensagens.spec.ts:222:1 › campanha de WhatsApp: cinco passos, público, envio no ritmo e relatório (16.8s)
+  ✓  30 [chromium] › e2e/mensagens.spec.ts:275:1 › painel da operação: status agora, tendências, mapa de calor e atendentes (2.0s)
+  ✓  31 [chromium] › e2e/mensagens.spec.ts:291:1 › indicadores comerciais: resultado da call e números de contato, calls e vendas (3.5s)
+  ✓  32 [chromium] › e2e/mensagens.spec.ts:329:1 › KPIs: investimento lançado e importado da Meta, planilha por período e fator de escala (5.7s)
+  ✓  33 [chromium] › e2e/mensagens.spec.ts:438:1 › ações agendadas: agendar pelo contato e pela conversa, mudar e cancelar (3.4s)
+  ✓  34 [chromium] › e2e/meta.spec.ts:33:1 › WhatsApp oficial: cadastrar, avisos da Meta, modelo aprovado (5.1s)
+  ✓  35 [chromium] › e2e/meta.spec.ts:92:1 › WhatsApp oficial nas Conversas: recebe, responde e usa modelo fora das 24 h (2.6s)
+  ✓  36 [chromium] › e2e/meta.spec.ts:124:1 › Instagram: cadastrar, receber a mensagem direta e responder (2.4s)
+  ✓  37 [chromium] › e2e/meta.spec.ts:156:1 › passo a passo em página própria, para abrir ao lado do site da Meta (2.3s)
+  ✓  38 [chromium] › e2e/meta.spec.ts:169:1 › Instagram: fluxo de comentário "eu quero" — criar, testar, publicar e rodar (6.6s)
+  ✓  39 [chromium] › e2e/meta.spec.ts:246:1 › modelo do WhatsApp oficial com imagem, rodapé e botões de link e telefone, com prévia no celular (1.9s)
+  ✓  40 [chromium] › e2e/meta.spec.ts:281:1 › mídia do direct no CRM: imagem ampliada, PDF e vídeo na janela, áudio no player; gravar e mandar áudio (4.2s)
+  ✓  41 [chromium] › e2e/meta.spec.ts:324:1 › WhatsApp: transmissão com fluxo — modelo com botões, o que cada botão responde, publicar e enviar (5.7s)
+  ✓  42 [chromium] › e2e/plataforma.spec.ts:19:1 › plataforma: plano com limites, edição da empresa, assinatura e exclusão (2.9s)
+  ✓  43 [chromium] › e2e/plataforma.spec.ts:86:1 › conta que perdeu a empresa entra e aceita o convite de uma empresa nova (3.4s)
   ✓  44 [chromium] › e2e/plataforma.spec.ts:137:1 › identidade visual: modelo de cores, menu e logotipo (2.0s)
   ✓  45 [chromium] › e2e/plataforma.spec.ts:163:1 › domínio próprio: instruções, cadastro e login com a marca da empresa (2.3s)
   ✓  46 [chromium] › e2e/plataforma.spec.ts:201:1 › backups: fazer cópia agora, baixar e restaurar uma empresa (11.5s)
   ✓  47 [chromium] › e2e/plataforma.spec.ts:236:1 › cópias dentro da empresa: o administrador faz, baixa e restaura só a própria empresa (8.6s)
 
-
-  1) [chromium] › e2e/mensagens.spec.ts:147:1 › conversas: nova conversa com quem nunca escreveu, resposta pronta pelo atalho, estado e filtros 
-
-    Error: locator.fill: Error: strict mode violation: getByRole('dialog', { name: 'Nova resposta pronta' }).getByLabel('Texto') resolved to 5 elements:
-        1) <button type="button" title="Negrito (*texto*)" aria-label="Negrito (*texto*)" class="flex size-8 items-center justify-center rounded-[6px] text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-40">…</button> aka getByRole('button', { name: 'Negrito (*texto*)' })
-        2) <button type="button" title="Itálico (_texto_)" aria-label="Itálico (_texto_)" class="flex size-8 items-center justify-center rounded-[6px] text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-40">…</button> aka getByRole('button', { name: 'Itálico (_texto_)' })
-        3) <button type="button" title="Tachado (~texto~)" aria-label="Tachado (~texto~)" class="flex size-8 items-center justify-center rounded-[6px] text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-40">…</button> aka getByRole('button', { name: 'Tachado (~texto~)' })
-        4) <button type="button" title="Monoespaçado (```texto```)" aria-label="Monoespaçado (```texto```)" class="flex size-8 items-center justify-center rounded-[6px] text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-40">…</button> aka getByRole('button', { name: 'Monoespaçado (```texto```)' })
-        5) <textarea rows="6" id="_r_5_" class="min-h-[88px] rounded-[6px] border bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-muted border-line-strong"></textarea> aka getByRole('textbox', { name: 'Texto' })
-
-    Call log:
-      - waiting for getByRole('dialog', { name: 'Nova resposta pronta' }).getByLabel('Texto')
-
-
-      154 |   await d.getByLabel('Atalho').fill('boasvindas');
-      155 |   await d.getByLabel('Título').fill('Boas-vindas');
-    > 156 |   await d.getByLabel('Texto').fill('Olá, {{primeiro_nome}}! Aqui é {{atendente}}. Como posso ajudar?');
-          |                               ^
-      157 |   await expectAccessible(page);
-      158 |   await d.getByRole('button', { name: 'Salvar' }).click();
-      159 |   await expect(page.getByText('Resposta criada.')).toBeVisible();
-        at /home/runner/work/crm-wta/crm-wta/apps/web/e2e/mensagens.spec.ts:156:31
-
-    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
-    ../../../saida/telas/falhas/mensagens-conversas-nova-c-9a2fd-elo-atalho-estado-e-filtros-chromium/test-failed-1.png
-    ────────────────────────────────────────────────────────────────────────────────────────────────
-
-    Error Context: ../../../saida/telas/falhas/mensagens-conversas-nova-c-9a2fd-elo-atalho-estado-e-filtros-chromium/error-context.md
-
-  2) [chromium] › e2e/meta.spec.ts:33:1 › WhatsApp oficial: cadastrar, avisos da Meta, modelo aprovado 
-
-    Error: locator.fill: Error: strict mode violation: getByRole('dialog', { name: 'Novo modelo de mensagem' }).getByLabel('Texto') resolved to 5 elements:
-        1) <button type="button" title="Negrito (*texto*)" aria-label="Negrito (*texto*)" class="flex size-8 items-center justify-center rounded-[6px] text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-40">…</button> aka getByRole('button', { name: 'Negrito (*texto*)' })
-        2) <button type="button" title="Itálico (_texto_)" aria-label="Itálico (_texto_)" class="flex size-8 items-center justify-center rounded-[6px] text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-40">…</button> aka getByRole('button', { name: 'Itálico (_texto_)' })
-        3) <button type="button" title="Tachado (~texto~)" aria-label="Tachado (~texto~)" class="flex size-8 items-center justify-center rounded-[6px] text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-40">…</button> aka getByRole('button', { name: 'Tachado (~texto~)' })
-        4) <button type="button" title="Monoespaçado (```texto```)" aria-label="Monoespaçado (```texto```)" class="flex size-8 items-center justify-center rounded-[6px] text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-40">…</button> aka getByRole('button', { name: 'Monoespaçado (```texto```)' })
-        5) <textarea rows="5" id="_r_f_" maxlength="1024" aria-describedby="_r_f_-dica" class="min-h-[88px] rounded-[6px] border bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-muted border-line-strong"></textarea> aka getByRole('textbox', { name: 'Texto' })
-
-    Call log:
-      - waiting for getByRole('dialog', { name: 'Novo modelo de mensagem' }).getByLabel('Texto')
-
-
-      71 |   await t.getByLabel('Nome', { exact: true }).fill('retorno_contato');
-      72 |   await t.getByLabel('Categoria').selectOption('UTILITY');
-    > 73 |   await t.getByLabel('Texto').fill('Olá ');
-         |                               ^
-      74 |   await t.getByRole('button', { name: /Inserir variável/ }).click();
-      75 |   await t.getByLabel('Texto').press('End');
-      76 |   await t.getByLabel('Texto').pressSequentially(', podemos falar sobre o seu pedido?');
-        at /home/runner/work/crm-wta/crm-wta/apps/web/e2e/meta.spec.ts:73:31
-
-    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
-    ../../../saida/telas/falhas/meta-WhatsApp-oficial-cada-905a9-sos-da-Meta-modelo-aprovado-chromium/test-failed-1.png
-    ────────────────────────────────────────────────────────────────────────────────────────────────
-
-    Error Context: ../../../saida/telas/falhas/meta-WhatsApp-oficial-cada-905a9-sos-da-Meta-modelo-aprovado-chromium/error-context.md
-
-  2 failed
-    [chromium] › e2e/mensagens.spec.ts:147:1 › conversas: nova conversa com quem nunca escreveu, resposta pronta pelo atalho, estado e filtros 
-    [chromium] › e2e/meta.spec.ts:33:1 › WhatsApp oficial: cadastrar, avisos da Meta, modelo aprovado 
-  12 did not run
-  33 passed (2.4m)
-/home/runner/work/crm-wta/crm-wta/apps/web:
- ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @crm/web@ e2e: `playwright test`
-Exit status 1
+  47 passed (3.5m)
